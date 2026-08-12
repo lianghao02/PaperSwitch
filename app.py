@@ -2,10 +2,12 @@
 # CONFIG — 所有可變參數集中於此，嚴禁在下方程式碼中散落魔術數字
 # ============================================================
 import json
+import hmac
 import os
 import shutil
 import subprocess
 import sys
+import uuid
 import webbrowser
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -18,14 +20,63 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 
+
+def _resolve_config_path(value: str) -> Path:
+    """將相對設定路徑固定解析為專案根目錄下的路徑。"""
+    path = Path(value)
+    return (BASE_DIR / path).resolve() if not path.is_absolute() else path.resolve()
+
+
+def _is_safe_storage_directory(path_value: str) -> bool:
+    """只允許清理專案根目錄內、且非專案根目錄本身的暫存資料夾。"""
+    try:
+        path = Path(path_value).resolve()
+        project_root = BASE_DIR.resolve()
+        return path != project_root and path.is_relative_to(project_root)
+    except (OSError, ValueError):
+        return False
+
+
+def _unique_output_path(output_dir: Path, filename: str) -> Path:
+    """產生輸出資料夾內不覆寫既有檔案的安全路徑。"""
+    candidate = (output_dir / filename).resolve()
+    if not candidate.is_relative_to(output_dir.resolve()):
+        raise ValueError("輸出檔案路徑不在指定資料夾內")
+
+    counter = 1
+    while candidate.exists():
+        candidate = output_dir / f"{Path(filename).stem}_{counter}{Path(filename).suffix}"
+        counter += 1
+    return candidate
+
+
+def _safe_pdf_filename(filename: str) -> str | None:
+    """只接受單一 PDF 檔名，避免路徑跳脫或覆寫任意位置。"""
+    if not filename or "/" in filename or "\\" in filename:
+        return None
+    candidate = Path(filename)
+    if candidate.is_absolute() or candidate.name in ("", ".", ".."):
+        return None
+    name = candidate.name
+    return name if name.lower().endswith(".pdf") else f"{name}.pdf"
+
+
+def _is_loopback_host(host: str) -> bool:
+    """判斷伺服器是否僅對本機開放。"""
+    return host.strip().lower() in {"localhost", "127.0.0.1", "::1"}
+
 CONFIG = {
     "host": os.getenv("HOST", "0.0.0.0" if os.getenv("RENDER") or os.getenv("DOCKER") else "127.0.0.1"),
     "port": int(os.getenv("PORT", "8080")),
     "upload_dir": os.getenv("UPLOAD_DIR", str(BASE_DIR / "uploads")),
     "output_dir": os.getenv("OUTPUT_DIR", str(BASE_DIR / "converted")),
+    "access_token": os.getenv("ACCESS_TOKEN", ""),
     "excel_fit_to_page": os.getenv("EXCEL_FIT_TO_PAGE", "True").lower() in ("true", "1"),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
 }
+
+CONFIG["upload_dir"] = str(_resolve_config_path(CONFIG["upload_dir"]))
+CONFIG["output_dir"] = str(_resolve_config_path(CONFIG["output_dir"]))
 
 if sys.platform == "win32":
     import pythoncom
@@ -125,8 +176,8 @@ class DocumentConverter:
                 else:
                     for ws in visible_sheets:
                         sheet_name = ws.Name
-                        safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (" ", "_", "-")).strip()
-                        sheet_pdf_path = str(output_dir / f"{stem}_{safe_sheet_name}.pdf")
+                        safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (" ", "_", "-")).strip() or "工作表"
+                        sheet_pdf_path = str(_unique_output_path(output_dir, f"{stem}_{safe_sheet_name}.pdf"))
 
                         if CONFIG["excel_fit_to_page"]:
                             try:
@@ -657,7 +708,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             try {
                 updateProgress(60, '轉檔渲染中...');
-                const resp = await fetch('/api/convert', { method: 'POST', body: formData });
+                const resp = await postApi('/api/convert', formData);
                 const res = await resp.json();
 
                 if (res.success) {
@@ -683,7 +734,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         async function openOutputFolder() {
             try {
-                await fetch('/api/open-folder', { method: 'POST' });
+                await postApi('/api/open-folder');
             } catch (err) {
                 alert('無法開啟本機資料夾');
             }
@@ -692,7 +743,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         async function clearStorage() {
             if (confirm('確定要清空 uploads/ 與 converted/ 資料夾下的所有歷史暫存檔嗎？')) {
                 try {
-                    const resp = await fetch('/api/clear-storage', { method: 'POST' });
+                    const resp = await postApi('/api/clear-storage');
                     const res = await resp.json();
                     if (res.success) {
                         alert(`✅ 清理完成！已清除 ${res.count} 個歷史暫存檔案。`);
@@ -703,6 +754,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     alert('❌ 網路請求失敗');
                 }
             }
+        }
+
+        async function postApi(path, body = undefined) {
+            const sendRequest = async () => {
+                const token = sessionStorage.getItem('paperswitchAccessToken');
+                const headers = token ? { 'X-PaperSwitch-Token': token } : {};
+                return fetch(path, { method: 'POST', body, headers });
+            };
+
+            let response = await sendRequest();
+            if (response.status === 401) {
+                const token = prompt('此伺服器需要存取權杖，請輸入 ACCESS_TOKEN：');
+                if (!token) throw new Error('未提供存取權杖');
+                sessionStorage.setItem('paperswitchAccessToken', token);
+                response = await sendRequest();
+            }
+            return response;
         }
     </script>
 </body>
@@ -729,6 +797,10 @@ class WebAppHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if not self._is_request_authorized():
+                self._send_json({"success": False, "message": "未授權的 API 請求"}, status=401)
+                return
+
             if self.path == "/api/convert":
                 saved_paths, form_data = self._parse_multipart()
 
@@ -737,26 +809,26 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                     return
 
                 mode = form_data.get("mode", "single")
-                merged_filename = form_data.get("merged_filename", "combined_output.pdf")
-                if not merged_filename.endswith(".pdf"):
-                    merged_filename += ".pdf"
+                if mode not in ("single", "merge"):
+                    self._send_json({"success": False, "message": "不支援的輸出模式"}, status=400)
+                    return
+
+                merged_filename = _safe_pdf_filename(form_data.get("merged_filename", "combined_output.pdf"))
+                if not merged_filename:
+                    self._send_json({"success": False, "message": "合併 PDF 檔名不可包含路徑"}, status=400)
+                    return
 
                 converter = DocumentConverter()
                 generated_pdfs = []
+                temporary_pdfs = []
                 overall_success = True
+                request_id = Path(saved_paths[0]).parent.name
 
                 for p in saved_paths:
                     ext = Path(p).suffix.lower()
                     stem = Path(p).stem
-                    temp_pdf = Path(CONFIG["output_dir"]) / f"temp_{stem}.pdf"
-                    final_pdf = Path(CONFIG["output_dir"]) / f"{stem}.pdf"
-
-                    # 單檔模式下若目標 PDF 已存在，自動加上計數器 avoid 覆蓋
-                    if mode == "single":
-                        counter = 1
-                        while final_pdf.exists():
-                            final_pdf = Path(CONFIG["output_dir"]) / f"{stem}_{counter}.pdf"
-                            counter += 1
+                    temp_pdf = Path(CONFIG["output_dir"]) / f"temp_{request_id}_{stem}.pdf"
+                    final_pdf = _unique_output_path(Path(CONFIG["output_dir"]), f"{stem}.pdf")
 
                     target_path = str(temp_pdf) if mode == "merge" else str(final_pdf)
 
@@ -764,24 +836,32 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                         res = converter.convert_word(p, target_path)
                         if res:
                             generated_pdfs.append(target_path)
+                            if mode == "merge":
+                                temporary_pdfs.append(target_path)
                         else:
                             overall_success = False
                     elif ext in [".xls", ".xlsx"]:
                         excel_pdfs = converter.convert_excel(p, target_path)
                         if excel_pdfs:
                             generated_pdfs.extend(excel_pdfs)
+                            if mode == "merge":
+                                temporary_pdfs.extend(excel_pdfs)
                         else:
                             overall_success = False
                     elif ext in [".ppt", ".pptx"]:
                         res = converter.convert_powerpoint(p, target_path)
                         if res:
                             generated_pdfs.append(target_path)
+                            if mode == "merge":
+                                temporary_pdfs.append(target_path)
                         else:
                             overall_success = False
                     elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
                         res = converter.convert_image([p], target_path)
                         if res:
                             generated_pdfs.append(target_path)
+                            if mode == "merge":
+                                temporary_pdfs.append(target_path)
                         else:
                             overall_success = False
                     elif ext == ".pdf":
@@ -799,11 +879,11 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                         overall_success = False
 
                 if mode == "merge" and generated_pdfs:
-                    merged_output_path = str(Path(CONFIG["output_dir"]) / merged_filename)
+                    merged_output_path = str(_unique_output_path(Path(CONFIG["output_dir"]), merged_filename))
                     merge_res = converter.merge_pdfs(generated_pdfs, merged_output_path)
 
-                    for tmp_pdf in generated_pdfs:
-                        if "temp_" in Path(tmp_pdf).name:
+                    for tmp_pdf in temporary_pdfs:
+                        if Path(tmp_pdf).exists():
                             try:
                                 os.remove(tmp_pdf)
                             except Exception:
@@ -839,6 +919,9 @@ class WebAppHandler(SimpleHTTPRequestHandler):
         """手動清空 uploads/ 與 converted/ 目錄下的所有檔案"""
         cleaned_count = 0
         for folder in [CONFIG["upload_dir"], CONFIG["output_dir"]]:
+            if not _is_safe_storage_directory(folder):
+                print(f"❌ 拒絕清理專案根目錄外或根目錄本身的資料夾: {folder}")
+                continue
             folder_path = Path(folder)
             if folder_path.exists():
                 for item in folder_path.glob("*"):
@@ -900,6 +983,8 @@ class WebAppHandler(SimpleHTTPRequestHandler):
 
         parts = body.split(delimiter)
 
+        request_upload_dir = Path(CONFIG["upload_dir"]) / uuid.uuid4().hex
+        request_upload_dir.mkdir(parents=True, exist_ok=False)
         saved_files = []
         form_fields = {}
 
@@ -936,14 +1021,14 @@ class WebAppHandler(SimpleHTTPRequestHandler):
 
             if filename and data:
                 safe_filename = Path(filename).name
-                save_path = Path(CONFIG["upload_dir"]) / safe_filename
+                save_path = request_upload_dir / safe_filename
 
                 # 同名檔案自動補上計數器後綴，防範複數同名檔上傳被覆蓋
                 counter = 1
                 stem = save_path.stem
                 suffix = save_path.suffix
                 while save_path.exists():
-                    save_path = Path(CONFIG["upload_dir"]) / f"{stem}_{counter}{suffix}"
+                    save_path = request_upload_dir / f"{stem}_{counter}{suffix}"
                     counter += 1
 
                 with open(save_path, "wb") as f:
@@ -954,8 +1039,13 @@ class WebAppHandler(SimpleHTTPRequestHandler):
 
         return saved_files, form_fields
 
-    def _send_json(self, data: dict):
-        self.send_response(200)
+    def _is_request_authorized(self) -> bool:
+        """公開綁定時，要求 API 呼叫者提供環境設定的存取權杖。"""
+        token = CONFIG["access_token"]
+        return not token or hmac.compare_digest(self.headers.get("X-PaperSwitch-Token", ""), token)
+
+    def _send_json(self, data: dict, status: int = 200):
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode("utf-8"))
@@ -971,6 +1061,9 @@ def main():
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
+
+    if not _is_loopback_host(CONFIG["host"]) and not CONFIG["access_token"]:
+        raise RuntimeError("公開綁定 HOST 時必須設定 ACCESS_TOKEN，避免未授權轉檔與清理")
 
     server_address = (CONFIG["host"], CONFIG["port"])
     httpd = ThreadingHTTPServer(server_address, WebAppHandler)
