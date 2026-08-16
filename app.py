@@ -371,15 +371,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PaperSwitch - 萬能文件轉 PDF 處理器</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-    
     <style>
         :root {
-            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-heading: "Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif;
+            --font-body: "Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif;
             --bg-color: #0b1329;
             --card-bg: rgba(30, 41, 59, 0.8);
             --panel-bg: rgba(15, 23, 42, 0.55);
@@ -391,7 +386,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             --text-h1: #ffffff;
             --text-h2: #f8fafc;
             --text-h3: #e2e8f0;
-            --text-sub: #94a3b8;
+            --text-sub: #b6c3d6;
             --success-color: #4ade80;
             --warning-color: #fbbf24;
             --error-color: #f87171;
@@ -410,18 +405,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         body {
             display: flex;
             flex-direction: column;
-            padding: 20px 24px;
+            padding: 16px 24px 24px;
             box-sizing: border-box;
         }
         
         header {
             text-align: center;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             flex-shrink: 0;
         }
         header h1 {
             font-family: var(--font-heading);
-            font-size: 1.85rem;
+            font-size: 1.78rem;
             font-weight: 800;
             letter-spacing: -0.025em;
             background: linear-gradient(135deg, #ffffff 30%, #38bdf8 100%);
@@ -431,19 +426,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         header p {
             font-family: var(--font-body);
             color: var(--text-sub);
-            font-size: 0.88rem;
+            font-size: 0.9rem;
             margin-top: 4px;
         }
 
         .dashboard {
             display: grid;
-            grid-template-columns: 1fr 1.2fr 1fr;
-            gap: 20px;
+            grid-template-columns: minmax(340px, 0.82fr) minmax(480px, 1.18fr);
+            gap: 18px;
             width: 100%;
-            max-width: 1280px;
+            max-width: 1120px;
             margin: 0 auto;
-            flex: 1;
-            min-height: 0;
+            align-items: start;
         }
         @media (max-width: 900px) {
             html, body { overflow: auto; height: auto; }
@@ -455,13 +449,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
             border-radius: 16px;
-            padding: 20px;
+            padding: 18px;
             display: flex;
             flex-direction: column;
             box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
-            height: 100%;
             min-height: 0;
         }
+
+        .panel-upload { grid-column: 1; grid-row: 1 / span 2; min-height: 650px; }
+        .panel-settings { grid-column: 2; grid-row: 1; }
+        .panel-queue { grid-column: 2; grid-row: 2; min-height: 260px; }
         
         .panel-title {
             font-family: var(--font-heading);
@@ -485,17 +482,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             cursor: pointer;
             transition: all 0.25s ease;
             background: var(--panel-bg);
-            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 0;
+            min-height: 530px;
         }
         .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-color); background: rgba(56, 189, 248, 0.08); transform: translateY(-2px); }
-        .drop-icon { font-size: 52px; margin-bottom: 14px; }
-        .drop-text { font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; color: var(--text-h2); }
-        .drop-hint { font-family: var(--font-body); font-size: 0.82rem; color: var(--text-sub); margin-top: 10px; line-height: 1.55; }
+        .drop-icon { font-size: 46px; margin-bottom: 14px; }
+        .drop-text { font-family: var(--font-heading); font-size: 1.02rem; font-weight: 700; color: var(--text-h2); }
+        .drop-hint { font-family: var(--font-body); font-size: 0.86rem; color: var(--text-sub); margin-top: 10px; line-height: 1.7; }
+        .format-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+        .format-chip { padding: 3px 8px; color: #c9d7e9; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 999px; font-size: 0.75rem; line-height: 1.3; }
 
         .progress-box { margin-bottom: 14px; flex-shrink: 0; }
         .progress-info { font-family: var(--font-body); display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: var(--text-sub); }
@@ -507,13 +505,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .clear-btn { font-size: 0.8rem; font-weight: 600; color: var(--error-color); background: none; border: none; cursor: pointer; text-decoration: underline; }
         
         .file-queue {
-            flex: 1;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 8px;
             padding-right: 4px;
-            min-height: 0;
+            max-height: 340px;
         }
         .file-card { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; font-size: 0.85rem; }
         .file-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
@@ -527,8 +524,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .option-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
         .option-label { font-family: var(--font-heading); font-size: 0.92rem; font-weight: 700; color: var(--text-h3); }
-        .radio-card { display: flex; align-items: flex-start; gap: 10px; padding: 14px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
-        .radio-card:hover, .radio-card.active { border-color: var(--accent-color); background: rgba(56, 189, 248, 0.06); }
+        .radio-card { display: flex; align-items: flex-start; gap: 10px; padding: 13px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
+        .radio-card:hover { border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); }
+        .radio-card:focus-within { outline: 2px solid rgba(56, 189, 248, 0.65); outline-offset: 2px; }
+        .radio-card.active { border-color: var(--accent-color); background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(56, 189, 248, 0.06)); box-shadow: inset 3px 0 0 var(--accent-color); }
+        .radio-card.active .radio-title { color: #ffffff; }
         .radio-card input { margin-top: 3px; accent-color: var(--accent-color); }
         .radio-text { display: flex; flex-direction: column; gap: 4px; }
         .radio-title { font-family: var(--font-heading); font-size: 0.92rem; font-weight: 700; color: var(--text-h2); }
@@ -538,7 +538,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .input-field { width: 100%; padding: 10px 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-h2); font-size: 0.85rem; outline: none; }
         .input-field:focus { border-color: var(--accent-color); }
 
-        .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: auto; flex-shrink: 0; }
+        .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; flex-shrink: 0; }
         .btn { font-family: var(--font-heading); width: 100%; padding: 14px; background: var(--accent-color); color: #0f172a; font-weight: 800; border: none; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; font-size: 0.98rem; text-align: center; }
         .btn:hover { background: var(--accent-hover); color: #ffffff; }
         .btn-secondary { background: var(--secondary-bg); color: var(--text-h2); border: 1px solid var(--border-color); }
@@ -546,7 +546,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .btn-danger-outline { background: rgba(248, 113, 113, 0.1); color: var(--error-color); border: 1px solid rgba(248, 113, 113, 0.3); }
         .btn-danger-outline:hover { background: rgba(248, 113, 113, 0.2); }
 
-        #globalStatus { margin-top: 12px; text-align: center; font-size: 0.85rem; font-weight: 600; min-height: 20px; flex-shrink: 0; }
+        .maintenance-actions { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-color); }
+        .maintenance-label { display: block; margin-bottom: 8px; color: var(--text-sub); font-size: 0.76rem; font-weight: 700; letter-spacing: 0.04em; }
+        .maintenance-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+        .maintenance-btns .btn-tool { width: auto; min-height: auto; padding: 7px 12px; font-size: 0.8rem; font-family: var(--font-heading); font-weight: 600; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+        .btn-tool-secondary { background: var(--secondary-bg); color: var(--text-h2); border: 1px solid var(--border-color); }
+        .btn-tool-secondary:hover { background: var(--secondary-hover); border-color: rgba(56, 189, 248, 0.4); }
+        .btn-tool-danger { background: rgba(248, 113, 113, 0.1); color: var(--error-color); border: 1px solid rgba(248, 113, 113, 0.3); }
+        .btn-tool-danger:hover { background: rgba(248, 113, 113, 0.2); }
+
+        #globalStatus { margin-top: 10px; text-align: center; font-size: 0.85rem; font-weight: 600; min-height: 20px; flex-shrink: 0; }
+
+        @media (max-width: 900px) {
+            .panel-upload, .panel-settings, .panel-queue { grid-column: 1; min-height: 0; }
+            .panel-upload { grid-row: 1; }
+            .panel-settings { grid-row: 2; }
+            .panel-queue { grid-row: 3; }
+            .drop-zone { min-height: 300px; }
+        }
     </style>
 </head>
 <body>
@@ -557,18 +574,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <div class="dashboard">
         <!-- 區塊 1: 拖曳區 -->
-        <div class="panel">
+        <div class="panel panel-upload">
             <h2 class="panel-title">📥 1. 檔案拖曳區</h2>
             <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
                 <div class="drop-icon">✨</div>
-                <div class="drop-text">將檔案拖拽至此處</div>
-                <div class="drop-hint">或點擊此區域選擇檔案<br><br>支援格式：<br>.docx, .doc, .xlsx, .xls<br>.pptx, .ppt<br>.jpg, .png, .bmp, .webp, .pdf</div>
+                <div class="drop-text">將檔案拖曳至此處</div>
+                <div class="drop-hint">或點擊此區域選擇檔案</div>
+                <div class="format-chips" aria-label="支援格式">
+                    <span class="format-chip">Word</span>
+                    <span class="format-chip">Excel</span>
+                    <span class="format-chip">PowerPoint</span>
+                    <span class="format-chip">圖片</span>
+                    <span class="format-chip">PDF</span>
+                </div>
                 <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFiles(this.files)">
             </div>
         </div>
 
         <!-- 區塊 2: 佇列與目前進度區 -->
-        <div class="panel">
+        <div class="panel panel-queue">
             <h2 class="panel-title">📋 2. 檔案佇列與進度</h2>
             
             <div class="progress-box">
@@ -592,7 +616,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <!-- 區塊 3: 功能設定區 -->
-        <div class="panel">
+        <div class="panel panel-settings">
             <h2 class="panel-title">⚙️ 3. 轉換功能設定</h2>
             
             <div class="option-group">
@@ -623,10 +647,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="btn-group">
                 <button class="btn" onclick="uploadAndConvert()">🚀 開始轉換</button>
                 <button class="btn btn-secondary" id="openFolderBtn" onclick="openOutputFolder()" style="display: none;">📂 開啟 PDF 輸出資料夾</button>
-                <button class="btn btn-secondary btn-danger-outline" onclick="clearStorage()">🧹 清空歷史暫存檔 (uploads/與converted/)</button>
             </div>
 
-            <div id="globalStatus"></div>
+            <div id="globalStatus" aria-live="polite"></div>
+
+            <div class="maintenance-actions">
+                <span class="maintenance-label">維護工具</span>
+                <div class="maintenance-btns">
+                    <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ PDF 輸出資料夾">📂 開啟輸出資料夾</button>
+                    <button class="btn-tool btn-tool-danger" onclick="clearStorage()" title="清理 uploads/ 與 converted/ 暫存檔">🧹 清除歷史暫存檔</button>
+                </div>
+            </div>
         </div>
     </div>
 
