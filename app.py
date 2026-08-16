@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import uuid
 import webbrowser
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -14,6 +15,9 @@ from pathlib import Path
 from PIL import Image
 from dotenv import load_dotenv
 from pypdf import PdfReader, PdfWriter
+
+# 全域 COM Automation 互斥鎖，解決多執行緒併發 STA 死鎖與 BUSY 例外
+COM_LOCK = threading.Lock()
 
 # 讀取 .env 設定檔
 load_dotenv()
@@ -100,25 +104,32 @@ class DocumentConverter:
         output_abs = str(Path(output_path).resolve())
 
         if sys.platform == "win32":
-            word, doc = None, None
-            try:
-                pythoncom.CoInitialize()
-                word = win32com.client.DispatchEx("Word.Application")
-                word.Visible = False
-                word.DisplayAlerts = False
-                doc = word.Documents.Open(input_abs, ReadOnly=True)
-                doc.SaveAs(output_abs, FileFormat=17)  # 17 = wdFormatPDF
-                print(f"✅ [MS Word COM 轉換成功] -> {output_abs}")
-                return True
-            except Exception as e:
-                print(f"❌ [MS Word COM 轉換失敗] {input_abs}: {e}")
-                return False
-            finally:
-                if doc:
-                    doc.Close(False)
-                if word:
-                    word.Quit()
-                pythoncom.CoUninitialize()
+            with COM_LOCK:
+                word, doc = None, None
+                try:
+                    pythoncom.CoInitialize()
+                    word = win32com.client.DispatchEx("Word.Application")
+                    word.Visible = False
+                    word.DisplayAlerts = False
+                    doc = word.Documents.Open(input_abs, ReadOnly=True)
+                    doc.SaveAs(output_abs, FileFormat=17)  # 17 = wdFormatPDF
+                    print(f"✅ [MS Word COM 轉換成功] -> {output_abs}")
+                    return True
+                except Exception as e:
+                    print(f"❌ [MS Word COM 轉換失敗] {input_abs}: {e}")
+                    return False
+                finally:
+                    if doc:
+                        try:
+                            doc.Close(False)
+                        except Exception:
+                            pass
+                    if word:
+                        try:
+                            word.Quit()
+                        except Exception:
+                            pass
+                    pythoncom.CoUninitialize()
         else:
             try:
                 cmd = [
@@ -151,56 +162,63 @@ class DocumentConverter:
         generated_pdfs = []
 
         if sys.platform == "win32":
-            excel, wb = None, None
-            try:
-                pythoncom.CoInitialize()
-                excel = win32com.client.DispatchEx("Excel.Application")
-                excel.Visible = False
-                excel.DisplayAlerts = False
-                wb = excel.Workbooks.Open(input_abs, ReadOnly=True)
+            with COM_LOCK:
+                excel, wb = None, None
+                try:
+                    pythoncom.CoInitialize()
+                    excel = win32com.client.DispatchEx("Excel.Application")
+                    excel.Visible = False
+                    excel.DisplayAlerts = False
+                    wb = excel.Workbooks.Open(input_abs, ReadOnly=True)
 
-                visible_sheets = [ws for ws in wb.Worksheets if ws.Visible == -1]
+                    visible_sheets = [ws for ws in wb.Worksheets if ws.Visible == -1]
 
-                if len(visible_sheets) <= 1:
-                    if visible_sheets:
-                        ws = visible_sheets[0]
-                        if CONFIG["excel_fit_to_page"]:
-                            try:
-                                ws.PageSetup.Zoom = False
-                                ws.PageSetup.FitToPagesWide = 1
-                                ws.PageSetup.FitToPagesTall = False
-                            except Exception:
-                                pass
-                        ws.ExportAsFixedFormat(0, str(output_base_path))
-                        generated_pdfs.append(str(output_base_path))
-                else:
-                    for ws in visible_sheets:
-                        sheet_name = ws.Name
-                        safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (" ", "_", "-")).strip() or "工作表"
-                        sheet_pdf_path = str(_unique_output_path(output_dir, f"{stem}_{safe_sheet_name}.pdf"))
+                    if len(visible_sheets) <= 1:
+                        if visible_sheets:
+                            ws = visible_sheets[0]
+                            if CONFIG["excel_fit_to_page"]:
+                                try:
+                                    ws.PageSetup.Zoom = False
+                                    ws.PageSetup.FitToPagesWide = 1
+                                    ws.PageSetup.FitToPagesTall = False
+                                except Exception:
+                                    pass
+                            ws.ExportAsFixedFormat(0, str(output_base_path))
+                            generated_pdfs.append(str(output_base_path))
+                    else:
+                        for ws in visible_sheets:
+                            sheet_name = ws.Name
+                            safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (" ", "_", "-")).strip() or "工作表"
+                            sheet_pdf_path = str(_unique_output_path(output_dir, f"{stem}_{safe_sheet_name}.pdf"))
 
-                        if CONFIG["excel_fit_to_page"]:
-                            try:
-                                ws.PageSetup.Zoom = False
-                                ws.PageSetup.FitToPagesWide = 1
-                                ws.PageSetup.FitToPagesTall = False
-                            except Exception:
-                                pass
+                            if CONFIG["excel_fit_to_page"]:
+                                try:
+                                    ws.PageSetup.Zoom = False
+                                    ws.PageSetup.FitToPagesWide = 1
+                                    ws.PageSetup.FitToPagesTall = False
+                                except Exception:
+                                    pass
 
-                        ws.ExportAsFixedFormat(0, sheet_pdf_path)
-                        generated_pdfs.append(sheet_pdf_path)
+                            ws.ExportAsFixedFormat(0, sheet_pdf_path)
+                            generated_pdfs.append(sheet_pdf_path)
 
-                print(f"✅ [MS Excel 分頁獨立拆分成功] 共產出 {len(generated_pdfs)} 個 PDF -> {output_dir}")
-                return generated_pdfs
-            except Exception as e:
-                print(f"❌ [MS Excel 分頁拆分轉檔失敗] {input_abs}: {e}")
-                return []
-            finally:
-                if wb:
-                    wb.Close(False)
-                if excel:
-                    excel.Quit()
-                pythoncom.CoUninitialize()
+                    print(f"✅ [MS Excel 分頁獨立拆分成功] 共產出 {len(generated_pdfs)} 個 PDF -> {output_dir}")
+                    return generated_pdfs
+                except Exception as e:
+                    print(f"❌ [MS Excel 分頁拆分轉檔失敗] {input_abs}: {e}")
+                    return []
+                finally:
+                    if wb:
+                        try:
+                            wb.Close(False)
+                        except Exception:
+                            pass
+                    if excel:
+                        try:
+                            excel.Quit()
+                        except Exception:
+                            pass
+                    pythoncom.CoUninitialize()
         else:
             try:
                 cmd = [
@@ -229,24 +247,31 @@ class DocumentConverter:
         output_abs = str(Path(output_path).resolve())
 
         if sys.platform == "win32":
-            ppt, presentation = None, None
-            try:
-                pythoncom.CoInitialize()
-                ppt = win32com.client.DispatchEx("PowerPoint.Application")
-                # PowerPoint COM 需要搭配 WithWindow=False 打開簡報
-                presentation = ppt.Presentations.Open(input_abs, WithWindow=False)
-                presentation.SaveAs(output_abs, 32)  # 32 = ppSaveAsPDF
-                print(f"✅ [MS PowerPoint COM 轉換成功] -> {output_abs}")
-                return True
-            except Exception as e:
-                print(f"❌ [MS PowerPoint COM 轉換失敗] {input_abs}: {e}")
-                return False
-            finally:
-                if presentation:
-                    presentation.Close()
-                if ppt:
-                    ppt.Quit()
-                pythoncom.CoUninitialize()
+            with COM_LOCK:
+                ppt, presentation = None, None
+                try:
+                    pythoncom.CoInitialize()
+                    ppt = win32com.client.DispatchEx("PowerPoint.Application")
+                    # PowerPoint COM 需要搭配 WithWindow=False 打開簡報
+                    presentation = ppt.Presentations.Open(input_abs, WithWindow=False)
+                    presentation.SaveAs(output_abs, 32)  # 32 = ppSaveAsPDF
+                    print(f"✅ [MS PowerPoint COM 轉換成功] -> {output_abs}")
+                    return True
+                except Exception as e:
+                    print(f"❌ [MS PowerPoint COM 轉換失敗] {input_abs}: {e}")
+                    return False
+                finally:
+                    if presentation:
+                        try:
+                            presentation.Close()
+                        except Exception:
+                            pass
+                    if ppt:
+                        try:
+                            ppt.Quit()
+                        except Exception:
+                            pass
+                    pythoncom.CoUninitialize()
         else:
             try:
                 cmd = [
@@ -303,8 +328,8 @@ class DocumentConverter:
     def merge_pdfs(pdf_paths: list[str], output_path: str) -> bool:
         """將多個 PDF 檔案合併為單一 PDF (防禦型強健實作)"""
         output_abs = str(Path(output_path).resolve())
+        writer = PdfWriter()
         try:
-            writer = PdfWriter()
             append_count = 0
             for p in pdf_paths:
                 p_abs = str(Path(p).resolve())
@@ -325,12 +350,16 @@ class DocumentConverter:
 
             with open(output_abs, "wb") as f:
                 writer.write(f)
-            writer.close()
             print(f"✅ [PDF 合併成功] ({append_count}/{len(pdf_paths)} 檔) -> {output_abs}")
             return True
         except Exception as e:
             print(f"❌ [PDF 合併失敗]: {e}")
             return False
+        finally:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 
 # ============================================================
@@ -989,7 +1018,7 @@ class WebAppHandler(SimpleHTTPRequestHandler):
         form_fields = {}
 
         for part in parts:
-            if not part or part.startswith(b"--") or part == b"\r\n":
+            if not part or part == b"\r\n" or part.startswith(b"--"):
                 continue
 
             if part.startswith(b"\r\n"):
@@ -1000,11 +1029,9 @@ class WebAppHandler(SimpleHTTPRequestHandler):
 
             headers_blob, data = part.split(b"\r\n\r\n", 1)
 
-            # 清除末端 multipart 結尾符號 (--\r\n)
-            if data.endswith(b"--\r\n"):
-                data = data[:-4]
-            elif data.endswith(b"--"):
-                data = data[:-2]
+            # 根據 RFC 7578，delimiter 為 \r\n--boundary，分割後各 part 之 data 尾端完全獨立且乾淨。
+            # 若最後一個 part 後方帶有結尾標籤指示符 `--` 或 `--\r\n`，會在 split 的末尾區段過濾掉，
+            # 絕對不得對解出之 data 二進位內容執行盲目截斷 (data.endswith(b"--"))。
 
             headers_str = headers_blob.decode("utf-8", errors="ignore")
             filename = None

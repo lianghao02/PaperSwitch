@@ -1,41 +1,45 @@
-# 📄 PaperSwitch - 萬能文件轉 PDF 處理器
+# PaperSwitch 文件轉 PDF 處理器 v1.1.1
 
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/lianghao02/PaperSwitch)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-green.svg)](https://lianghao02.github.io/PaperSwitch/)
-[![Constitution](https://img.shields.io/badge/Constitution-v7.1-purple.svg)](https://github.com/lianghao02/home)
+[![Version](https://img.shields.io/badge/version-v1.1.1-blue.svg)](CHANGELOG.md)
+[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
+[![Constitution](https://img.shields.io/badge/Constitution-v8.0-purple.svg)](https://github.com/lianghao02/home)
 
-> **PaperSwitch** 是一款高效、強健、100% 本機資安防護的全能文件轉 PDF 與 PDF 合併處理器。
-> 🌐 線上展示頁面：[https://lianghao02.github.io/PaperSwitch/](https://lianghao02.github.io/PaperSwitch/)
+PaperSwitch 是 Windows 本機文件轉 PDF 與 PDF 合併工具。後端使用 Python，Office 文件轉換依賴電腦上已安裝的 Microsoft Office COM 元件；圖片處理使用 Pillow，PDF 合併使用 pypdf。
 
----
+## v1.1.1 更新重點
 
-## 🌟 核心特色 (Key Features)
+- 為 Office COM 操作加入序列化鎖定與確實關閉流程，降低多工作同時轉換的衝突。
+- 修正 multipart 二進位上傳資料可能被截斷的問題。
+- 強化 PDF 寫出及失敗時的資源釋放。
 
-- 📄 **4 大主流公務/商用格式無損轉換**：
-  - **Word** (`.docx`, `.doc`)
-  - **Excel** (`.xlsx`, `.xls`)
-  - **PowerPoint** (`.pptx`, `.ppt`)
-  - **圖片** (`.png`, `.jpg`, `.jpeg`, `.bmp`, `.webp`)
-  - **PDF** (直出與多檔強健合併)
-- 📊 **Excel 智慧分頁處方**：
-  - 水平欄位強制自動縮放適應單頁寬度 (`FitToPagesWide = 1`)，右側表格絕不硬切裁離。
-  - 多工作表（多分頁）自動獨立拆分導出為 `檔名_分頁名.pdf`。
-- ⚡ **ThreadingHTTPServer 多執行緒併發引擎**：
-  - 大量檔案拖拽處理秒速響應，多佇列平行轉檔。
-- 🛡️ **100% 本機資安防護**：
-  - 採用原生 MS Office COM 與 Pillow 引擎本機渲染，檔案零外洩風險。
-- 🧹 **彈性手動清理**：
-  - 提供 `🧹 清空歷史暫存檔` 手動控制按鈕，隨心所欲整理本機硬碟。
+## 支援格式
 
----
+- Word：`.docx`、`.doc`
+- Excel：`.xlsx`、`.xls`
+- PowerPoint：`.pptx`、`.ppt`
+- 圖片：`.png`、`.jpg`、`.jpeg`、`.bmp`、`.webp`
+- PDF：直接加入合併佇列
 
-## 🚀 快速開始 (Quick Start)
+## 環境與啟動
 
-### 雙擊啟動 (Windows)
-雙擊執行 [`start.bat`](file:///C:/Users/chia-hao/Documents/GitHub/PaperSwitch/start.bat) 即可自動辨識 Python 虛擬環境並開啟 Web 控制台！
+- Windows 10 或更新版本
+- Python 3.13
+- 若要轉換 Office 文件，需安裝相容版本的 Microsoft Office
 
-### 手動啟動
+雙擊 [`start.bat`](start.bat)，或手動執行：
+
 ```powershell
+python -m pip install -r requirements.txt
 python app.py
 ```
-預設伺服器位置：`http://127.0.0.1:8080`
+
+預設服務位置為 `http://127.0.0.1:8080`。
+
+## 使用限制與安全
+
+- 服務預設只應綁定本機介面；若自行開放到區域網路，需另外加入存取控制。
+- Office COM 轉換結果會受本機 Office 版本、字型、巨集及文件損毀情況影響。
+- 轉換完成後應抽查頁數、版面及字型；重要原始檔請保留備份。
+- 暫存清理只應針對本工具建立的工作目錄。
+
+詳細異動請參閱 [CHANGELOG.md](CHANGELOG.md)。
