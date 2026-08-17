@@ -1,12 +1,21 @@
-# PaperSwitch 文件轉 PDF 處理器 v1.1.1
+# PaperSwitch 文件轉 PDF 處理器 v1.2.0
 
-[![Version](https://img.shields.io/badge/version-v1.1.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v1.2.0-blue.svg)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 [![Constitution](https://img.shields.io/badge/Constitution-v8.0-purple.svg)](https://github.com/lianghao02/home)
 
 PaperSwitch 是 Windows 本機文件轉 PDF 與 PDF 合併工具。後端使用 Python，Office 文件轉換依賴電腦上已安裝的 Microsoft Office COM 元件；圖片處理使用 Pillow，PDF 合併使用 pypdf。
 
-## v1.1.1 更新重點
+## 下載、依賴與啟動
+
+- **系統**：Windows 10/11；主要開發版本為 Python 3.13。
+- **推薦啟動**：下載 ZIP、解壓後雙擊 `RUN.bat`。沒有 Python 時，`setup_and_run.ps1` 會建立專案內的 `python_embed` 並安裝依賴。
+- **手動安裝**：`py -3.13 -m venv .venv`，啟用後執行 `python -m pip install -r requirements.txt`，再執行 `python app.py`。
+- **依賴範圍**：pywin32 負責 Office COM、Pillow 處理圖片、pypdf 合併 PDF、python-dotenv 載入設定。
+- **Office 邊界**：只有 Word、Excel、PowerPoint 轉換需要桌面版 Microsoft Office；圖片轉 PDF與 PDF 合併不需要 Office。
+- **打包／移機**：保留完整專案及已建好的 `python_embed`；若要離線首次建置，可在專案根目錄放置 Python 3.13 embeddable ZIP。
+
+## v1.2.0 更新重點
 
 - 為 Office COM 操作加入序列化鎖定與確實關閉流程，降低多工作同時轉換的衝突。
 - 修正 multipart 二進位上傳資料可能被截斷的問題。
@@ -26,7 +35,7 @@ PaperSwitch 是 Windows 本機文件轉 PDF 與 PDF 合併工具。後端使用 
 - Python 3.13
 - 若要轉換 Office 文件，需安裝相容版本的 Microsoft Office
 
-雙擊 [`start.bat`](start.bat)，或手動執行：
+雙擊 [`RUN.bat`](RUN.bat)，或手動執行：
 
 ```powershell
 python -m pip install -r requirements.txt
