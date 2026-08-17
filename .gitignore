@@ -20,3 +20,5 @@ converted/
 # IDE
 .vscode/
 .idea/
+python_embed/
+python-embed/
