@@ -42,4 +42,4 @@ python app.py
 - 轉換完成後應抽查頁數、版面及字型；重要原始檔請保留備份。
 - 暫存清理只應針對本工具建立的工作目錄。
 
-詳細異動請參閱 [CHANGELOG.md](CHANGELOG.md)。
+架構、設計與開發文件集中於 [`docs/`](docs/)；詳細異動請參閱 [CHANGELOG.md](CHANGELOG.md)。

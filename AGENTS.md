@@ -8,3 +8,7 @@
 - **硬核防禦**：所有 I/O、COM 介面呼叫必須包裹 `try...except` 並實作 `finally` 資源釋放（`CoUninitialize` 與 `Close`）。
 - **DRY_RUN 原則**：高危刪除/覆寫作業預設防禦開關。
 - **路徑移植性**：嚴禁硬編碼絕對路徑，統一使用相對路徑與 `Path().resolve()`。
+
+## 3. 專案文件
+
+架構、設計、規格、計畫、任務與長期經驗集中於 `docs/`；修改核心流程前依序讀取 `docs/tasks.md`、`docs/spec.md`、`docs/ARCHITECTURE.md` 與 `docs/MEMORY.md`。

@@ -1,4 +1,4 @@
-# DESIGN.md — UI/UX 設計規範與 Design System
+# UI／UX 設計規範與 Design System
 
 ## 1. 視覺主題與滿版單頁架構 (100vh Single Viewport Layout)
 本工具採用 **100% 螢幕高度彈性滿版設計 (100vh)**，確保在任何螢幕解析度下皆能完美的填滿整個瀏覽器視窗，**徹底消除網頁底部大片空白**，同時設定 `overflow: hidden` 鎖定單頁，免除捲動網頁的負擔：
