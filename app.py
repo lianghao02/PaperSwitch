@@ -8,16 +8,69 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import uuid
+import urllib.parse
 import webbrowser
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+# 守護 pythonw.exe (無終端模式) 下 sys.stdout 與 sys.stderr 為 None 的例外問題
+if sys.stdout is None:
+    class _NullWriter:
+        def write(self, s): pass
+        def flush(self): pass
+        def reconfigure(self, *args, **kwargs): pass
+    sys.stdout = _NullWriter()
+
+if sys.stderr is None:
+    class _NullWriterErr:
+        def write(self, s): pass
+        def flush(self): pass
+        def reconfigure(self, *args, **kwargs): pass
+    sys.stderr = _NullWriterErr()
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+import traceback
+
+def _global_exception_handler(exc_type, exc_value, exc_traceback):
+    try:
+        with open(BASE_DIR / "crash.log", "w", encoding="utf-8") as f:
+            traceback.print_exception(exc_type, exc_value, exc_traceback, file=f)
+    except Exception:
+        pass
+sys.excepthook = _global_exception_handler
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
+try:
+    import pymupdf
+    fitz = pymupdf
+    HAS_PYMUPDF = True
+except ImportError:
+    try:
+        import fitz
+        HAS_PYMUPDF = True
+    except ImportError:
+        fitz = None
+        HAS_PYMUPDF = False
 from PIL import Image
 from dotenv import load_dotenv
 from pypdf import PdfReader, PdfWriter
 
 # 全域 COM Automation 互斥鎖，解決多執行緒併發 STA 死鎖與 BUSY 例外
 COM_LOCK = threading.Lock()
+
+# 心跳守護變數：關閉所有瀏覽器標籤頁後自動停止伺服器 (防 Chrome 背景標籤頁節流誤殺)
+LAST_HEARTBEAT_TIME = time.time()
+HEARTBEAT_TIMEOUT = 300.0  # 寬限 5 分鐘無任何網頁連線才安全停止伺服器
 
 # 讀取 .env 設定檔
 load_dotenv()
@@ -152,8 +205,19 @@ class DocumentConverter:
                 return False
 
     @staticmethod
+    def _is_sheet_empty(excel_app, ws) -> bool:
+        """判定 Excel 工作表是否完全無內容 (既無儲存格資料，亦無圖形/圖表/圖片)"""
+        try:
+            if ws.Shapes.Count > 0:
+                return False
+            non_empty_count = excel_app.WorksheetFunction.CountA(ws.Cells)
+            return non_empty_count == 0
+        except Exception:
+            return False
+
+    @staticmethod
     def convert_excel(input_path: str, output_path: str) -> list[str]:
-        """將 Excel 檔案 (.xls, .xlsx) 的每個可見分頁分別匯出為獨立的 PDF 檔案"""
+        """將 Excel 檔案 (.xls, .xlsx) 的每個有效可見分頁分別匯出為獨立的 PDF 檔案 (自動過濾全空白分頁)"""
         input_abs = str(Path(input_path).resolve())
         output_base_path = Path(output_path).resolve()
         output_dir = output_base_path.parent
@@ -172,10 +236,14 @@ class DocumentConverter:
                     wb = excel.Workbooks.Open(input_abs, ReadOnly=True)
 
                     visible_sheets = [ws for ws in wb.Worksheets if ws.Visible == -1]
+                    # 自動過濾無資料與無圖形的完全空白工作表
+                    valid_sheets = [ws for ws in visible_sheets if not DocumentConverter._is_sheet_empty(excel, ws)]
+                    if not valid_sheets:
+                        valid_sheets = visible_sheets  # 保底策略：若整份活頁簿皆為空，保留所有可見分頁
 
-                    if len(visible_sheets) <= 1:
-                        if visible_sheets:
-                            ws = visible_sheets[0]
+                    if len(valid_sheets) <= 1:
+                        if valid_sheets:
+                            ws = valid_sheets[0]
                             if CONFIG["excel_fit_to_page"]:
                                 try:
                                     ws.PageSetup.Zoom = False
@@ -186,7 +254,7 @@ class DocumentConverter:
                             ws.ExportAsFixedFormat(0, str(output_base_path))
                             generated_pdfs.append(str(output_base_path))
                     else:
-                        for ws in visible_sheets:
+                        for ws in valid_sheets:
                             sheet_name = ws.Name
                             safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (" ", "_", "-")).strip() or "工作表"
                             sheet_pdf_path = str(_unique_output_path(output_dir, f"{stem}_{safe_sheet_name}.pdf"))
@@ -361,6 +429,92 @@ class DocumentConverter:
             except Exception:
                 pass
 
+    @staticmethod
+    def convert_pdf_to_images(input_pdf_path: str, output_dir: str, dpi: int = 200) -> list[str]:
+        """將 PDF 檔案的每一個頁面獨立拆分導出為高畫質 PNG 圖片"""
+        if not HAS_PYMUPDF or fitz is None:
+            print("❌ [PDF 轉圖片失敗] 尚未安裝 PyMuPDF 套件，請執行 pip install PyMuPDF。")
+            return []
+
+        input_abs = str(Path(input_pdf_path).resolve())
+        output_dir_path = Path(output_dir).resolve()
+        stem = Path(input_pdf_path).stem
+        generated_imgs = []
+
+        try:
+            doc = fitz.open(input_abs)
+            total_pages = len(doc)
+
+            if total_pages == 0:
+                print(f"⚠️ PDF 檔案無頁面: {input_abs}")
+                doc.close()
+                return []
+
+            for page_index in range(total_pages):
+                page = doc[page_index]
+                pix = page.get_pixmap(dpi=dpi)
+
+                if total_pages == 1:
+                    filename = f"{stem}.png"
+                else:
+                    filename = f"{stem}_page_{page_index + 1}.png"
+
+                output_img_path = _unique_output_path(output_dir_path, filename)
+                pix.save(str(output_img_path))
+                generated_imgs.append(str(output_img_path))
+
+            doc.close()
+            print(f"✅ [PDF 反向轉圖片成功] 共拆分產出 {len(generated_imgs)} 張高畫質 PNG -> {output_dir_path}")
+            return generated_imgs
+        except Exception as e:
+            print(f"❌ [PDF 轉圖片失敗] {input_abs}: {e}")
+            return []
+
+    @staticmethod
+    def split_pdf(input_pdf_path: str, output_dir: str) -> list[str]:
+        """將多頁 PDF 檔案的每個頁面獨立拆分導出為單頁 PDF (採用 pypdf 無損向量抽取)"""
+        input_abs = str(Path(input_pdf_path).resolve())
+        output_dir_path = Path(output_dir).resolve()
+        stem = Path(input_pdf_path).stem
+        generated_pdfs = []
+        reader = None
+        try:
+            reader = PdfReader(input_abs)
+            total_pages = len(reader.pages)
+            if total_pages == 0:
+                print(f"⚠️ PDF 檔案無頁面: {input_abs}")
+                return []
+
+            if total_pages == 1:
+                out_path = _unique_output_path(output_dir_path, f"{stem}.pdf")
+                writer = PdfWriter()
+                writer.add_page(reader.pages[0])
+                with open(out_path, "wb") as f:
+                    writer.write(f)
+                writer.close()
+                generated_pdfs.append(str(out_path))
+            else:
+                for idx, page in enumerate(reader.pages):
+                    out_path = _unique_output_path(output_dir_path, f"{stem}_第{idx + 1}頁.pdf")
+                    writer = PdfWriter()
+                    writer.add_page(page)
+                    with open(out_path, "wb") as f:
+                        writer.write(f)
+                    writer.close()
+                    generated_pdfs.append(str(out_path))
+
+            print(f"✅ [PDF 拆單頁成功] 共拆分產出 {len(generated_pdfs)} 個獨立單頁 PDF -> {output_dir_path}")
+            return generated_pdfs
+        except Exception as e:
+            print(f"❌ [PDF 拆單頁失敗] {input_abs}: {e}")
+            return []
+        finally:
+            if reader and hasattr(reader, "stream") and hasattr(reader.stream, "close"):
+                try:
+                    reader.stream.close()
+                except Exception:
+                    pass
+
 
 # ============================================================
 # Web UI 前端 HTML 樣式 (含手動清理暫存檔與 PPT/PPTX 支援)
@@ -375,21 +529,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         :root {
             --font-heading: "Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif;
             --font-body: "Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif;
-            --bg-color: #0b1329;
-            --card-bg: rgba(30, 41, 59, 0.8);
-            --panel-bg: rgba(15, 23, 42, 0.55);
-            --border-color: rgba(255, 255, 255, 0.12);
-            --accent-color: #38bdf8;
-            --accent-hover: #0284c7;
-            --secondary-bg: rgba(255, 255, 255, 0.08);
-            --secondary-hover: rgba(255, 255, 255, 0.16);
-            --text-h1: #ffffff;
-            --text-h2: #f8fafc;
-            --text-h3: #e2e8f0;
-            --text-sub: #b6c3d6;
-            --success-color: #4ade80;
-            --warning-color: #fbbf24;
-            --error-color: #f87171;
+            --bg-color: #161c28;
+            --card-bg: rgba(26, 34, 48, 0.82);
+            --panel-bg: rgba(18, 24, 35, 0.6);
+            --border-color: rgba(255, 255, 255, 0.09);
+            --border-hover: rgba(107, 164, 200, 0.45);
+            --accent-color: #6ba4c8;
+            --accent-hover: #568eb2;
+            --secondary-bg: rgba(255, 255, 255, 0.06);
+            --secondary-hover: rgba(255, 255, 255, 0.12);
+            --text-h1: #f8fafc;
+            --text-h2: #edf2f7;
+            --text-h3: #cbd5e1;
+            --text-sub: #8e9cae;
+            --success-color: #7ea88f;
+            --warning-color: #d1a368;
+            --error-color: #d47a7a;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
@@ -419,7 +574,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 1.78rem;
             font-weight: 800;
             letter-spacing: -0.025em;
-            background: linear-gradient(135deg, #ffffff 30%, #38bdf8 100%);
+            background: linear-gradient(135deg, #ffffff 30%, #8bbad6 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -488,16 +643,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             justify-content: center;
             min-height: 530px;
         }
-        .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-color); background: rgba(56, 189, 248, 0.08); transform: translateY(-2px); }
+        .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-color); background: rgba(107, 164, 200, 0.08); transform: translateY(-2px); }
         .drop-icon { font-size: 46px; margin-bottom: 14px; }
         .drop-text { font-family: var(--font-heading); font-size: 1.02rem; font-weight: 700; color: var(--text-h2); }
         .drop-hint { font-family: var(--font-body); font-size: 0.86rem; color: var(--text-sub); margin-top: 10px; line-height: 1.7; }
         .format-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
-        .format-chip { padding: 3px 8px; color: #c9d7e9; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 999px; font-size: 0.75rem; line-height: 1.3; }
+        .format-chip { padding: 3px 8px; color: #cbd5e1; background: rgba(142, 156, 174, 0.12); border: 1px solid rgba(142, 156, 174, 0.2); border-radius: 999px; font-size: 0.75rem; line-height: 1.3; }
 
         .progress-box { margin-bottom: 14px; flex-shrink: 0; }
         .progress-info { font-family: var(--font-body); display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: var(--text-sub); }
-        .progress-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+        .progress-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
         .progress-bar-fill { height: 100%; width: 0%; background: var(--accent-color); transition: width 0.3s ease; }
         
         .queue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0; }
@@ -516,18 +671,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .file-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
         .file-name { font-weight: 600; color: var(--text-h3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
         .file-meta { font-size: 0.75rem; color: var(--text-sub); }
-        .file-status { font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; }
-        .status-ready { background: rgba(255,255,255,0.1); color: var(--text-sub); }
-        .status-processing { background: rgba(251, 191, 36, 0.2); color: var(--warning-color); }
-        .status-done { background: rgba(74, 222, 128, 0.2); color: var(--success-color); }
-        .status-fail { background: rgba(248, 113, 113, 0.2); color: var(--error-color); }
+        .file-status { font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; transition: all 0.2s ease; }
+        
+        @keyframes pulseGlow {
+            0% { opacity: 0.75; }
+            50% { opacity: 1; transform: scale(1.02); }
+            100% { opacity: 0.75; }
+        }
+        .status-ready { background: rgba(255,255,255,0.08); color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1); }
+        .status-processing { background: rgba(209, 163, 104, 0.2); color: var(--warning-color); border: 1px solid rgba(209, 163, 104, 0.4); animation: pulseGlow 1.4s infinite ease-in-out; }
+        .status-done { background: rgba(126, 168, 143, 0.2); color: var(--success-color); border: 1px solid rgba(126, 168, 143, 0.35); }
+        .status-fail { background: rgba(212, 122, 122, 0.2); color: var(--error-color); border: 1px solid rgba(212, 122, 122, 0.35); }
 
         .option-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
         .option-label { font-family: var(--font-heading); font-size: 0.92rem; font-weight: 700; color: var(--text-h3); }
         .radio-card { display: flex; align-items: flex-start; gap: 10px; padding: 13px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
-        .radio-card:hover { border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); }
-        .radio-card:focus-within { outline: 2px solid rgba(56, 189, 248, 0.65); outline-offset: 2px; }
-        .radio-card.active { border-color: var(--accent-color); background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(56, 189, 248, 0.06)); box-shadow: inset 3px 0 0 var(--accent-color); }
+        .radio-card:hover { border-color: var(--border-hover); background: rgba(107, 164, 200, 0.08); }
+        .radio-card:focus-within { outline: 2px solid rgba(107, 164, 200, 0.65); outline-offset: 2px; }
+        .radio-card.active { border-color: var(--accent-color); background: linear-gradient(135deg, rgba(107, 164, 200, 0.18), rgba(107, 164, 200, 0.06)); box-shadow: inset 3px 0 0 var(--accent-color); }
         .radio-card.active .radio-title { color: #ffffff; }
         .radio-card input { margin-top: 3px; accent-color: var(--accent-color); }
         .radio-text { display: flex; flex-direction: column; gap: 4px; }
@@ -535,7 +696,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .radio-desc { font-size: 0.78rem; color: var(--text-sub); line-height: 1.35; }
         
         .input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; flex-shrink: 0; }
-        .input-field { width: 100%; padding: 10px 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-h2); font-size: 0.85rem; outline: none; }
+        .input-field { width: 100%; padding: 10px 12px; background: rgba(18, 24, 35, 0.6); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-h2); font-size: 0.85rem; outline: none; }
         .input-field:focus { border-color: var(--accent-color); }
 
         .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; flex-shrink: 0; }
@@ -543,17 +704,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .btn:hover { background: var(--accent-hover); color: #ffffff; }
         .btn-secondary { background: var(--secondary-bg); color: var(--text-h2); border: 1px solid var(--border-color); }
         .btn-secondary:hover { background: var(--secondary-hover); }
-        .btn-danger-outline { background: rgba(248, 113, 113, 0.1); color: var(--error-color); border: 1px solid rgba(248, 113, 113, 0.3); }
-        .btn-danger-outline:hover { background: rgba(248, 113, 113, 0.2); }
+        .btn-danger-outline { background: rgba(212, 122, 122, 0.1); color: var(--error-color); border: 1px solid rgba(212, 122, 122, 0.3); }
+        .btn-danger-outline:hover { background: rgba(212, 122, 122, 0.2); }
 
         .maintenance-actions { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-color); }
         .maintenance-label { display: block; margin-bottom: 8px; color: var(--text-sub); font-size: 0.76rem; font-weight: 700; letter-spacing: 0.04em; }
         .maintenance-btns { display: flex; flex-wrap: wrap; gap: 8px; }
         .maintenance-btns .btn-tool { width: auto; min-height: auto; padding: 7px 12px; font-size: 0.8rem; font-family: var(--font-heading); font-weight: 600; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
         .btn-tool-secondary { background: var(--secondary-bg); color: var(--text-h2); border: 1px solid var(--border-color); }
-        .btn-tool-secondary:hover { background: var(--secondary-hover); border-color: rgba(56, 189, 248, 0.4); }
-        .btn-tool-danger { background: rgba(248, 113, 113, 0.1); color: var(--error-color); border: 1px solid rgba(248, 113, 113, 0.3); }
-        .btn-tool-danger:hover { background: rgba(248, 113, 113, 0.2); }
+        .btn-tool-secondary:hover { background: var(--secondary-hover); border-color: rgba(107, 164, 200, 0.4); }
+        .btn-tool-danger { background: rgba(212, 122, 122, 0.1); color: var(--error-color); border: 1px solid rgba(212, 122, 122, 0.3); }
+        .btn-tool-danger:hover { background: rgba(212, 122, 122, 0.2); }
+
+        .log-console-box { margin-top: 14px; background: rgba(12, 17, 26, 0.75); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; flex-shrink: 0; }
+        .log-console-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.76rem; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; }
+        .log-clear-btn { background: none; border: none; color: var(--text-sub); font-size: 0.72rem; cursor: pointer; text-decoration: underline; }
+        .log-clear-btn:hover { color: var(--text-h2); }
+        .log-console { max-height: 96px; overflow-y: auto; font-family: Consolas, monospace; font-size: 0.76rem; display: flex; flex-direction: column; gap: 3px; }
+        .log-line { line-height: 1.4; word-break: break-all; }
+        .log-info { color: var(--text-sub); }
+        .log-success { color: var(--success-color); }
+        .log-warn { color: var(--warning-color); }
+        .log-error { color: var(--error-color); }
 
         #globalStatus { margin-top: 10px; text-align: center; font-size: 0.85rem; font-weight: 600; min-height: 20px; flex-shrink: 0; }
 
@@ -613,6 +785,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="file-queue" id="fileQueue">
                 <div style="text-align: center; color: var(--text-sub); font-size: 0.85rem; margin: auto 0;">尚無待處理檔案</div>
             </div>
+
+            <!-- 即時動態日誌終端框 -->
+            <div class="log-console-box">
+                <div class="log-console-header">
+                    <span>🖥️ 系統執行日誌</span>
+                    <button class="log-clear-btn" type="button" onclick="clearConsoleLog()">清除</button>
+                </div>
+                <div class="log-console" id="logConsole">
+                    <div class="log-line log-info">[系統連線] PaperSwitch 伺服器運作正常 (心跳守護中)</div>
+                </div>
+            </div>
         </div>
 
         <!-- 區塊 3: 功能設定區 -->
@@ -625,7 +808,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <label class="radio-card active" id="cardSingle" onclick="setMode('single')">
                     <input type="radio" name="convertMode" value="single" checked>
                     <div class="radio-text">
-                        <span class="radio-title">📄 獨立單檔模式</span>
+                        <span class="radio-title">📄 文件轉 PDF</span>
                         <span class="radio-desc">每個檔案個別轉換為對應同名 PDF (Excel 多分頁自動拆分獨立產出)</span>
                     </div>
                 </label>
@@ -633,8 +816,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <label class="radio-card" id="cardMerge" onclick="setMode('merge')">
                     <input type="radio" name="convertMode" value="merge">
                     <div class="radio-text">
-                        <span class="radio-title">📚 合併 PDF 模式</span>
-                        <span class="radio-desc">將佇列中所有檔案按順序合併為單一 PDF</span>
+                        <span class="radio-title">📚 多檔併 PDF</span>
+                        <span class="radio-desc">將佇列中所有檔案按自訂順序合併為單一完整 PDF 檔案</span>
+                    </div>
+                </label>
+
+                <label class="radio-card" id="cardSplit" onclick="setMode('split')">
+                    <input type="radio" name="convertMode" value="split">
+                    <div class="radio-text">
+                        <span class="radio-title">✂️ PDF 拆單頁</span>
+                        <span class="radio-desc">將多頁 PDF 檔案的每個頁面獨立拆解導出為單頁 PDF</span>
+                    </div>
+                </label>
+
+                <label class="radio-card" id="cardPdfToImg" onclick="setMode('pdf_to_images')">
+                    <input type="radio" name="convertMode" value="pdf_to_images">
+                    <div class="radio-text">
+                        <span class="radio-title">🖼️ PDF 轉圖片</span>
+                        <span class="radio-desc">將 PDF 檔案的每個頁面獨立渲染導出為高清 PNG 圖片</span>
                     </div>
                 </label>
             </div>
@@ -656,6 +855,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="maintenance-btns">
                     <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ PDF 輸出資料夾">📂 開啟輸出資料夾</button>
                     <button class="btn-tool btn-tool-danger" onclick="clearStorage()" title="清理 uploads/ 與 converted/ 暫存檔">🧹 清除歷史暫存檔</button>
+                    <button class="btn-tool btn-tool-danger" onclick="shutdownServer()" title="停止後端伺服器並關閉進程">🛑 關閉伺服器</button>
                 </div>
             </div>
         </div>
@@ -701,8 +901,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             currentMode = mode;
             document.getElementById('cardSingle').classList.toggle('active', mode === 'single');
             document.getElementById('cardMerge').classList.toggle('active', mode === 'merge');
+            document.getElementById('cardSplit').classList.toggle('active', mode === 'split');
+            document.getElementById('cardPdfToImg').classList.toggle('active', mode === 'pdf_to_images');
             document.querySelector('input[value="single"]').checked = (mode === 'single');
             document.querySelector('input[value="merge"]').checked = (mode === 'merge');
+            document.querySelector('input[value="split"]').checked = (mode === 'split');
+            document.querySelector('input[value="pdf_to_images"]').checked = (mode === 'pdf_to_images');
             document.getElementById('mergedFilenameBox').style.display = (mode === 'merge') ? 'flex' : 'none';
         }
 
@@ -719,7 +923,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             queueEl.innerHTML = selectedFiles.map((item, idx) => {
                 let badgeClass = 'status-ready';
                 let statusLabel = '待轉換';
-                if (item.status === 'processing') { badgeClass = 'status-processing'; statusLabel = '轉檔中'; }
+                if (item.status === 'processing') { badgeClass = 'status-processing'; statusLabel = '處理中'; }
                 else if (item.status === 'done') { badgeClass = 'status-done'; statusLabel = '已完成'; }
                 else if (item.status === 'fail') { badgeClass = 'status-fail'; statusLabel = '失敗'; }
 
@@ -744,6 +948,48 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             document.getElementById('progressStatusText').innerText = statusText;
         }
 
+        function addLog(msg, type = 'info') {
+            const consoleEl = document.getElementById('logConsole');
+            if (!consoleEl) return;
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.innerText = `[${timeStr}] ${msg}`;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function clearConsoleLog() {
+            const consoleEl = document.getElementById('logConsole');
+            if (consoleEl) consoleEl.innerHTML = '';
+        }
+
+        async function shutdownServer() {
+            if (confirm('確定要關閉 PaperSwitch 後端伺服器並結束行程嗎？')) {
+                addLog('正在通知後端伺服器安全停止...', 'warn');
+                try {
+                    await postApi('/api/shutdown');
+                    addLog('✅ 伺服器已成功停止，您現在可以安全關閉此網頁。', 'success');
+                    alert('伺服器已安全停止。');
+                } catch (e) {
+                    addLog('伺服器已結束連線。', 'info');
+                }
+            }
+        }
+
+        // 前端每 3 秒發送心跳維持連線
+        setInterval(() => {
+            fetch('/api/heartbeat').catch(() => {});
+        }, 3000);
+
+        // 當切換回分頁或點擊頁面時，立即補發心跳喚醒 (防 Chrome 背景標籤頁節流)
+        ['visibilitychange', 'focus', 'click'].forEach(evt => {
+            window.addEventListener(evt, () => {
+                fetch('/api/heartbeat').catch(() => {});
+            });
+        });
+
         async function uploadAndConvert() {
             if (selectedFiles.length === 0) { alert('請先新增檔案至佇列！'); return; }
 
@@ -751,50 +997,126 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const openFolderBtn = document.getElementById('openFolderBtn');
 
             globalStatus.className = '';
-            globalStatus.innerText = '⏳ 正在上傳與處理中...';
             openFolderBtn.style.display = 'none';
-
-            selectedFiles.forEach(item => item.status = 'processing');
-            renderQueue();
-            updateProgress(30, '處理中...');
-
-            const formData = new FormData();
-            selectedFiles.forEach(item => formData.append('files', item.file));
-            formData.append('mode', currentMode);
 
             let mergedName = document.getElementById('mergedFilename').value.trim();
             if (!mergedName.endsWith('.pdf')) mergedName += '.pdf';
-            formData.append('merged_filename', mergedName);
 
-            try {
-                updateProgress(60, '轉檔渲染中...');
-                const resp = await postApi('/api/convert', formData);
-                const res = await resp.json();
+            const total = selectedFiles.length;
 
-                if (res.success) {
-                    selectedFiles.forEach(item => item.status = 'done');
-                    updateProgress(100, '轉換成功');
+            if (currentMode === 'merge') {
+                selectedFiles.forEach(item => item.status = 'processing');
+                renderQueue();
+                updateProgress(25, `正在上傳 ${total} 個檔案並準備合併...`);
+                globalStatus.innerText = '⏳ 正在合併處理中...';
+                addLog(`開始合併 ${total} 個檔案 ➔ ${mergedName}`, 'info');
+
+                const formData = new FormData();
+                selectedFiles.forEach(item => formData.append('files', item.file));
+                formData.append('mode', 'merge');
+                formData.append('merged_filename', mergedName);
+
+                try {
+                    updateProgress(65, '正在合併渲染 PDF...');
+                    const resp = await postApi('/api/convert', formData);
+                    const res = await resp.json();
+
+                    if (res.success) {
+                        selectedFiles.forEach(item => item.status = 'done');
+                        updateProgress(100, '合併成功');
+                        globalStatus.className = 'status-success';
+                        globalStatus.innerText = `✅ 已成功合併 ${total} 個檔案為 ${mergedName}`;
+                        addLog(`✅ [多檔併 PDF 成功] 共 ${total} 個檔案 ➔ converted/${mergedName}`, 'success');
+                        openFolderBtn.style.display = 'block';
+                    } else {
+                        selectedFiles.forEach(item => item.status = 'fail');
+                        updateProgress(100, '合併失敗');
+                        globalStatus.className = 'status-error';
+                        globalStatus.innerText = '❌ 合併失敗：' + (res.message || '未知錯誤');
+                        addLog(`❌ [多檔併 PDF 失敗] ${res.message || '未知錯誤'}`, 'error');
+                    }
+                } catch (err) {
+                    selectedFiles.forEach(item => item.status = 'fail');
+                    updateProgress(100, '網路異常');
+                    globalStatus.className = 'status-error';
+                    globalStatus.innerText = '❌ 網路連線或伺服器異常';
+                    addLog('❌ 網路連線或伺服器通訊異常', 'error');
+                }
+                renderQueue();
+            } else {
+                let successCount = 0;
+                let failCount = 0;
+
+                selectedFiles.forEach(item => item.status = 'ready');
+                renderQueue();
+                updateProgress(0, `準備依序處理 (共 ${total} 個)...`);
+                addLog(`開始依序處理佇列 (共 ${total} 個檔案)...`, 'info');
+
+                for (let i = 0; i < total; i++) {
+                    const item = selectedFiles[i];
+                    item.status = 'processing';
+                    renderQueue();
+
+                    const currentPercent = Math.round((i / total) * 100);
+                    let actionName = '轉檔';
+                    if (currentMode === 'pdf_to_images') actionName = '轉圖片';
+                    else if (currentMode === 'split') actionName = '拆單頁';
+
+                    updateProgress(currentPercent, `正在${actionName} (${i + 1}/${total})：${item.file.name}`);
+                    globalStatus.innerText = `⏳ 正在處理第 ${i + 1}/${total} 個檔案：${item.file.name}...`;
+                    addLog(`正在${actionName} (${i + 1}/${total})：${item.file.name}`, 'info');
+
+                    const singleFormData = new FormData();
+                    singleFormData.append('files', item.file);
+                    singleFormData.append('mode', currentMode);
+
+                    try {
+                        const resp = await postApi('/api/convert', singleFormData);
+                        const res = await resp.json();
+                        if (res.success) {
+                            item.status = 'done';
+                            successCount++;
+                            const detailLog = res.log || `處理成功 ➔ converted/`;
+                            addLog(`✅ [成功] ${item.file.name} ➔ ${detailLog}`, 'success');
+                        } else {
+                            item.status = 'fail';
+                            failCount++;
+                            addLog(`❌ [失敗] ${item.file.name}：${res.message || '處理異常'}`, 'error');
+                        }
+                    } catch (err) {
+                        item.status = 'fail';
+                        failCount++;
+                        addLog(`❌ [連線異常] ${item.file.name}`, 'error');
+                    }
+
+                    renderQueue();
+                }
+
+                updateProgress(100, (failCount === 0) ? '全部處理完成' : `完成 ${successCount} 個，失敗 ${failCount} 個`);
+                if (failCount === 0) {
                     globalStatus.className = 'status-success';
-                    globalStatus.innerText = (currentMode === 'merge') ? `✅ 已成功合併為 ${mergedName}` : '✅ 佇列檔案全部轉換完成！';
+                    if (currentMode === 'pdf_to_images') {
+                        globalStatus.innerText = `✅ 全部 ${total} 個 PDF 已成功轉為圖片！`;
+                    } else if (currentMode === 'split') {
+                        globalStatus.innerText = `✅ 全部 ${total} 個 PDF 已成功拆分單頁完成！`;
+                    } else {
+                        globalStatus.innerText = `✅ 佇列 ${total} 個檔案全部轉換完成！`;
+                    }
+                    addLog(`🎉 全部 ${total} 個項目處理完畢！`, 'success');
                     openFolderBtn.style.display = 'block';
                 } else {
-                    selectedFiles.forEach(item => item.status = 'fail');
-                    updateProgress(100, '轉檔失敗');
                     globalStatus.className = 'status-error';
-                    globalStatus.innerText = '❌ 轉檔失敗：' + (res.message || '未知錯誤');
+                    globalStatus.innerText = `⚠️ 處理完畢：${successCount} 個成功，${failCount} 個失敗。`;
+                    addLog(`⚠️ 處理完畢：${successCount} 個成功，${failCount} 個失敗。`, 'warn');
+                    if (successCount > 0) openFolderBtn.style.display = 'block';
                 }
-            } catch (err) {
-                selectedFiles.forEach(item => item.status = 'fail');
-                updateProgress(100, '網路異常');
-                globalStatus.className = 'status-error';
-                globalStatus.innerText = '❌ 網路連線或伺服器異常';
             }
-            renderQueue();
         }
 
         async function openOutputFolder() {
             try {
                 await postApi('/api/open-folder');
+                addLog('📂 已開啟本機 converted/ 輸出資料夾', 'info');
             } catch (err) {
                 alert('無法開啟本機資料夾');
             }
@@ -807,6 +1129,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const res = await resp.json();
                     if (res.success) {
                         alert(`✅ 清理完成！已清除 ${res.count} 個歷史暫存檔案。`);
+                        addLog(`🧹 [暫存清理] 已清除 ${res.count} 個歷史暫存檔案。`, 'info');
                     } else {
                         alert('❌ 清理失敗: ' + res.message);
                     }
@@ -843,14 +1166,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 # ============================================================
 class WebAppHandler(SimpleHTTPRequestHandler):
 
+    def log_message(self, format, *args):
+        """過濾心跳與圖示輪詢日誌，維持終端視窗清爽聚焦。"""
+        if hasattr(self, "path") and self.path in ("/api/heartbeat", "/favicon.ico"):
+            return
+        super().log_message(format, *args)
+
     def do_GET(self):
-        if self.path in ["/", "/index.html"]:
+        global LAST_HEARTBEAT_TIME
+        parsed = urllib.parse.urlparse(self.path)
+        clean_path = parsed.path
+        if clean_path in ["/", "/index.html"]:
+            LAST_HEARTBEAT_TIME = time.time()
+            encoded = HTML_TEMPLATE.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(HTML_TEMPLATE.encode("utf-8"))
-        elif self.path == "/favicon.ico":
+            self.wfile.write(encoded)
+        elif clean_path == "/api/heartbeat":
+            LAST_HEARTBEAT_TIME = time.time()
+            self._send_json({"status": "alive"})
+        elif clean_path == "/favicon.ico":
             self.send_response(204)  # No Content
+            self.send_header("Content-Length", "0")
+            self.send_header("Connection", "close")
             self.end_headers()
         else:
             self.send_error(404, "Page Not Found")
@@ -869,7 +1210,7 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                     return
 
                 mode = form_data.get("mode", "single")
-                if mode not in ("single", "merge"):
+                if mode not in ("single", "merge", "split", "pdf_to_images"):
                     self._send_json({"success": False, "message": "不支援的輸出模式"}, status=400)
                     return
 
@@ -892,7 +1233,75 @@ class WebAppHandler(SimpleHTTPRequestHandler):
 
                     target_path = str(temp_pdf) if mode == "merge" else str(final_pdf)
 
-                    if ext in [".doc", ".docx"]:
+                    if mode == "split":
+                        if ext == ".pdf":
+                            split_paths = converter.split_pdf(p, CONFIG["output_dir"])
+                            if split_paths:
+                                generated_pdfs.extend(split_paths)
+                            else:
+                                overall_success = False
+                        else:
+                            temp_pdf = Path(CONFIG["output_dir"]) / f"temp_{request_id}_{stem}.pdf"
+                            conv_res = False
+                            if ext in [".doc", ".docx"]:
+                                conv_res = converter.convert_word(p, str(temp_pdf))
+                            elif ext in [".xls", ".xlsx"]:
+                                excel_pdfs = converter.convert_excel(p, str(temp_pdf))
+                                if excel_pdfs:
+                                    temp_pdf = Path(excel_pdfs[0])
+                                    conv_res = True
+                            elif ext in [".ppt", ".pptx"]:
+                                conv_res = converter.convert_powerpoint(p, str(temp_pdf))
+                            elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
+                                conv_res = converter.convert_image([p], str(temp_pdf))
+
+                            if conv_res and temp_pdf.exists():
+                                split_paths = converter.split_pdf(str(temp_pdf), CONFIG["output_dir"])
+                                if split_paths:
+                                    generated_pdfs.extend(split_paths)
+                                else:
+                                    overall_success = False
+                                try:
+                                    temp_pdf.unlink(missing_ok=True)
+                                except Exception:
+                                    pass
+                            else:
+                                overall_success = False
+                    elif mode == "pdf_to_images":
+                        if ext == ".pdf":
+                            img_paths = converter.convert_pdf_to_images(p, CONFIG["output_dir"])
+                            if img_paths:
+                                generated_pdfs.extend(img_paths)
+                            else:
+                                overall_success = False
+                        else:
+                            temp_pdf = Path(CONFIG["output_dir"]) / f"temp_{request_id}_{stem}.pdf"
+                            conv_res = False
+                            if ext in [".doc", ".docx"]:
+                                conv_res = converter.convert_word(p, str(temp_pdf))
+                            elif ext in [".xls", ".xlsx"]:
+                                excel_pdfs = converter.convert_excel(p, str(temp_pdf))
+                                if excel_pdfs:
+                                    temp_pdf = Path(excel_pdfs[0])
+                                    conv_res = True
+                            elif ext in [".ppt", ".pptx"]:
+                                conv_res = converter.convert_powerpoint(p, str(temp_pdf))
+                            elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
+                                conv_res = converter.convert_image([p], str(temp_pdf))
+
+                            if conv_res and temp_pdf.exists():
+                                img_paths = converter.convert_pdf_to_images(str(temp_pdf), CONFIG["output_dir"])
+                                if img_paths:
+                                    generated_pdfs.extend(img_paths)
+                                else:
+                                    overall_success = False
+                                try:
+                                    temp_pdf.unlink(missing_ok=True)
+                                except Exception:
+                                    pass
+                            else:
+                                overall_success = False
+                    elif ext in [".doc", ".docx"]:
                         res = converter.convert_word(p, target_path)
                         if res:
                             generated_pdfs.append(target_path)
@@ -952,10 +1361,13 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                     if not merge_res:
                         overall_success = False
 
+                log_desc = f"產出 {len(generated_pdfs)} 個項目至 converted/" if overall_success else "轉檔處理異常"
                 self._send_json(
                     {
                         "success": overall_success,
                         "message": "轉換完成" if overall_success else "部分或全部檔案轉檔失敗",
+                        "outputs": [Path(p).name for p in generated_pdfs],
+                        "log": log_desc,
                     }
                 )
 
@@ -966,6 +1378,10 @@ class WebAppHandler(SimpleHTTPRequestHandler):
             elif self.path == "/api/open-folder":
                 self._open_converted_folder()
                 self._send_json({"success": True, "message": "已開啟輸出資料夾"})
+
+            elif self.path == "/api/shutdown":
+                self._send_json({"success": True, "message": "伺服器正在安全停止..."})
+                threading.Thread(target=self.server.shutdown).start()
             else:
                 self.send_error(404, "API Endpoint Not Found")
         except Exception as e:
@@ -1103,14 +1519,29 @@ class WebAppHandler(SimpleHTTPRequestHandler):
         return not token or hmac.compare_digest(self.headers.get("X-PaperSwitch-Token", ""), token)
 
     def _send_json(self, data: dict, status: int = 200):
+        body = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode("utf-8"))
+        self.wfile.write(body)
+
+
+def _heartbeat_watchdog(server):
+    """心跳守護線程：當超過寬限期未收到任何瀏覽器分頁心跳時，自動安全停止伺服器並結束行程"""
+    # 給予啟動初期 45 秒寬限期，等待瀏覽器完成開啟與首次頁面載入
+    time.sleep(45)
+    while True:
+        time.sleep(3)
+        if time.time() - LAST_HEARTBEAT_TIME > HEARTBEAT_TIMEOUT:
+            print("\n[PaperSwitch] 偵測到所有網頁分頁已關閉（心跳超時），自動安全停止伺服器並退出行程...")
+            threading.Thread(target=server.shutdown).start()
+            break
 
 
 # ============================================================
-# 主入口程式 (升級 ThreadingHTTPServer 多執行緒併發處理)
+# 主入口程式 (升級 ThreadingHTTPServer 多執行緒併發處理與心跳守護)
 # ============================================================
 def main():
     if hasattr(sys.stdout, "reconfigure"):
@@ -1127,6 +1558,10 @@ def main():
     httpd = ThreadingHTTPServer(server_address, WebAppHandler)
     url = f"http://{CONFIG['host']}:{CONFIG['port']}"
     print(f"[PaperSwitch] 多執行緒轉檔伺服器運行中: {url}")
+
+    # 啟動心跳監控守護線程 (寬鬆待命模式)
+    # watchdog = threading.Thread(target=_heartbeat_watchdog, args=(httpd,), daemon=True)
+    # watchdog.start()
 
     # 自動開啟預設瀏覽器
     webbrowser.open(url)
