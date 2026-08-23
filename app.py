@@ -2,6 +2,7 @@
 # CONFIG — 所有可變參數集中於此，嚴禁在下方程式碼中散落魔術數字
 # ============================================================
 import json
+import base64
 import hmac
 import os
 import shutil
@@ -515,6 +516,93 @@ class DocumentConverter:
                 except Exception:
                     pass
 
+    @staticmethod
+    def render_pdf_thumbnails(input_pdf_path: str, max_dpi: int = 72) -> list[dict]:
+        """將 PDF 的每一頁渲染為輕量級 Base64 縮圖以供視覺化編排畫布預覽"""
+        if not HAS_PYMUPDF or fitz is None:
+            print("❌ [縮圖渲染失敗] 尚未安裝 PyMuPDF 套件。")
+            return []
+
+        input_abs = str(Path(input_pdf_path).resolve())
+        stem = Path(input_pdf_path).name
+        thumbnails = []
+
+        try:
+            doc = fitz.open(input_abs)
+            total_pages = len(doc)
+
+            for page_index in range(total_pages):
+                page = doc[page_index]
+                pix = page.get_pixmap(dpi=max_dpi)
+                img_bytes = pix.tobytes("jpeg")
+                b64_str = base64.b64encode(img_bytes).decode("ascii")
+                data_uri = f"data:image/jpeg;base64,{b64_str}"
+
+                thumbnails.append({
+                    "page_index": page_index,
+                    "page_number": page_index + 1,
+                    "total_pages": total_pages,
+                    "thumbnail": data_uri,
+                    "width": pix.width,
+                    "height": pix.height,
+                    "filename": stem,
+                    "source_path": input_abs
+                })
+
+            doc.close()
+            print(f"✅ [縮圖渲染成功] {stem}: 共渲染 {len(thumbnails)} 頁縮圖")
+            return thumbnails
+        except Exception as e:
+            print(f"❌ [縮圖渲染失敗] {input_abs}: {e}")
+            return []
+
+    @staticmethod
+    def export_arranged_pdf(page_instructions: list[dict], output_path: str) -> bool:
+        """依據前端視覺化編排的頁面清單與旋轉角度，進行底層向量無損合成"""
+        output_abs = str(Path(output_path).resolve())
+        writer = PdfWriter()
+        readers = {}
+
+        try:
+            for item in page_instructions:
+                src_path = str(Path(item["source_path"]).resolve())
+                page_idx = int(item["page_index"])
+                rotate_angle = int(item.get("rotate", 0)) % 360
+
+                if src_path not in readers:
+                    readers[src_path] = PdfReader(src_path)
+
+                reader = readers[src_path]
+                if 0 <= page_idx < len(reader.pages):
+                    page = reader.pages[page_idx]
+                    if rotate_angle != 0:
+                        page.rotate(rotate_angle)
+                    writer.add_page(page)
+
+            if len(writer.pages) == 0:
+                print("❌ [編排導出失敗] 無任何有效頁面被加入")
+                return False
+
+            with open(output_abs, "wb") as f:
+                writer.write(f)
+
+            print(f"✅ [編排導出成功] 共合成 {len(writer.pages)} 頁向量無損 PDF -> {output_abs}")
+            return True
+        except Exception as e:
+            print(f"❌ [編排導出失敗]: {e}")
+            return False
+        finally:
+            try:
+                writer.close()
+            except Exception:
+                pass
+            for r in readers.values():
+                if hasattr(r, "stream") and hasattr(r.stream, "close"):
+                    try:
+                        r.stream.close()
+                    except Exception:
+                        pass
+
 
 # ============================================================
 # Web UI 前端 HTML 樣式 (含手動清理暫存檔與 PPT/PPTX 支援)
@@ -712,156 +800,732 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .input-field { width: 100%; padding: 10px 12px; background: rgba(18, 24, 35, 0.7); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-h1); font-size: 0.9rem; font-weight: 600; outline: none; }
         .input-field:focus { border-color: var(--accent-color); }
 
-        .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; flex-shrink: 0; }
-        .btn { font-family: var(--font-heading); width: 100%; padding: 13px; background: var(--accent-color); color: #0b121e; font-weight: 800; border: none; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; font-size: 1.02rem; text-align: center; letter-spacing: 0.02em; }
-        .btn:hover { background: var(--accent-hover); color: #ffffff; }
-        .btn-secondary { background: var(--secondary-bg); color: var(--text-h1); border: 1px solid var(--border-color); font-size: 0.95rem; }
-        .btn-secondary:hover { background: var(--secondary-hover); }
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
 
-        .maintenance-actions { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border-color); }
-        .maintenance-label { display: block; margin-bottom: 8px; color: var(--text-sub); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
-        .maintenance-btns { display: flex; flex-wrap: wrap; gap: 6px; }
-        .maintenance-btns .btn-tool { width: auto; min-height: auto; padding: 7px 11px; font-size: 0.82rem; font-family: var(--font-heading); font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
-        .btn-tool-secondary { background: var(--secondary-bg); color: var(--text-h2); border: 1px solid var(--border-color); }
-        .btn-tool-secondary:hover { background: var(--secondary-hover); border-color: rgba(107, 164, 200, 0.4); }
-        .btn-tool-danger { background: rgba(212, 122, 122, 0.12); color: var(--error-color); border: 1px solid rgba(212, 122, 122, 0.35); }
-        .btn-tool-danger:hover { background: rgba(212, 122, 122, 0.22); }
+        .btn {
+            font-family: var(--font-heading);
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
+            color: #0b121e;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 14px rgba(107, 164, 200, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            letter-spacing: -0.01em;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(107, 164, 200, 0.55);
+            color: #ffffff;
+        }
+        .btn:active { transform: translateY(0); }
 
-        .log-console-box { margin-top: 12px; background: rgba(10, 14, 22, 0.85); border: 1px solid var(--border-color); border-radius: 10px; padding: 11px 13px; flex-shrink: 0; }
-        .log-console-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; font-weight: 800; color: var(--text-h3); margin-bottom: 6px; }
-        .log-clear-btn { background: none; border: none; color: var(--text-sub); font-size: 0.76rem; font-weight: 600; cursor: pointer; text-decoration: underline; }
-        .log-clear-btn:hover { color: var(--text-h1); }
-        .log-console { height: 130px; overflow-y: auto; font-family: Consolas, "Courier New", monospace; font-size: 0.78rem; display: flex; flex-direction: column; gap: 4px; }
-        .log-line { line-height: 1.45; word-break: break-all; }
-        .log-info { color: var(--text-sub); }
-        .log-success { color: var(--success-color); font-weight: 600; }
-        .log-warn { color: var(--warning-color); }
-        .log-error { color: var(--error-color); font-weight: 600; }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-h2);
+            border: 1px solid var(--border-color);
+            box-shadow: none;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--border-hover);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
 
-        #globalStatus { margin-top: 8px; text-align: center; font-size: 0.9rem; font-weight: 700; min-height: 20px; flex-shrink: 0; }
+        .btn-arranger-entry {
+            background: linear-gradient(135deg, rgba(107, 164, 200, 0.25), rgba(107, 164, 200, 0.08));
+            border: 1.5px solid var(--accent-color);
+            color: #ffffff;
+            font-size: 0.98rem;
+            font-weight: 800;
+            padding: 13px;
+            margin-top: 4px;
+            border-radius: 10px;
+            letter-spacing: 0.01em;
+        }
+        .btn-arranger-entry:hover {
+            background: linear-gradient(135deg, rgba(107, 164, 200, 0.4), rgba(107, 164, 200, 0.18));
+            box-shadow: 0 0 16px rgba(107, 164, 200, 0.35);
+        }
+
+        #globalStatus {
+            font-family: var(--font-heading);
+            margin-top: 6px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            text-align: center;
+            min-height: 22px;
+            line-height: 1.4;
+        }
+        .status-success { color: var(--success-color); }
+        .status-error { color: var(--error-color); }
+
+        .maintenance-actions {
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .maintenance-label {
+            font-family: var(--font-heading);
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--text-sub);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .maintenance-btns {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-tool {
+            font-family: var(--font-heading);
+            font-size: 0.84rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 7px 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            line-height: 1.3;
+            border: 1px solid transparent;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .btn-tool-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-h2);
+            border-color: var(--border-color);
+        }
+        .btn-tool-secondary:hover {
+            background: rgba(255, 255, 255, 0.16);
+            border-color: var(--border-hover);
+            color: #ffffff;
+        }
+        .btn-tool-danger {
+            background: rgba(212, 122, 122, 0.12);
+            color: var(--error-color);
+            border-color: rgba(212, 122, 122, 0.35);
+        }
+        .btn-tool-danger:hover {
+            background: rgba(212, 122, 122, 0.25);
+            border-color: var(--error-color);
+            color: #ffffff;
+        }
+        .btn-tool-primary {
+            background: rgba(107, 164, 200, 0.2);
+            color: #ffffff;
+            border: 1.5px solid var(--accent-color);
+        }
+        .btn-tool-primary:hover {
+            background: rgba(107, 164, 200, 0.35);
+            box-shadow: 0 0 10px rgba(107, 164, 200, 0.3);
+        }
+        .btn-tool-accent {
+            background: var(--accent-color);
+            color: #0b121e;
+            font-weight: 800;
+            border: none;
+        }
+        .btn-tool-accent:hover {
+            background: var(--accent-hover);
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(107, 164, 200, 0.4);
+        }
+
+        /* 🗂️ 視覺化頁面編排 (Arranger View) 沉浸式全幅大頁面樣式 */
+        :root {
+            --thumbnail-card-width: 185px;
+        }
+
+        .arranger-view {
+            width: 88vw;
+            max-width: 1720px;
+            height: calc(100vh - 80px);
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .arranger-header {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+            flex-shrink: 0;
+        }
+        .arranger-title-group {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .arranger-title-group h2 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-h1);
+            letter-spacing: -0.02em;
+        }
+        .arranger-page-stat {
+            font-size: 0.86rem;
+            font-weight: 700;
+            color: var(--text-sub);
+            background: rgba(255, 255, 255, 0.08);
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
+        .arranger-toolbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        /* 🔍 縮圖尺寸縮放群組 */
+        .zoom-control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-color);
+            padding: 5px 12px;
+            border-radius: 8px;
+        }
+        .zoom-label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-h3);
+            white-space: nowrap;
+        }
+        .zoom-slider {
+            width: 85px;
+            cursor: pointer;
+            accent-color: var(--accent-color);
+        }
+        .zoom-val {
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: var(--text-sub);
+            min-width: 38px;
+        }
+
+        /* 統一按鈕階梯規範 */
+        .btn-tool {
+            font-family: var(--font-heading);
+            font-size: 0.84rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 7px 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            line-height: 1.3;
+        }
+        .arranger-toolbar .btn-tool-accent {
+            background: var(--accent-color);
+            color: #0b121e;
+            font-weight: 800;
+            border: none;
+        }
+        .arranger-toolbar .btn-tool-accent:hover {
+            background: var(--accent-hover);
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(107, 164, 200, 0.4);
+        }
+        .arranger-toolbar .btn-tool-primary {
+            background: rgba(107, 164, 200, 0.2);
+            color: #ffffff;
+            border: 1.5px solid var(--accent-color);
+        }
+        .arranger-toolbar .btn-tool-primary:hover {
+            background: rgba(107, 164, 200, 0.35);
+        }
+
+        .arranger-canvas-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1.5px dashed var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.25s ease;
+        }
+        .arranger-canvas-container.dragover {
+            border-color: var(--accent-color);
+            background: rgba(107, 164, 200, 0.08);
+        }
+
+        .arranger-empty-state {
+            margin: auto;
+            text-align: center;
+            cursor: pointer;
+            padding: 40px;
+            border-radius: 12px;
+            transition: all 0.2s ease;
+        }
+        .arranger-empty-state:hover {
+            background: rgba(255, 255, 255, 0.04);
+            transform: scale(1.02);
+        }
+
+        .arranger-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(var(--thumbnail-card-width, 185px), 1fr));
+            gap: 16px;
+            padding-bottom: 30px;
+        }
+
+        .arranger-card {
+            background: rgba(15, 20, 30, 0.78);
+            border: 1.5px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        .arranger-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.6);
+        }
+        .arranger-card.selected {
+            border-color: var(--accent-color);
+            background: linear-gradient(135deg, rgba(107, 164, 200, 0.22), rgba(107, 164, 200, 0.06));
+            box-shadow: 0 0 0 2px rgba(107, 164, 200, 0.6), 0 10px 20px -5px rgba(0, 0, 0, 0.6);
+        }
+        .arranger-card.dragging {
+            opacity: 0.3;
+            border: 2px dashed var(--accent-color);
+            transform: scale(0.95);
+        }
+        .arranger-card.dragging-stacked {
+            opacity: 0.38;
+            border: 2px dashed var(--accent-color);
+            transform: scale(0.95);
+            filter: grayscale(0.4) brightness(0.9);
+            box-shadow: 0 0 12px rgba(107, 164, 200, 0.4);
+        }
+        .arranger-card.drag-lead {
+            opacity: 0.7;
+            box-shadow: 0 0 0 3px var(--accent-color), 0 12px 25px rgba(0, 0, 0, 0.8);
+            transform: scale(0.98) rotate(2deg);
+        }
+        .arranger-card.drag-target-left {
+            box-shadow: -4.5px 0 0 var(--accent-color);
+        }
+        .arranger-card.drag-target-right {
+            box-shadow: 4.5px 0 0 var(--accent-color);
+        }
+
+        .arranger-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .arranger-badge {
+            font-weight: 800;
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--text-h1);
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 0.78rem;
+        }
+        .arranger-card-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .arranger-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+        }
+        .arranger-action-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .arranger-action-btn.btn-del:hover {
+            color: var(--error-color);
+            background: rgba(212, 122, 122, 0.2);
+        }
+
+        .arranger-card-img-box {
+            width: 100%;
+            height: calc(var(--thumbnail-card-width, 185px) * 1.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            position: relative;
+        }
+        .arranger-card-img {
+            max-width: 92%;
+            max-height: 92%;
+            object-fit: contain;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            border-radius: 2px;
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .arranger-card-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.76rem;
+            color: var(--text-sub);
+            margin-top: 2px;
+        }
+        .arranger-card-filename {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: calc(100% - 55px);
+            font-weight: 600;
+        }
+        .arranger-card-rot {
+            font-weight: 700;
+            color: var(--warning-color);
+        }
+
+        /* 🖼️ 雙擊全螢幕大圖預覽燈箱 (Lightbox Modal) */
+        .lightbox-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(10, 14, 22, 0.88);
+            backdrop-filter: blur(12px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .lightbox-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 90vw;
+            max-width: 980px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+            overflow: hidden;
+        }
+        .lightbox-header {
+            padding: 14px 20px;
+            background: rgba(15, 20, 30, 0.8);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .lightbox-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--text-h1);
+        }
+        .lightbox-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .lightbox-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            position: relative;
+            min-height: 0;
+            background: rgba(8, 11, 18, 0.6);
+        }
+        .lightbox-img-box {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .lightbox-img-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            transition: transform 0.25s ease;
+        }
+        .lightbox-nav-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-color);
+            color: var(--text-h1);
+            font-size: 1.5rem;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            z-index: 2;
+        }
+        .lightbox-nav-btn:hover {
+            background: var(--accent-color);
+            color: #0b121e;
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
-    <header>
-        <h1>📄 PaperSwitch</h1>
-        <p>萬能 Word / Excel / PowerPoint / 圖片 轉 PDF 與 PDF 合併引擎</p>
-    </header>
+    <div id="mainView">
+        <header>
+            <h1>📄 PaperSwitch</h1>
+            <p>萬能 Word / Excel / PowerPoint / 圖片 轉 PDF 與 PDF 合併引擎</p>
+        </header>
 
-    <div class="dashboard">
-        <!-- 區塊 1: 檔案拖曳區 (左欄) -->
-        <div class="panel panel-upload">
-            <h2 class="panel-title">📥 1. 檔案拖曳區</h2>
-            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-                <div class="drop-icon">✨</div>
-                <div class="drop-text">將檔案拖曳至此處</div>
-                <div class="drop-hint">或點擊此區域選擇檔案</div>
-                <div class="format-chips" aria-label="支援格式">
-                    <span class="format-chip">Word</span>
-                    <span class="format-chip">Excel</span>
-                    <span class="format-chip">PowerPoint</span>
-                    <span class="format-chip">圖片</span>
-                    <span class="format-chip">PDF</span>
-                </div>
-                <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFiles(this.files)">
-            </div>
-        </div>
-
-        <!-- 區塊 2: 檔案佇列與進度 (中欄) -->
-        <div class="panel panel-queue">
-            <h2 class="panel-title">📋 2. 檔案佇列與進度</h2>
-            
-            <div class="progress-box">
-                <div class="progress-info">
-                    <span id="progressStatusText">佇列就緒</span>
-                    <span id="progressPercentText">0%</span>
-                </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" id="progressBar"></div>
+        <div class="dashboard">
+            <!-- 區塊 1: 檔案拖曳區 (左欄) -->
+            <div class="panel panel-upload">
+                <h2 class="panel-title">📥 1. 檔案拖曳區</h2>
+                <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <div class="drop-icon">✨</div>
+                    <div class="drop-text">將檔案拖曳至此處</div>
+                    <div class="drop-hint">或點擊此區域選擇檔案</div>
+                    <div class="format-chips" aria-label="支援格式">
+                        <span class="format-chip">Word</span>
+                        <span class="format-chip">Excel</span>
+                        <span class="format-chip">PowerPoint</span>
+                        <span class="format-chip">圖片</span>
+                        <span class="format-chip">PDF</span>
+                    </div>
+                    <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFiles(this.files)">
                 </div>
             </div>
 
-            <div class="queue-header">
-                <span class="queue-count" id="queueCountText">共 0 個檔案</span>
-                <button class="clear-btn" onclick="clearQueue()">清空佇列</button>
-            </div>
-
-            <div class="file-queue" id="fileQueue">
-                <div style="text-align: center; color: var(--text-sub); font-size: 0.85rem; margin: auto 0;">尚無待處理檔案</div>
-            </div>
-
-            <!-- 即時動態日誌終端框 -->
-            <div class="log-console-box">
-                <div class="log-console-header">
-                    <span>🖥️ 系統執行日誌</span>
-                    <button class="log-clear-btn" type="button" onclick="clearConsoleLog()">清除</button>
-                </div>
-                <div class="log-console" id="logConsole">
-                    <div class="log-line log-info">[系統連線] PaperSwitch 伺服器運作正常</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 區塊 3: 轉換功能設定 (右欄) -->
-        <div class="panel panel-settings">
-            <h2 class="panel-title">⚙️ 3. 轉換功能設定</h2>
-            
-            <div class="option-group">
-                <h3 class="option-label">輸出模式設定：</h3>
+            <!-- 區塊 2: 檔案佇列與進度 (中欄) -->
+            <div class="panel panel-queue">
+                <h2 class="panel-title">📋 2. 檔案佇列與進度</h2>
                 
-                <label class="radio-card active" id="cardSingle" onclick="setMode('single')">
-                    <input type="radio" name="convertMode" value="single" checked>
-                    <div class="radio-text">
-                        <span class="radio-title">📄 文件轉 PDF</span>
-                        <span class="radio-desc">每個檔案個別轉換為對應同名 PDF (Excel 多分頁自動拆分獨立產出)</span>
+                <div class="progress-box">
+                    <div class="progress-info">
+                        <span id="progressStatusText">佇列就緒</span>
+                        <span id="progressPercentText">0%</span>
                     </div>
-                </label>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="progressBar"></div>
+                    </div>
+                </div>
 
-                <label class="radio-card" id="cardMerge" onclick="setMode('merge')">
-                    <input type="radio" name="convertMode" value="merge">
-                    <div class="radio-text">
-                        <span class="radio-title">📚 多檔併 PDF</span>
-                        <span class="radio-desc">將佇列中所有檔案按自訂順序合併為單一完整 PDF 檔案</span>
-                    </div>
-                </label>
+                <div class="queue-header">
+                    <span class="queue-count" id="queueCountText">共 0 個檔案</span>
+                    <button class="clear-btn" onclick="clearQueue()">清空佇列</button>
+                </div>
 
-                <label class="radio-card" id="cardSplit" onclick="setMode('split')">
-                    <input type="radio" name="convertMode" value="split">
-                    <div class="radio-text">
-                        <span class="radio-title">✂️ PDF 拆單頁</span>
-                        <span class="radio-desc">將多頁 PDF 檔案的每個頁面獨立拆解導出為單頁 PDF</span>
-                    </div>
-                </label>
+                <div class="file-queue" id="fileQueue">
+                    <div style="text-align: center; color: var(--text-sub); font-size: 0.85rem; margin: auto 0;">尚無待處理檔案</div>
+                </div>
 
-                <label class="radio-card" id="cardPdfToImg" onclick="setMode('pdf_to_images')">
-                    <input type="radio" name="convertMode" value="pdf_to_images">
-                    <div class="radio-text">
-                        <span class="radio-title">🖼️ PDF 轉圖片</span>
-                        <span class="radio-desc">將 PDF 檔案的每個頁面獨立渲染導出為高清 PNG 圖片</span>
+                <!-- 即時動態日誌終端框 -->
+                <div class="log-console-box">
+                    <div class="log-console-header">
+                        <span>🖥️ 系統執行日誌</span>
+                        <button class="log-clear-btn" type="button" onclick="clearConsoleLog()">清除</button>
                     </div>
-                </label>
+                    <div class="log-console" id="logConsole">
+                        <div class="log-line log-info">[系統連線] PaperSwitch 伺服器運作正常</div>
+                    </div>
+                </div>
             </div>
 
-            <div class="input-group" id="mergedFilenameBox" style="display: none;">
-                <h4 class="option-label" style="font-size: 0.8rem;">合併 PDF 檔名：</h4>
-                <input type="text" id="mergedFilename" class="input-field" value="combined_output.pdf" placeholder="例如：combined_output.pdf">
-            </div>
+            <!-- 區塊 3: 轉換功能設定 (右欄) -->
+            <div class="panel panel-settings">
+                <h2 class="panel-title">⚙️ 3. 轉換功能設定</h2>
+                
+                <div class="option-group">
+                    <h3 class="option-label">輸出模式設定：</h3>
+                    
+                    <label class="radio-card active" id="cardSingle" onclick="setMode('single')">
+                        <input type="radio" name="convertMode" value="single" checked>
+                        <div class="radio-text">
+                            <span class="radio-title">📄 文件轉 PDF</span>
+                            <span class="radio-desc">每個檔案個別轉換為對應同名 PDF (Excel 多分頁自動拆分獨立產出)</span>
+                        </div>
+                    </label>
 
-            <div class="btn-group">
-                <button class="btn" onclick="uploadAndConvert()">🚀 開始轉換</button>
-                <button class="btn btn-secondary" id="openFolderBtn" onclick="openOutputFolder()" style="display: none;">📂 開啟 PDF 輸出資料夾</button>
-            </div>
+                    <label class="radio-card" id="cardMerge" onclick="setMode('merge')">
+                        <input type="radio" name="convertMode" value="merge">
+                        <div class="radio-text">
+                            <span class="radio-title">📚 多檔併 PDF</span>
+                            <span class="radio-desc">將佇列中所有檔案按自訂順序合併為單一完整 PDF 檔案</span>
+                        </div>
+                    </label>
 
-            <div id="globalStatus" aria-live="polite"></div>
+                    <label class="radio-card" id="cardSplit" onclick="setMode('split')">
+                        <input type="radio" name="convertMode" value="split">
+                        <div class="radio-text">
+                            <span class="radio-title">✂️ PDF 拆單頁</span>
+                            <span class="radio-desc">將多頁 PDF 檔案的每個頁面獨立拆解導出為單頁 PDF</span>
+                        </div>
+                    </label>
 
-            <div class="maintenance-actions">
-                <span class="maintenance-label">維護工具</span>
-                <div class="maintenance-btns">
-                    <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ PDF 輸出資料夾">📂 開啟輸出資料夾</button>
-                    <button class="btn-tool btn-tool-danger" onclick="clearStorage()" title="清理 uploads/ 與 converted/ 暫存檔">🧹 清除歷史暫存檔</button>
-                    <button class="btn-tool btn-tool-danger" onclick="shutdownServer()" title="停止後端伺服器並關閉進程">🛑 關閉伺服器</button>
+                    <label class="radio-card" id="cardPdfToImg" onclick="setMode('pdf_to_images')">
+                        <input type="radio" name="convertMode" value="pdf_to_images">
+                        <div class="radio-text">
+                            <span class="radio-title">🖼️ PDF 轉圖片</span>
+                            <span class="radio-desc">將 PDF 檔案的每個頁面獨立渲染導出為高清 PNG 圖片</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="input-group" id="mergedFilenameBox" style="display: none;">
+                    <h4 class="option-label" style="font-size: 0.8rem;">合併 PDF 檔名：</h4>
+                    <input type="text" id="mergedFilename" class="input-field" value="combined_output.pdf" placeholder="例如：combined_output.pdf">
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn" onclick="uploadAndConvert()">🚀 開始轉換</button>
+                    <button class="btn btn-arranger-entry" onclick="switchToArrangerView()">🗂️ 開啟視覺化頁面編排 (PDF Arranger)</button>
+                    <button class="btn btn-secondary" id="openFolderBtn" onclick="openOutputFolder()" style="display: none;">📂 開啟 PDF 輸出資料夾</button>
+                </div>
+
+                <div id="globalStatus" aria-live="polite"></div>
+
+                <div class="maintenance-actions">
+                    <span class="maintenance-label">維護工具</span>
+                    <div class="maintenance-btns">
+                        <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ PDF 輸出資料夾">📂 開啟輸出資料夾</button>
+                        <button class="btn-tool btn-tool-danger" onclick="clearStorage()" title="清理 uploads/ 與 converted/ 暫存檔">🧹 清除歷史暫存檔</button>
+                        <button class="btn-tool btn-tool-danger" onclick="shutdownServer()" title="停止後端伺服器並關閉進程">🛑 關閉伺服器</button>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- 🗂️ 沉浸式視覺化頁面編排大畫布 (全幅工作區) -->
+    <div id="arrangerView" class="arranger-view" style="display: none;">
+        <div class="arranger-header">
+            <div class="arranger-title-group">
+                <button class="btn-tool btn-tool-secondary" onclick="switchToMainView()">🔙 返回批次轉檔</button>
+                <h2>🗂️ 視覺化頁面編排 (PDF Page Arranger)</h2>
+                <span class="arranger-page-stat" id="arrangerStatText">共 0 頁 (已選取 0 頁)</span>
+            </div>
+            <div class="arranger-toolbar">
+                <button class="btn-tool btn-tool-secondary" onclick="document.getElementById('arrangerFileInput').click()">➕ 加入檔案</button>
+                <input type="file" id="arrangerFileInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.bmp,.webp" style="display: none;" onchange="handleArrangerUpload(this.files)">
+                
+                <div class="zoom-control-group" title="獨立縮放縮圖大小：可拖動滑桿、在滑桿上滾動滾輪，或在畫布上按住 Ctrl + 滾輪">
+                    <span class="zoom-label">🔍 縮圖</span>
+                    <input type="range" class="zoom-slider" id="thumbnailZoomSlider" min="130" max="360" value="185" step="10" oninput="updateThumbnailZoom(this.value)" onwheel="handleSliderWheel(event)">
+                    <span class="zoom-val" id="zoomValText">185px</span>
+                </div>
+
+                <button class="btn-tool btn-tool-secondary" onclick="rotateSelectedPages(-90)" title="逆時針旋轉 90°">↺ 逆轉 90°</button>
+                <button class="btn-tool btn-tool-secondary" onclick="rotateSelectedPages(90)" title="順時針旋轉 90° (快捷鍵 R)">↻ 順轉 90° (R)</button>
+                <button class="btn-tool btn-tool-secondary" onclick="toggleSelectAllPages()">☑️ 全選/取消 (Ctrl+A)</button>
+                <button class="btn-tool btn-tool-danger" onclick="deleteSelectedPages()" title="刪除選取頁面 (快捷鍵 Del)">🗑️ 刪除選取 (Del)</button>
+                <button class="btn-tool btn-tool-secondary" onclick="clearArrangerCanvas()" title="清空當前畫布所有頁面">🧹 清空畫布</button>
+                <button class="btn-tool btn-tool-primary" onclick="exportArrangedPages('selected')" title="僅將選取的頁面抽取另存為新 PDF">💾 另存選取頁</button>
+                <button class="btn-tool btn-tool-accent" onclick="exportArrangedPages('all')" title="依畫布當前所有頁面與旋轉角度導出完整 PDF">🚀 導出全部編排 PDF</button>
+                <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()">📂 開啟資料夾</button>
+            </div>
+        </div>
+
+        <div class="arranger-canvas-container" id="arrangerCanvasContainer" ondragover="handleArrangerDragOver(event)" ondragleave="handleArrangerDragLeave(event)" ondrop="handleArrangerDrop(event)">
+            <div class="arranger-empty-state" id="arrangerEmptyState" onclick="document.getElementById('arrangerFileInput').click()">
+                <div style="font-size: 56px; margin-bottom: 14px; filter: drop-shadow(0 4px 12px rgba(107, 164, 200, 0.4));">🗂️</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: #ffffff;">拖曳檔案至此處，或點擊選擇檔案</div>
+                <div style="font-size: 0.92rem; color: var(--text-sub); margin-top: 8px; line-height: 1.6;">
+                    支援 PDF / Office / 圖片 自由混合、拖曳換位、旋轉、批次刪除與雙擊大圖預覽
+                </div>
+            </div>
+            <div class="arranger-grid" id="arrangerGrid" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- 🖼️ 雙擊全螢幕大圖預覽燈箱 (Lightbox Modal) -->
+    <div id="lightboxModal" class="lightbox-modal" style="display: none;" onclick="closeLightbox(event)">
+        <div class="lightbox-content" onclick="event.stopPropagation()">
+            <div class="lightbox-header">
+                <div class="lightbox-title" id="lightboxTitle">預覽頁面</div>
+                <div class="lightbox-actions">
+                    <button class="btn-tool btn-tool-secondary" onclick="lightboxRotate(-90)">↺ 逆轉 90°</button>
+                    <button class="btn-tool btn-tool-secondary" onclick="lightboxRotate(90)">↻ 順轉 90°</button>
+                    <button class="btn-tool btn-tool-danger" onclick="closeLightbox()">✕ 關閉 (ESC)</button>
+                </div>
+            </div>
+            <div class="lightbox-body">
+                <button class="lightbox-nav-btn btn-prev" onclick="lightboxNav(-1)" title="上一頁 (←)">❮</button>
+                <div class="lightbox-img-box">
+                    <img id="lightboxImg" src="" alt="Preview">
+                </div>
+                <button class="lightbox-nav-btn btn-next" onclick="lightboxNav(1)" title="下一頁 (→)">❯</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📦 多選打包拖曳懸浮徽章 (Drag Ghost) -->
+    <div id="dragGhostBadge" style="position: fixed; top: -9999px; left: -9999px; pointer-events: none; background: #0c1420; border: 2px solid var(--accent-color); color: #ffffff; padding: 8px 16px; border-radius: 12px; font-weight: 800; font-size: 0.92rem; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.85); display: flex; align-items: center; gap: 8px; z-index: 100000;">
+        🗂️ <span id="dragGhostText">已打包 2 頁</span>
     </div>
 
     <script>
@@ -1114,6 +1778,631 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     if (successCount > 0) openFolderBtn.style.display = 'block';
                 }
             }
+        }
+
+        // ============================================================
+        // 🗂️ 視覺化頁面編排 (PDF Page Arranger) 前端狀態與互動控制
+        // ============================================================
+        let arrangerPages = [];
+        let draggedPageIndex = null;
+        let draggedPageIndices = [];
+        let lastSelectedPageIndex = null;
+        let currentLightboxIndex = null;
+
+        // 🚀 拖曳邊緣平滑自動滾動引擎 (Auto Edge Scroll Engine)
+        let autoScrollTimer = null;
+        let autoScrollVelocity = 0;
+
+        function checkAutoScroll(e) {
+            const container = document.getElementById('arrangerCanvasContainer');
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const edgeThreshold = 90; // 90px 邊緣響應區
+            const y = e.clientY - rect.top;
+
+            if (y < edgeThreshold && container.scrollTop > 0) {
+                // 靠近頂部 ➔ 動態向上平滑捲動
+                const intensity = (edgeThreshold - Math.max(0, y)) / edgeThreshold;
+                autoScrollVelocity = -Math.round(4 + intensity * 26);
+                startAutoScroll(container);
+            } else if (y > (rect.height - edgeThreshold) && (container.scrollTop + container.clientHeight < container.scrollHeight)) {
+                // 靠近底部 ➔ 動態向下平滑捲動
+                const intensity = (Math.min(rect.height, y) - (rect.height - edgeThreshold)) / edgeThreshold;
+                autoScrollVelocity = Math.round(4 + intensity * 26);
+                startAutoScroll(container);
+            } else {
+                stopAutoScroll();
+            }
+        }
+
+        function startAutoScroll(container) {
+            if (autoScrollTimer) return;
+            const scrollLoop = () => {
+                if (autoScrollVelocity !== 0 && container) {
+                    container.scrollTop += autoScrollVelocity;
+                    autoScrollTimer = requestAnimationFrame(scrollLoop);
+                } else {
+                    stopAutoScroll();
+                }
+            };
+            autoScrollTimer = requestAnimationFrame(scrollLoop);
+        }
+
+        function stopAutoScroll() {
+            if (autoScrollTimer) {
+                cancelAnimationFrame(autoScrollTimer);
+                autoScrollTimer = null;
+            }
+            autoScrollVelocity = 0;
+        }
+
+        function switchToArrangerView() {
+            document.getElementById('mainView').style.display = 'none';
+            document.getElementById('arrangerView').style.display = 'flex';
+            window.scrollTo(0, 0);
+
+            // 如果主佇列中已有檔案且畫布為空，自動載入這批檔案至編排畫布
+            if (arrangerPages.length === 0 && selectedFiles.length > 0) {
+                const files = selectedFiles.map(item => item.file);
+                if (files.length > 0) {
+                    handleArrangerUpload(files);
+                }
+            }
+        }
+
+        function switchToMainView() {
+            document.getElementById('arrangerView').style.display = 'none';
+            document.getElementById('mainView').style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+
+        function updateThumbnailZoom(val) {
+            val = parseInt(val, 10);
+            if (isNaN(val)) return;
+            document.documentElement.style.setProperty('--thumbnail-card-width', `${val}px`);
+            const valText = document.getElementById('zoomValText');
+            if (valText) valText.innerText = `${val}px`;
+            const slider = document.getElementById('thumbnailZoomSlider');
+            if (slider && parseInt(slider.value, 10) !== val) {
+                slider.value = val;
+            }
+        }
+
+        function handleSliderWheel(e) {
+            e.preventDefault();
+            const slider = document.getElementById('thumbnailZoomSlider');
+            if (!slider) return;
+            let currentVal = parseInt(slider.value, 10);
+            const step = parseInt(slider.step, 10) || 10;
+            const delta = e.deltaY < 0 ? step : -step;
+            const minVal = parseInt(slider.min, 10);
+            const maxVal = parseInt(slider.max, 10);
+            let newVal = Math.min(maxVal, Math.max(minVal, currentVal + delta));
+            updateThumbnailZoom(newVal);
+        }
+
+        function handleArrangerDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            checkAutoScroll(e);
+            if (!draggedPageIndices || draggedPageIndices.length === 0) {
+                document.getElementById('arrangerCanvasContainer').classList.add('dragover');
+            }
+        }
+
+        function handleArrangerDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('arrangerCanvasContainer').classList.remove('dragover');
+        }
+
+        function handleArrangerDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            stopAutoScroll();
+            document.getElementById('arrangerCanvasContainer').classList.remove('dragover');
+
+            // 1. 如果是內部多選/單選卡片拖曳到畫布空白處 ➔ 整包移動至最後
+            if (draggedPageIndices && draggedPageIndices.length > 0) {
+                const movingItems = draggedPageIndices.map(idx => arrangerPages[idx]);
+                const remainingPages = arrangerPages.filter((_, idx) => !draggedPageIndices.includes(idx));
+                remainingPages.push(...movingItems);
+                arrangerPages = remainingPages;
+                handleCardDragEnd();
+                renderArrangerGrid();
+                return;
+            }
+
+            // 2. 如果是外部拖曳檔案放上畫布
+            const isFiles = e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
+            if (isFiles && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleArrangerUpload(e.dataTransfer.files);
+            }
+        }
+
+        async function handleArrangerUpload(files) {
+            if (!files || files.length === 0) return;
+            const validExts = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.png', '.jpg', '.jpeg', '.bmp', '.webp'];
+            const fileList = Array.from(files).filter(f => {
+                const dotIdx = f.name.lastIndexOf('.');
+                if (dotIdx === -1) return false;
+                const ext = f.name.substring(dotIdx).toLowerCase();
+                return validExts.includes(ext);
+            });
+
+            if (fileList.length === 0) {
+                alert('請選擇支援的檔案格式 (PDF, Word, Excel, PPT, 圖片)！');
+                return;
+            }
+
+            const formData = new FormData();
+            fileList.forEach(f => formData.append('files', f));
+
+            const statEl = document.getElementById('arrangerStatText');
+            statEl.innerText = `⏳ 正在渲染 ${fileList.length} 個檔案的頁面縮圖...`;
+
+            try {
+                const resp = await postApi('/api/arranger/render', formData);
+                const res = await resp.json();
+
+                if (res.success && res.pages && res.pages.length > 0) {
+                    res.pages.forEach(p => {
+                        arrangerPages.push({
+                            uid: 'p_' + Math.random().toString(36).substr(2, 9),
+                            source_path: p.source_path,
+                            filename: p.filename,
+                            page_index: p.page_index,
+                            page_number: p.page_number,
+                            thumbnail: p.thumbnail,
+                            width: p.width,
+                            height: p.height,
+                            rotate: 0,
+                            selected: false
+                        });
+                    });
+                    renderArrangerGrid();
+                    addLog(`🗂️ [視覺化編排] 成功載入 ${res.total_pages} 個頁面至畫布`, 'success');
+                } else {
+                    alert('縮圖渲染失敗：' + (res.message || '未知錯誤'));
+                }
+            } catch (err) {
+                alert('連線或渲染異常');
+            } finally {
+                updateArrangerStats();
+            }
+        }
+
+        function updateArrangerStats() {
+            const total = arrangerPages.length;
+            const selectedCount = arrangerPages.filter(p => p.selected).length;
+            document.getElementById('arrangerStatText').innerText = `共 ${total} 頁 (已選取 ${selectedCount} 頁)`;
+        }
+
+        function renderArrangerGrid() {
+            const emptyEl = document.getElementById('arrangerEmptyState');
+            const gridEl = document.getElementById('arrangerGrid');
+
+            if (arrangerPages.length === 0) {
+                emptyEl.style.display = 'block';
+                gridEl.style.display = 'none';
+                gridEl.innerHTML = '';
+                updateArrangerStats();
+                return;
+            }
+
+            emptyEl.style.display = 'none';
+            gridEl.style.display = 'grid';
+
+            gridEl.innerHTML = arrangerPages.map((page, idx) => {
+                const isSel = page.selected ? 'selected' : '';
+                const rotText = page.rotate !== 0 ? `${page.rotate}°` : '';
+
+                return `
+                    <div class="arranger-card ${isSel}" id="card_${page.uid}" draggable="true"
+                         onclick="handlePageCardClick(${idx}, event)"
+                         ondblclick="openLightbox(${idx})"
+                         ondragstart="handleCardDragStart(${idx}, event)"
+                         ondragover="handleCardDragOver(${idx}, event)"
+                         ondragleave="handleCardDragLeave(${idx}, event)"
+                         ondrop="handleCardDrop(${idx}, event)"
+                         ondragend="handleCardDragEnd(event)"
+                         title="可單選或多選一起拖曳打包移動；雙擊可開啟大圖預覽">
+                        <div class="arranger-card-top">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" ${page.selected ? 'checked' : ''} onclick="event.stopPropagation(); togglePageSelect(${idx}, event);" style="accent-color: var(--accent-color); cursor: pointer;">
+                                <span class="arranger-badge">P.${idx + 1}</span>
+                            </div>
+                            <div class="arranger-card-actions">
+                                <span class="arranger-card-rot">${rotText}</span>
+                                <button type="button" class="arranger-action-btn" onclick="event.stopPropagation(); rotateSinglePage(${idx}, 90);" title="順時針旋轉 90°">↻</button>
+                                <button type="button" class="arranger-action-btn btn-del" onclick="event.stopPropagation(); deleteSinglePage(${idx});" title="刪除此頁">✕</button>
+                            </div>
+                        </div>
+                        <div class="arranger-card-img-box">
+                            <img class="arranger-card-img" src="${page.thumbnail}" style="transform: rotate(${page.rotate}deg);" alt="Page ${idx + 1}" loading="lazy">
+                        </div>
+                        <div class="arranger-card-bottom">
+                            <span class="arranger-card-filename" title="${page.filename}">${page.filename}</span>
+                            <span>原 #${page.page_number}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateArrangerStats();
+        }
+
+        function handlePageCardClick(index, event) {
+            if (event.ctrlKey || event.metaKey) {
+                // Ctrl + Click：切換單個選取
+                arrangerPages[index].selected = !arrangerPages[index].selected;
+                lastSelectedPageIndex = index;
+            } else if (event.shiftKey && lastSelectedPageIndex !== null) {
+                // Shift + Click：區間連續選取
+                const start = Math.min(lastSelectedPageIndex, index);
+                const end = Math.max(lastSelectedPageIndex, index);
+                for (let i = start; i <= end; i++) {
+                    arrangerPages[i].selected = true;
+                }
+            } else {
+                // 單純 Click：單選該頁（或反選）
+                const currentStatus = arrangerPages[index].selected;
+                arrangerPages.forEach(p => p.selected = false);
+                arrangerPages[index].selected = !currentStatus;
+                lastSelectedPageIndex = index;
+            }
+            renderArrangerGrid();
+        }
+
+        function togglePageSelect(index, event) {
+            arrangerPages[index].selected = !arrangerPages[index].selected;
+            lastSelectedPageIndex = index;
+            renderArrangerGrid();
+        }
+
+        function toggleSelectAllPages() {
+            const allSelected = arrangerPages.every(p => p.selected);
+            arrangerPages.forEach(p => p.selected = !allSelected);
+            renderArrangerGrid();
+        }
+
+        function rotateSinglePage(index, delta) {
+            arrangerPages[index].rotate = (arrangerPages[index].rotate + delta + 360) % 360;
+            renderArrangerGrid();
+            if (currentLightboxIndex === index) {
+                updateLightboxView();
+            }
+        }
+
+        function rotateSelectedPages(delta) {
+            const selectedIndices = arrangerPages.map((p, idx) => p.selected ? idx : -1).filter(idx => idx !== -1);
+            if (selectedIndices.length === 0) {
+                alert('請先勾選或點擊選取要旋轉的頁面！');
+                return;
+            }
+            selectedIndices.forEach(idx => {
+                arrangerPages[idx].rotate = (arrangerPages[idx].rotate + delta + 360) % 360;
+            });
+            renderArrangerGrid();
+            if (currentLightboxIndex !== null) {
+                updateLightboxView();
+            }
+        }
+
+        function deleteSinglePage(index) {
+            arrangerPages.splice(index, 1);
+            renderArrangerGrid();
+        }
+
+        function deleteSelectedPages() {
+            const selectedCount = arrangerPages.filter(p => p.selected).length;
+            if (selectedCount === 0) {
+                alert('請先選取要刪除的頁面！');
+                return;
+            }
+            arrangerPages = arrangerPages.filter(p => !p.selected);
+            renderArrangerGrid();
+        }
+
+        function clearArrangerCanvas() {
+            if (arrangerPages.length === 0) return;
+            if (confirm(`確定要清空當前畫布上的全部 ${arrangerPages.length} 個頁面嗎？`)) {
+                arrangerPages = [];
+                renderArrangerGrid();
+                addLog('🧹 已清空視覺化編排畫布', 'info');
+            }
+        }
+
+        // ============================================================
+        // 📦 多選打包拖曳與邊緣平滑自動滾動事件處理
+        // ============================================================
+        function handleCardDragStart(index, event) {
+            // 若被拖曳的卡片已在選取群組內，則整批一起打包拖曳；否則只拖曳此張
+            if (arrangerPages[index].selected) {
+                draggedPageIndices = arrangerPages.map((p, idx) => p.selected ? idx : -1).filter(idx => idx !== -1);
+            } else {
+                arrangerPages.forEach(p => p.selected = false);
+                arrangerPages[index].selected = true;
+                draggedPageIndices = [index];
+                renderArrangerGrid();
+            }
+            draggedPageIndex = index;
+
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', JSON.stringify(draggedPageIndices));
+
+            // 多選打包拖曳視覺效果 (Stack Badge)
+            if (draggedPageIndices.length > 1) {
+                const ghost = document.getElementById('dragGhostBadge');
+                const ghostText = document.getElementById('dragGhostText');
+                if (ghost && ghostText) {
+                    ghostText.innerText = `已打包 ${draggedPageIndices.length} 頁移動中`;
+                    event.dataTransfer.setDragImage(ghost, 30, 20);
+                }
+            }
+
+            setTimeout(() => {
+                draggedPageIndices.forEach(idx => {
+                    const card = document.getElementById(`card_${arrangerPages[idx]?.uid}`);
+                    if (card) {
+                        card.classList.add('dragging-stacked');
+                        if (idx === index) card.classList.add('drag-lead');
+                    }
+                });
+            }, 0);
+        }
+
+        function handleCardDragOver(index, event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            checkAutoScroll(event);
+
+            if (!draggedPageIndices || draggedPageIndices.length === 0) return;
+            if (draggedPageIndices.includes(index)) return;
+
+            const card = document.getElementById(`card_${arrangerPages[index].uid}`);
+            if (card) {
+                const rect = card.getBoundingClientRect();
+                const midX = rect.left + rect.width / 2;
+                if (event.clientX < midX) {
+                    card.classList.add('drag-target-left');
+                    card.classList.remove('drag-target-right');
+                } else {
+                    card.classList.add('drag-target-right');
+                    card.classList.remove('drag-target-left');
+                }
+            }
+        }
+
+        function handleCardDragLeave(index, event) {
+            const card = document.getElementById(`card_${arrangerPages[index].uid}`);
+            if (card) {
+                card.classList.remove('drag-target-left', 'drag-target-right');
+            }
+        }
+
+        function handleCardDrop(targetIndex, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            stopAutoScroll();
+
+            if (!draggedPageIndices || draggedPageIndices.length === 0) {
+                handleCardDragEnd();
+                return;
+            }
+
+            // 若目標卡片就在被拖曳的選取集合中，則不重複排位
+            if (draggedPageIndices.includes(targetIndex)) {
+                handleCardDragEnd();
+                return;
+            }
+
+            const targetItem = arrangerPages[targetIndex];
+            if (!targetItem) {
+                handleCardDragEnd();
+                return;
+            }
+
+            const card = document.getElementById(`card_${targetItem.uid}`);
+            let isAfter = false;
+            if (card) {
+                const rect = card.getBoundingClientRect();
+                const midX = rect.left + rect.width / 2;
+                if (event.clientX >= midX) {
+                    isAfter = true;
+                }
+                card.classList.remove('drag-target-left', 'drag-target-right');
+            }
+
+            // 1. 取得所有要移動的頁面 (保持原先在畫布中的相對順序)
+            const movingItems = draggedPageIndices.map(idx => arrangerPages[idx]);
+
+            // 2. 取得未被拖曳的其餘頁面
+            const remainingPages = arrangerPages.filter((_, idx) => !draggedPageIndices.includes(idx));
+
+            // 3. 在其餘頁面中定位目標卡片的新索引
+            let targetPosInRemaining = remainingPages.findIndex(p => p.uid === targetItem.uid);
+            if (targetPosInRemaining === -1) targetPosInRemaining = remainingPages.length;
+
+            let insertPos = isAfter ? targetPosInRemaining + 1 : targetPosInRemaining;
+            insertPos = Math.max(0, Math.min(insertPos, remainingPages.length));
+
+            // 4. 整包插入到新位置 (保證總頁數完全守恆)
+            remainingPages.splice(insertPos, 0, ...movingItems);
+            arrangerPages = remainingPages;
+
+            handleCardDragEnd();
+            renderArrangerGrid();
+        }
+
+        function handleCardDragEnd(event) {
+            draggedPageIndex = null;
+            draggedPageIndices = [];
+            stopAutoScroll();
+            document.querySelectorAll('.arranger-card').forEach(c => {
+                c.classList.remove('dragging', 'dragging-stacked', 'drag-lead', 'drag-target-left', 'drag-target-right');
+            });
+        }
+
+        // ============================================================
+        // 🖼️ 雙擊全螢幕大圖預覽燈箱 (Lightbox) 控制邏輯
+        // ============================================================
+        function openLightbox(index) {
+            if (index < 0 || index >= arrangerPages.length) return;
+            currentLightboxIndex = index;
+            document.getElementById('lightboxModal').style.display = 'flex';
+            updateLightboxView();
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightboxModal').style.display = 'none';
+            currentLightboxIndex = null;
+        }
+
+        function lightboxNav(delta) {
+            if (currentLightboxIndex === null) return;
+            const newIndex = currentLightboxIndex + delta;
+            if (newIndex >= 0 && newIndex < arrangerPages.length) {
+                currentLightboxIndex = newIndex;
+                updateLightboxView();
+            }
+        }
+
+        function lightboxRotate(delta) {
+            if (currentLightboxIndex === null) return;
+            rotateSinglePage(currentLightboxIndex, delta);
+        }
+
+        function updateLightboxView() {
+            if (currentLightboxIndex === null || !arrangerPages[currentLightboxIndex]) return;
+            const page = arrangerPages[currentLightboxIndex];
+            const titleEl = document.getElementById('lightboxTitle');
+            const imgEl = document.getElementById('lightboxImg');
+
+            titleEl.innerText = `預覽：${page.filename} (第 ${currentLightboxIndex + 1} / ${arrangerPages.length} 頁，原 #${page.page_number})`;
+            imgEl.src = page.thumbnail;
+            imgEl.style.transform = `rotate(${page.rotate}deg)`;
+        }
+
+        // ============================================================
+        // 編排 PDF 匯出與另存
+        // ============================================================
+        async function exportArrangedPages(mode = 'all') {
+            if (arrangerPages.length === 0) {
+                alert('畫布上尚無任何頁面可導出！');
+                return;
+            }
+
+            let targetPages = [];
+            let defaultName = 'arranged_output.pdf';
+
+            if (mode === 'selected') {
+                targetPages = arrangerPages.filter(p => p.selected);
+                if (targetPages.length === 0) {
+                    alert('請先選取要另存的頁面！');
+                    return;
+                }
+                defaultName = 'selected_pages.pdf';
+            } else {
+                targetPages = arrangerPages;
+            }
+
+            let filename = prompt(`請輸入導出的 PDF 檔名：`, defaultName);
+            if (!filename) return;
+            filename = filename.trim();
+            if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+
+            const payload = {
+                output_filename: filename,
+                pages: targetPages.map(p => ({
+                    source_path: p.source_path,
+                    page_index: p.page_index,
+                    rotate: p.rotate
+                }))
+            };
+
+            const statEl = document.getElementById('arrangerStatText');
+            statEl.innerText = `⏳ 正在無損合成 ${targetPages.length} 頁 PDF...`;
+
+            try {
+                const resp = await postApi('/api/arranger/export', JSON.stringify(payload));
+                const res = await resp.json();
+
+                if (res.success) {
+                    alert(`🎉 導出成功！\n已成功將 ${targetPages.length} 頁合成導出為：converted/${res.filename}`);
+                    addLog(`✅ [編排導出成功] ${targetPages.length} 頁 ➔ converted/${res.filename}`, 'success');
+                } else {
+                    alert('導出失敗：' + (res.message || '未知錯誤'));
+                }
+            } catch (err) {
+                alert('導出請求異常');
+            } finally {
+                updateArrangerStats();
+            }
+        }
+
+        // ============================================================
+        // 鍵盤快捷鍵 (Delete, Ctrl+A, R, ESC 關閉預覽, 方向鍵切換)
+        // ============================================================
+        window.addEventListener('keydown', e => {
+            const lightbox = document.getElementById('lightboxModal');
+            if (lightbox && lightbox.style.display !== 'none') {
+                if (e.key === 'Escape') {
+                    closeLightbox();
+                    e.preventDefault();
+                } else if (e.key === 'ArrowLeft') {
+                    lightboxNav(-1);
+                    e.preventDefault();
+                } else if (e.key === 'ArrowRight') {
+                    lightboxNav(1);
+                    e.preventDefault();
+                } else if (e.key === 'r' || e.key === 'R') {
+                    lightboxRotate(e.shiftKey ? -90 : 90);
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            const arrangerView = document.getElementById('arrangerView');
+            if (arrangerView && arrangerView.style.display !== 'none') {
+                // Delete / Backspace 鍵 ➔ 刪除選取頁
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+                    deleteSelectedPages();
+                    e.preventDefault();
+                }
+                // Ctrl + A 鍵 ➔ 全選
+                else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+                    if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+                    toggleSelectAllPages();
+                    e.preventDefault();
+                }
+                // R 鍵 ➔ 順時針 90°，Shift + R ➔ 逆時針 90°
+                else if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
+                    if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+                    rotateSelectedPages(e.shiftKey ? -90 : 90);
+                    e.preventDefault();
+                }
+            }
+        });
+
+        // 畫布工作區 Ctrl + 滑鼠滾輪獨立縮放縮圖
+        const arrangerCanvas = document.getElementById('arrangerCanvasContainer');
+        if (arrangerCanvas) {
+            arrangerCanvas.addEventListener('wheel', e => {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    const slider = document.getElementById('thumbnailZoomSlider');
+                    if (!slider) return;
+                    let currentVal = parseInt(slider.value, 10);
+                    const step = parseInt(slider.step, 10) || 10;
+                    const delta = e.deltaY < 0 ? step : -step;
+                    const minVal = parseInt(slider.min, 10);
+                    const maxVal = parseInt(slider.max, 10);
+                    let newVal = Math.min(maxVal, Math.max(minVal, currentVal + delta));
+                    updateThumbnailZoom(newVal);
+                }
+            }, { passive: false });
         }
 
         async function openOutputFolder() {
@@ -1373,6 +2662,83 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                         "log": log_desc,
                     }
                 )
+
+            elif self.path == "/api/arranger/render":
+                saved_paths, _ = self._parse_multipart()
+                if not saved_paths:
+                    self._send_json({"success": False, "message": "未接收到有效檔案"}, status=400)
+                    return
+
+                converter = DocumentConverter()
+                all_rendered_pages = []
+                for p in saved_paths:
+                    ext = Path(p).suffix.lower()
+                    stem = Path(p).stem
+                    request_id = Path(p).parent.name
+                    target_pdf_path = p
+
+                    if ext != ".pdf":
+                        temp_pdf = Path(CONFIG["output_dir"]) / f"arranger_temp_{request_id}_{stem}.pdf"
+                        conv_res = False
+                        if ext in [".doc", ".docx"]:
+                            conv_res = converter.convert_word(p, str(temp_pdf))
+                        elif ext in [".xls", ".xlsx"]:
+                            excel_pdfs = converter.convert_excel(p, str(temp_pdf))
+                            if excel_pdfs:
+                                temp_pdf = Path(excel_pdfs[0])
+                                conv_res = True
+                        elif ext in [".ppt", ".pptx"]:
+                            conv_res = converter.convert_powerpoint(p, str(temp_pdf))
+                        elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
+                            conv_res = converter.convert_image([p], str(temp_pdf))
+
+                        if conv_res and temp_pdf.exists():
+                            target_pdf_path = str(temp_pdf)
+                        else:
+                            print(f"⚠️ [編排略過] 無法轉為 PDF 縮圖: {p}")
+                            continue
+
+                    pages = converter.render_pdf_thumbnails(target_pdf_path)
+                    all_rendered_pages.extend(pages)
+
+                self._send_json({
+                    "success": True,
+                    "pages": all_rendered_pages,
+                    "total_files": len(saved_paths),
+                    "total_pages": len(all_rendered_pages)
+                })
+
+            elif self.path == "/api/arranger/export":
+                content_len = int(self.headers.get("Content-Length", 0))
+                post_body = self.rfile.read(content_len)
+                try:
+                    req_data = json.loads(post_body.decode("utf-8"))
+                except Exception:
+                    self._send_json({"success": False, "message": "無效的 JSON 請求格式"}, status=400)
+                    return
+
+                pages = req_data.get("pages", [])
+                if not pages:
+                    self._send_json({"success": False, "message": "未選擇任何可導出的頁面"}, status=400)
+                    return
+
+                raw_filename = req_data.get("output_filename", "arranged_output.pdf")
+                output_filename = _safe_pdf_filename(raw_filename) or "arranged_output.pdf"
+
+                output_path = _unique_output_path(Path(CONFIG["output_dir"]), output_filename)
+                converter = DocumentConverter()
+                export_res = converter.export_arranged_pdf(pages, str(output_path))
+
+                if export_res:
+                    self._send_json({
+                        "success": True,
+                        "message": "編排 PDF 導出成功",
+                        "filename": output_path.name,
+                        "page_count": len(pages),
+                        "log": f"成功導出 {len(pages)} 頁至 converted/{output_path.name}"
+                    })
+                else:
+                    self._send_json({"success": False, "message": "PDF 向量合成失敗"}, status=500)
 
             elif self.path == "/api/clear-storage":
                 cleaned_count = self._clear_storage()
