@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "C:\Users\tpc09\.gemini\antigravity\brain\2dbe5db2-2de4-4ea5-bcbd-becf19a133d4\scratch\verify_template.py", line 7, in <module>
-    import app
-  File "C:\Development\GitHub\09_PaperSwitch\app.py", line 66, in <module>
-    from dotenv import load_dotenv
-ModuleNotFoundError: No module named 'dotenv'
