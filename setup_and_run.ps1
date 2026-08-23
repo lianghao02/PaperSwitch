@@ -1,12 +1,10 @@
-﻿# ==============================================================================
-#  專案名稱：PaperSwitch 萬能轉檔與 PDF 處理器
-#  主要功能：一鍵智慧自癒啟動 PowerShell 核心腳本
-# ==============================================================================
+﻿[CmdletBinding()]
 param(
     [switch]$NoLaunch
 )
 
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $projectDir = $scriptDir
@@ -32,12 +30,17 @@ Write-Host '=================================================================' -
 # ----------------------------------------------------------------------
 $isEnvironmentReady = $false
 if (Test-Path -LiteralPath $embedPython) {
-    $testRun = & "$embedPython" -c "import sys; print('READY')" 2>$null
-    if ($testRun -match 'READY') {
-        $isEnvironmentReady = $true
-        if ($reqFile -and (Test-Path -LiteralPath $reqFile)) {
-            & "$embedPython" -m pip install --no-warn-script-location -q -r "$reqFile" 2>$null
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $testRun = & "$embedPython" -c "import sys, PIL, fitz, pypdf; print('READY')" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $testRun -match 'READY') {
+            $isEnvironmentReady = $true
         }
+    } catch {
+        $isEnvironmentReady = $false
+    } finally {
+        $ErrorActionPreference = $oldEap
     }
 }
 
@@ -89,11 +92,10 @@ if (-not $isEnvironmentReady) {
         $pthLines = @(
             $zipName,
             '.',
-            '..',
             'Lib\site-packages',
             'import site'
         )
-        $asciiBytes = [System.Text.Encoding]::ASCII.GetBytes(($pthLines -join "`r`n") + "`r`n")
+        $asciiBytes = [System.Text.Encoding]::ASCII.GetBytes(($pthLines -join [Environment]::NewLine) + [Environment]::NewLine)
         [System.IO.File]::WriteAllBytes($pthFile.FullName, $asciiBytes)
     }
 
