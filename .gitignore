@@ -22,4 +22,5 @@ converted/
 .idea/
 python_embed/
 python-embed/
+dist/
 *.log

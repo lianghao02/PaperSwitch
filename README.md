@@ -54,8 +54,16 @@
 
 ### 推薦方式（一鍵啟動）
 1. 下載專案壓縮包並解壓縮。
-2. 雙擊執行根目錄的 **[`RUN.bat`](RUN.bat)**。
+2. 雙擊執行根目錄的 **[`啟動紙飛機工坊.vbs`](啟動紙飛機工坊.vbs)**，將以無終端視窗的 Edge 應用程式模式開啟。
 3. 瀏覽器將自動開啟工坊介面：`http://127.0.0.1:8080`。
+
+若需查看啟動過程或排除問題，請改用 **[`RUN.bat`](RUN.bat)**。它保留終端視窗，且會在可攜環境尚未就緒時依既有流程建立 `python_embed/`。
+
+### 可攜式 ZIP
+
+GitHub Release 的 `PaperSwitch_v3.0.0_Portable.zip` 已內含 Python 3.13 可攜執行環境與既有相依套件；解壓縮後不需安裝 Python 或建立虛擬環境。套件不含任何 `uploads/`、`converted/`、`.env` 或先前使用者產出，首次啟動會建立空白工作資料夾。
+
+維護者可執行 `powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1` 重新建立 ZIP。腳本會先檢查所有必要模組，再解壓成品並以其中的 Python 進行編譯與匯入驗證；驗證失敗時不應發布該 ZIP。
 
 ### 手動環境啟動
 ```powershell
