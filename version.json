@@ -1,0 +1,7 @@
+{
+  "version": "3.0.0",
+  "build_date": "2026-08-24",
+  "app_sha256": "4bc3cd19473a2cbb328acdc1a65f21baef8721997f33499cc777b4ff605ee7a3",
+  "update_repository": "lianghao02/PaperSwitch",
+  "update_channel": "stable"
+}

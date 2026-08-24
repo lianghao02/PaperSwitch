@@ -3,15 +3,20 @@
 # ============================================================
 import json
 import base64
+import copy
+import hashlib
 import hmac
 import os
+import py_compile
 import shutil
 import subprocess
 import sys
 import threading
 import time
 import uuid
+import urllib.error
 import urllib.parse
+import urllib.request
 import webbrowser
 from pathlib import Path
 
@@ -68,6 +73,8 @@ from pypdf import PdfReader, PdfWriter
 
 # 全域 COM Automation 互斥鎖，解決多執行緒併發 STA 死鎖與 BUSY 例外
 COM_LOCK = threading.Lock()
+REQUEST_DIAGNOSTICS = threading.local()
+UPDATE_LOCK = threading.Lock()
 
 # 心跳守護變數：關閉所有瀏覽器標籤頁後自動停止伺服器 (防 Chrome 背景標籤頁節流誤殺)
 LAST_HEARTBEAT_TIME = time.time()
@@ -123,6 +130,197 @@ def _is_loopback_host(host: str) -> bool:
     """判斷伺服器是否僅對本機開放。"""
     return host.strip().lower() in {"localhost", "127.0.0.1", "::1"}
 
+
+def _clear_request_diagnostic() -> None:
+    """清除目前 HTTP 執行緒的使用者可讀診斷訊息。"""
+    REQUEST_DIAGNOSTICS.message = None
+
+
+def _record_office_diagnostic(error: Exception, application_name: str) -> None:
+    """辨識 Office COM 類別未註冊，避免把底層 COM 錯誤直接丟給使用者。"""
+    error_text = str(error).lower()
+    missing_class_markers = ("invalid class string", "class not registered", "無效的類別字串", "-2147221005")
+    if any(marker in error_text for marker in missing_class_markers):
+        REQUEST_DIAGNOSTICS.message = f"本機未偵測到相容的 Microsoft {application_name}，請確認已安裝並可正常開啟。"
+
+
+def _get_request_diagnostic() -> str | None:
+    return getattr(REQUEST_DIAGNOSTICS, "message", None)
+
+
+class UpdateError(Exception):
+    """可安全回報給使用者的更新錯誤。"""
+
+
+def _parse_version(version: str) -> tuple[int, int, int]:
+    """只接受穩定版三段式版本號，例如 2.1.0 或 v2.1.0。"""
+    parts = version.strip().lstrip("vV").split(".")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        raise UpdateError("版本格式必須是 v2.1.0 這類三段式穩定版本")
+    return tuple(int(part) for part in parts)
+
+
+def _read_version_info(path: Path) -> dict:
+    """讀取並驗證本機或 Release 附帶的版本資訊。"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise UpdateError(f"無法讀取版本資訊：{error}") from error
+    if not isinstance(data, dict) or not isinstance(data.get("version"), str):
+        raise UpdateError("版本資訊缺少 version 欄位")
+    _parse_version(data["version"])
+    return data
+
+
+def _request_json(url: str) -> dict:
+    """以短逾時讀取 GitHub API JSON，避免網路狀況影響主功能。"""
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "PaperSwitch-Updater"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=CONFIG["update_timeout_seconds"]) as response:
+            payload = response.read(CONFIG["update_max_metadata_bytes"])
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise UpdateError("無法連線至 GitHub 更新服務，請確認網路後再試") from error
+    try:
+        data = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise UpdateError("GitHub 回傳的更新資訊格式無效") from error
+    if not isinstance(data, dict):
+        raise UpdateError("GitHub 回傳的更新資訊格式無效")
+    return data
+
+
+def _download_release_asset(asset: dict, max_bytes: int) -> bytes:
+    """只接受 GitHub Release 提供的 HTTPS 資產網址。"""
+    download_url = asset.get("browser_download_url")
+    if not isinstance(download_url, str) or urllib.parse.urlparse(download_url).scheme != "https":
+        raise UpdateError("Release 資產網址不安全或格式無效")
+    request = urllib.request.Request(download_url, headers={"User-Agent": "PaperSwitch-Updater"})
+    try:
+        with urllib.request.urlopen(request, timeout=CONFIG["update_timeout_seconds"]) as response:
+            data = response.read(max_bytes + 1)
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise UpdateError("下載更新檔失敗，原版本未受影響") from error
+    if len(data) > max_bytes:
+        raise UpdateError("更新檔大小超出安全限制")
+    return data
+
+
+def _latest_release() -> dict:
+    repository = CONFIG["update_repository"]
+    return _request_json(f"https://api.github.com/repos/{repository}/releases/latest")
+
+
+def _release_assets_by_name(release: dict) -> dict[str, dict]:
+    assets = release.get("assets")
+    if not isinstance(assets, list):
+        return {}
+    return {asset.get("name"): asset for asset in assets if isinstance(asset, dict) and isinstance(asset.get("name"), str)}
+
+
+def _check_app_update() -> dict:
+    """檢查固定 GitHub Release 是否提供較新的 app.py 更新。"""
+    local_info = _read_version_info(Path(CONFIG["version_file"]))
+    release = _latest_release()
+    latest_version = release.get("tag_name")
+    if not isinstance(latest_version, str):
+        raise UpdateError("GitHub Release 缺少版本標籤")
+
+    local_version = local_info["version"]
+    has_update = _parse_version(latest_version) > _parse_version(local_version)
+    assets = _release_assets_by_name(release)
+    required_assets = {"app.py", "version.json"}
+    update_ready = required_assets.issubset(assets)
+    message = "已是最新版本"
+    if has_update and not update_ready:
+        message = "發現新版，但 Release 尚未附上 app.py 與 version.json，暫不可直接更新"
+    elif has_update:
+        message = "發現可直接套用的新版本"
+
+    return {
+        "has_update": has_update and update_ready,
+        "current_version": local_version,
+        "latest_version": latest_version.lstrip("vV"),
+        "release_notes": release.get("body") if isinstance(release.get("body"), str) else "尚未提供更新說明",
+        "release_url": release.get("html_url") if isinstance(release.get("html_url"), str) else "",
+        "message": message,
+    }
+
+
+def _perform_app_update() -> dict:
+    """下載、驗證並原子替換 app.py；任何失敗均保留原版本。"""
+    if not UPDATE_LOCK.acquire(blocking=False):
+        raise UpdateError("已有更新作業進行中，請稍候")
+
+    app_path = BASE_DIR / "app.py"
+    version_path = Path(CONFIG["version_file"])
+    app_new_path = BASE_DIR / "app.py.new"
+    version_new_path = BASE_DIR / "version.json.new"
+    app_backup_path = BASE_DIR / "app.py.bak"
+    version_backup_path = BASE_DIR / "version.json.bak"
+
+    try:
+        update_info = _check_app_update()
+        if not update_info["has_update"]:
+            raise UpdateError(update_info["message"])
+
+        release = _latest_release()
+        assets = _release_assets_by_name(release)
+        app_bytes = _download_release_asset(assets["app.py"], CONFIG["update_max_app_bytes"])
+        version_bytes = _download_release_asset(assets["version.json"], CONFIG["update_max_metadata_bytes"])
+        try:
+            release_version_info = json.loads(version_bytes.decode("utf-8"))
+            release_version = release_version_info["version"]
+            expected_hash = release_version_info["app_sha256"].lower()
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, AttributeError) as error:
+            raise UpdateError("Release version.json 缺少 version 或 app_sha256") from error
+
+        if _parse_version(release_version) != _parse_version(update_info["latest_version"]):
+            raise UpdateError("Release 標籤與 version.json 版本不一致")
+        actual_hash = hashlib.sha256(app_bytes).hexdigest()
+        if actual_hash != expected_hash or len(expected_hash) != 64:
+            raise UpdateError("更新檔 SHA-256 驗證失敗，已拒絕套用")
+        try:
+            app_source = app_bytes.decode("utf-8")
+            compile(app_source, str(app_path), "exec")
+        except (UnicodeDecodeError, SyntaxError) as error:
+            raise UpdateError(f"新版本語法驗證失敗：{error}") from error
+
+        app_new_path.write_bytes(app_bytes)
+        version_new_path.write_bytes(version_bytes)
+        py_compile.compile(str(app_new_path), doraise=True)
+
+        shutil.copy2(app_path, app_backup_path)
+        shutil.copy2(version_path, version_backup_path)
+        try:
+            os.replace(app_new_path, app_path)
+            os.replace(version_new_path, version_path)
+        except OSError as error:
+            shutil.copy2(app_backup_path, app_path)
+            shutil.copy2(version_backup_path, version_path)
+            raise UpdateError(f"更新檔替換失敗，已回復舊版：{error}") from error
+
+        return {"success": True, "version": release_version, "message": "更新完成，服務即將重新啟動"}
+    except UpdateError:
+        raise
+    except (OSError, ValueError) as error:
+        raise UpdateError(f"更新失敗，原版本未受影響：{error}") from error
+    finally:
+        for temporary_path in (app_new_path, version_new_path):
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        UPDATE_LOCK.release()
+
+
+def _restart_after_update() -> None:
+    """讓已完成回應的目前 Python 程序載入更新後的 app.py。"""
+    print("🔄 [更新完成] PaperSwitch 正在重新啟動…")
+    os.execv(sys.executable, [sys.executable, *sys.argv])
+
 CONFIG = {
     "host": os.getenv("HOST", "0.0.0.0" if os.getenv("RENDER") or os.getenv("DOCKER") else "127.0.0.1"),
     "port": int(os.getenv("PORT", "8080")),
@@ -130,11 +328,19 @@ CONFIG = {
     "output_dir": os.getenv("OUTPUT_DIR", str(BASE_DIR / "converted")),
     "access_token": os.getenv("ACCESS_TOKEN", ""),
     "excel_fit_to_page": os.getenv("EXCEL_FIT_TO_PAGE", "True").lower() in ("true", "1"),
+    "pdf_ready_timeout_seconds": float(os.getenv("PDF_READY_TIMEOUT_SECONDS", "90")),
+    "pdf_ready_poll_interval_seconds": float(os.getenv("PDF_READY_POLL_INTERVAL_SECONDS", "0.5")),
+    "version_file": os.getenv("VERSION_FILE", str(BASE_DIR / "version.json")),
+    "update_repository": os.getenv("UPDATE_REPOSITORY", "lianghao02/PaperSwitch"),
+    "update_timeout_seconds": float(os.getenv("UPDATE_TIMEOUT_SECONDS", "5")),
+    "update_max_metadata_bytes": int(os.getenv("UPDATE_MAX_METADATA_BYTES", "65536")),
+    "update_max_app_bytes": int(os.getenv("UPDATE_MAX_APP_BYTES", "2097152")),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
 }
 
 CONFIG["upload_dir"] = str(_resolve_config_path(CONFIG["upload_dir"]))
 CONFIG["output_dir"] = str(_resolve_config_path(CONFIG["output_dir"]))
+CONFIG["version_file"] = str(_resolve_config_path(CONFIG["version_file"]))
 
 if sys.platform == "win32":
     import pythoncom
@@ -152,6 +358,71 @@ class DocumentConverter:
     """處理 Word, Excel, PowerPoint, 圖片轉 PDF 及 PDF 合併的核心處理器"""
 
     @staticmethod
+    def _check_pdf_header_and_size(pdf_path: Path) -> tuple[str, int]:
+        """讀取檔案檔頭前 4 bytes 與檔案大小。"""
+        try:
+            current_size = pdf_path.stat().st_size
+            with pdf_path.open("rb") as pdf_file:
+                header = pdf_file.read(4)
+            if header == b"%PDF":
+                return "pdf", current_size
+            elif header.startswith(b"IGEF") or header == b"IGEF":
+                return "igef", current_size
+            return "unknown", current_size
+        except (FileNotFoundError, OSError, PermissionError):
+            return "error", 0
+
+    @staticmethod
+    def _wait_for_pdf_ready(input_pdf_path: str, require_pymupdf: bool = False) -> bool:
+        """等待 Office 中介檔 (IGEF) 完成為標準 PDF，並確認 PyMuPDF / pypdf 可讀。"""
+        if require_pymupdf and (not HAS_PYMUPDF or fitz is None):
+            return False
+
+        pdf_path = Path(input_pdf_path).resolve()
+        deadline = time.monotonic() + CONFIG["pdf_ready_timeout_seconds"]
+        previous_size = None
+        seen_igef = False
+
+        while time.monotonic() <= deadline:
+            state, current_size = DocumentConverter._check_pdf_header_and_size(pdf_path)
+
+            if state == "igef":
+                if not seen_igef:
+                    print(f"⏳ [Office 中介狀態] 偵測到 IGEF 標記，等待 Office 背景寫入完成: {pdf_path.name}")
+                    seen_igef = True
+            elif state == "pdf" and current_size > 0 and current_size == previous_size:
+                try:
+                    if require_pymupdf:
+                        document = fitz.open(str(pdf_path))
+                        document.close()
+                    else:
+                        reader = PdfReader(str(pdf_path))
+                        _ = len(reader.pages)
+                    if seen_igef:
+                        print(f"✅ [Office 中介完成] 檔案已順利轉為標準 PDF: {pdf_path.name}")
+                    return True
+                except Exception:
+                    pass
+
+            if current_size > 0:
+                previous_size = current_size
+
+            time.sleep(CONFIG["pdf_ready_poll_interval_seconds"])
+
+        if seen_igef or pdf_path.exists():
+            msg = (
+                f"已產生暫存 PDF（converted/{pdf_path.name}），但尚非可處理的標準 PDF；"
+                "可能正受公務端檔案加密程序處理。請依規定先完成解密，再將該 PDF 重新加入轉檔。"
+            )
+            REQUEST_DIAGNOSTICS.message = msg
+            print(f"⚠️ [PDF 尚無法處理] {msg}")
+        else:
+            msg = f"未找到輸出 PDF 檔案: {pdf_path.name}"
+            REQUEST_DIAGNOSTICS.message = msg
+            print(f"❌ [PDF 不存在] {msg}")
+        return False
+
+    @staticmethod
     def convert_word(input_path: str, output_path: str) -> bool:
         """將 Word 檔案 (.doc, .docx) 轉為 PDF"""
         input_abs = str(Path(input_path).resolve())
@@ -166,10 +437,13 @@ class DocumentConverter:
                     word.Visible = False
                     word.DisplayAlerts = False
                     doc = word.Documents.Open(input_abs, ReadOnly=True)
-                    doc.SaveAs(output_abs, FileFormat=17)  # 17 = wdFormatPDF
+                    # SaveAs(FileFormat=17) 在部分 Office 環境會產出 IGEF 中介格式；
+                    # ExportAsFixedFormat 才是 Word 的正式 PDF 匯出介面。
+                    doc.ExportAsFixedFormat(output_abs, 17)  # 17 = wdExportFormatPDF
                     print(f"✅ [MS Word COM 轉換成功] -> {output_abs}")
                     return True
                 except Exception as e:
+                    _record_office_diagnostic(e, "Word")
                     print(f"❌ [MS Word COM 轉換失敗] {input_abs}: {e}")
                     return False
                 finally:
@@ -274,6 +548,7 @@ class DocumentConverter:
                     print(f"✅ [MS Excel 分頁獨立拆分成功] 共產出 {len(generated_pdfs)} 個 PDF -> {output_dir}")
                     return generated_pdfs
                 except Exception as e:
+                    _record_office_diagnostic(e, "Excel")
                     print(f"❌ [MS Excel 分頁拆分轉檔失敗] {input_abs}: {e}")
                     return []
                 finally:
@@ -327,6 +602,7 @@ class DocumentConverter:
                     print(f"✅ [MS PowerPoint COM 轉換成功] -> {output_abs}")
                     return True
                 except Exception as e:
+                    _record_office_diagnostic(e, "PowerPoint")
                     print(f"❌ [MS PowerPoint COM 轉換失敗] {input_abs}: {e}")
                     return False
                 finally:
@@ -442,6 +718,9 @@ class DocumentConverter:
         stem = Path(input_pdf_path).stem
         generated_imgs = []
 
+        if not DocumentConverter._wait_for_pdf_ready(input_abs, require_pymupdf=True):
+            return []
+
         try:
             doc = fitz.open(input_abs)
             total_pages = len(doc)
@@ -479,6 +758,9 @@ class DocumentConverter:
         stem = Path(input_pdf_path).stem
         generated_pdfs = []
         reader = None
+        if not DocumentConverter._wait_for_pdf_ready(input_abs):
+            return []
+
         try:
             reader = PdfReader(input_abs)
             total_pages = len(reader.pages)
@@ -527,6 +809,9 @@ class DocumentConverter:
         stem = Path(input_pdf_path).name
         thumbnails = []
 
+        if not DocumentConverter._wait_for_pdf_ready(input_abs, require_pymupdf=True):
+            return []
+
         try:
             doc = fitz.open(input_abs)
             total_pages = len(doc)
@@ -574,7 +859,9 @@ class DocumentConverter:
 
                 reader = readers[src_path]
                 if 0 <= page_idx < len(reader.pages):
-                    page = reader.pages[page_idx]
+                    # PageObject.rotate() 會原地修改物件；同一來源頁若被加入多次，
+                    # 必須先複製，避免前一次旋轉污染後續副本。
+                    page = copy.copy(reader.pages[page_idx])
                     if rotate_angle != 0:
                         page.rotate(rotate_angle)
                     writer.add_page(page)
@@ -1004,6 +1291,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             transform: translateY(-1px);
             box-shadow: 0 5px 14px rgba(217, 119, 54, 0.35);
         }
+        .btn:disabled, .btn-tool:disabled { cursor: wait; opacity: 0.62; filter: saturate(0.6); transform: none; }
 
         /* 🗂️ 視覺化頁面編排 (Arranger View) 沉浸式全幅大頁面樣式 */
         :root {
@@ -1364,7 +1652,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 4px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
             transition: transform 0.25s ease;
+            cursor: grab;
+            transform-origin: center;
         }
+        .lightbox-img-box img.panning { cursor: grabbing; transition: none; }
         .lightbox-nav-btn {
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid var(--border-color);
@@ -1427,6 +1718,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .log-info { color: #5A4E44; }
         .log-success { color: var(--success-color); font-weight: 700; }
         .log-error { color: var(--error-color); font-weight: 700; }
+
+        .update-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(45, 40, 37, 0.42);
+        }
+        .update-note {
+            width: min(480px, 100%);
+            padding: 26px;
+            border: 2px solid #E3DDD2;
+            border-radius: 18px;
+            background: #FFFDF8;
+            box-shadow: 0 22px 55px rgba(70, 52, 35, 0.28);
+        }
+        .update-note h2 { margin: 0 0 10px; color: var(--text-h1); font-size: 1.25rem; }
+        .update-note p { margin: 0 0 12px; color: var(--text-sub); line-height: 1.65; }
+        .update-notes { max-height: 190px; overflow: auto; margin: 12px 0 18px; padding: 12px; white-space: pre-wrap; background: #F7F4ED; border-radius: 10px; color: #5A4E44; font-size: 0.88rem; line-height: 1.6; }
+        .update-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
         /* 自訂細緻捲軸 */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -1542,7 +1856,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </div>
 
                 <div class="btn-group">
-                    <button class="btn" onclick="uploadAndConvert()">☕ 開始製作 PDF</button>
+                    <button class="btn" id="convertBtn" onclick="runConversion(this)">☕ 開始製作 PDF</button>
                     <button class="btn btn-arranger-entry" onclick="switchToArrangerView()">🗂️ 進入紙張排版工坊 (PDF Arranger)</button>
                     <button class="btn btn-secondary" id="openFolderBtn" onclick="openOutputFolder()" style="display: none;">📂 打開成品資料夾</button>
                 </div>
@@ -1553,6 +1867,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <span class="maintenance-label">工坊工具箱</span>
                     <div class="maintenance-btns">
                         <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ PDF 成品資料夾">📂 成品資料夾</button>
+                        <button class="btn-tool btn-tool-secondary" id="checkUpdateBtn" onclick="checkAppUpdate()" title="檢查 GitHub Release 是否有新版本">🔄 檢查更新</button>
                         <button class="btn-tool btn-tool-danger" onclick="clearStorage()" title="清理 uploads/ 與 converted/ 暫存紙張">🧹 清理暫存紙張</button>
                         <button class="btn-tool btn-tool-danger" onclick="shutdownServer()" title="關閉後端服務進程">🛑 休息並關閉</button>
                     </div>
@@ -1575,9 +1890,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <button class="btn-tool btn-tool-secondary" onclick="document.getElementById('arrangerFileInput').click()" title="加入更多 PDF / Office / 圖片檔案">➕ 加入紙張</button>
                     <input type="file" id="arrangerFileInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.bmp,.webp" style="display: none;" onchange="handleArrangerUpload(this.files)">
                     
-                    <div class="zoom-control-group" title="獨立縮放縮圖大小：可拖動滑桿、在滑桿上滾動滾輪，或在畫布上按住 Ctrl + 滾輪">
+                    <div class="zoom-control-group" title="獨立縮放縮圖大小（90px～480px）：可拖動滑桿、在滑桿上滾動滾輪，或在畫布上按住 Ctrl + 滾輪">
                         <span class="zoom-label">🔍 縮圖</span>
-                        <input type="range" class="zoom-slider" id="thumbnailZoomSlider" min="130" max="360" value="185" step="10" oninput="updateThumbnailZoom(this.value)" onwheel="handleSliderWheel(event)">
+                        <input type="range" class="zoom-slider" id="thumbnailZoomSlider" min="90" max="480" value="185" step="10" oninput="updateThumbnailZoom(this.value)" onwheel="handleSliderWheel(event)">
                         <span class="zoom-val" id="zoomValText">185px</span>
                     </div>
                 </div>
@@ -1597,8 +1912,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                 <!-- 🚀 群組 3：導出產出核心 -->
                 <div class="toolbar-group">
-                    <button class="btn-tool btn-tool-primary" onclick="exportArrangedPages('selected')" title="僅將選取的頁面抽取另存為新 PDF">💾 另存選取頁</button>
-                    <button class="btn-tool btn-tool-accent" onclick="exportArrangedPages('all')" title="依畫布當前所有頁面與旋轉角度裝訂導出完整 PDF">🚀 裝訂導出全部 PDF</button>
+                    <button class="btn-tool btn-tool-primary arranger-export-btn" onclick="runArrangerExport('selected')" title="僅將選取的頁面抽取另存為新 PDF">💾 另存選取頁</button>
+                    <button class="btn-tool btn-tool-accent arranger-export-btn" onclick="runArrangerExport('all')" title="依畫布當前所有頁面與旋轉角度裝訂導出完整 PDF">🚀 裝訂導出全部 PDF</button>
                 </div>
 
                 <div class="toolbar-divider"></div>
@@ -1621,16 +1936,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="arranger-grid" id="arrangerGrid" style="display: none;"></div>
         </div>
 
+        <div class="update-modal" id="updateModal" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
+            <div class="update-note">
+                <h2 id="updateTitle">🎉 發現新版本</h2>
+                <p id="updateSummary">正在整理更新資訊…</p>
+                <div class="update-notes" id="updateNotes"></div>
+                <div class="update-actions">
+                    <button class="btn-tool btn-tool-secondary" onclick="closeUpdateModal()">稍後再說</button>
+                    <button class="btn-tool btn-tool-primary" id="performUpdateBtn" onclick="performAppUpdate()">☕ 立即一鍵升級</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 💡 極致 UX 快捷導航說明列 -->
         <div class="arranger-shortcut-bar">
             <span class="shortcut-pill">💡 <strong style="color: var(--text-h1);">貼心快捷操作：</strong></span>
-            <span class="shortcut-pill"><span class="shortcut-key">Ctrl + ← / →</span> 快速換位</span>
+            <span class="shortcut-pill"><span class="shortcut-key">Ctrl / Alt + 方向鍵</span> 四向換位</span>
             <span class="shortcut-pill"><span class="shortcut-key">Home / End</span> 最前/最末</span>
             <span class="shortcut-pill"><span class="shortcut-key">R / Shift+R</span> 順/逆旋轉</span>
             <span class="shortcut-pill"><span class="shortcut-key">Ctrl + A</span> 全選</span>
             <span class="shortcut-pill"><span class="shortcut-key">Del</span> 移除</span>
             <span class="shortcut-pill"><span class="shortcut-key">雙擊紙張</span> 大圖細看</span>
-            <span class="shortcut-pill"><span class="shortcut-key">Ctrl + 滾輪</span> 縮放紙張</span>
+            <span class="shortcut-pill"><span class="shortcut-key">方向鍵</span> 四向切換焦點</span>
+            <span class="shortcut-pill"><span class="shortcut-key">Ctrl + 滾輪</span> 縮放紙張（90～480px）</span>
         </div>
     </div>
 
@@ -1642,6 +1970,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="lightbox-actions">
                     <button class="btn-tool btn-tool-secondary" onclick="lightboxRotate(-90)">↺ 逆轉 90°</button>
                     <button class="btn-tool btn-tool-secondary" onclick="lightboxRotate(90)">↻ 順轉 90°</button>
+                    <button class="btn-tool btn-tool-secondary" onclick="resetLightboxZoom()">⊙ 原尺寸</button>
                     <button class="btn-tool btn-tool-danger" onclick="closeLightbox()">✕ 關閉 (ESC)</button>
                 </div>
             </div>
@@ -1707,6 +2036,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             document.querySelector('input[value="split"]').checked = (mode === 'split');
             document.querySelector('input[value="pdf_to_images"]').checked = (mode === 'pdf_to_images');
             document.getElementById('mergedFilenameBox').style.display = (mode === 'merge') ? 'flex' : 'none';
+        }
+
+        async function runConversion(button) {
+            if (button.disabled) return;
+            const originalText = button.innerText;
+            button.disabled = true;
+            button.innerText = '⏳ 正在製作中…';
+            try {
+                await uploadAndConvert();
+            } finally {
+                button.disabled = false;
+                button.innerText = originalText;
+            }
+        }
+
+        async function runArrangerExport(mode) {
+            const buttons = [...document.querySelectorAll('.arranger-export-btn')];
+            if (buttons.some(button => button.disabled)) return;
+            const originalTexts = buttons.map(button => button.innerText);
+            buttons.forEach(button => { button.disabled = true; });
+            const activeButton = mode === 'selected' ? buttons[0] : buttons[1];
+            activeButton.innerText = '⏳ 正在裝訂…';
+            try {
+                await exportArrangedPages(mode);
+            } finally {
+                buttons.forEach((button, index) => {
+                    button.disabled = false;
+                    button.innerText = originalTexts[index];
+                });
+            }
         }
 
         function renderQueue() {
@@ -1920,6 +2279,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         let draggedPageIndices = [];
         let lastSelectedPageIndex = null;
         let currentLightboxIndex = null;
+        let lightboxScale = 1;
+        let lightboxPanX = 0;
+        let lightboxPanY = 0;
+        let lightboxPanStart = null;
 
         // 🚀 拖曳邊緣平滑自動滾動引擎 (Auto Edge Scroll Engine)
         let autoScrollTimer = null;
@@ -2376,6 +2739,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         function openLightbox(index) {
             if (index < 0 || index >= arrangerPages.length) return;
             currentLightboxIndex = index;
+            resetLightboxZoom();
             document.getElementById('lightboxModal').style.display = 'flex';
             updateLightboxView();
         }
@@ -2390,6 +2754,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const newIndex = currentLightboxIndex + delta;
             if (newIndex >= 0 && newIndex < arrangerPages.length) {
                 currentLightboxIndex = newIndex;
+                resetLightboxZoom();
                 updateLightboxView();
             }
         }
@@ -2407,7 +2772,44 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             titleEl.innerText = `預覽：${page.filename} (第 ${currentLightboxIndex + 1} / ${arrangerPages.length} 頁，原 #${page.page_number})`;
             imgEl.src = page.thumbnail;
-            imgEl.style.transform = `rotate(${page.rotate}deg)`;
+            imgEl.style.transform = `translate(${lightboxPanX}px, ${lightboxPanY}px) rotate(${page.rotate}deg) scale(${lightboxScale})`;
+        }
+
+        function resetLightboxZoom() {
+            lightboxScale = 1;
+            lightboxPanX = 0;
+            lightboxPanY = 0;
+            if (currentLightboxIndex !== null) updateLightboxView();
+        }
+
+        const lightboxImageBox = document.querySelector('.lightbox-img-box');
+        if (lightboxImageBox) {
+            lightboxImageBox.addEventListener('wheel', event => {
+                if (currentLightboxIndex === null) return;
+                event.preventDefault();
+                const scaleStep = event.deltaY < 0 ? 0.2 : -0.2;
+                lightboxScale = Math.min(4, Math.max(1, Number((lightboxScale + scaleStep).toFixed(1))));
+                updateLightboxView();
+            }, { passive: false });
+
+            lightboxImageBox.addEventListener('pointerdown', event => {
+                if (currentLightboxIndex === null || lightboxScale === 1) return;
+                lightboxPanStart = { x: event.clientX - lightboxPanX, y: event.clientY - lightboxPanY };
+                document.getElementById('lightboxImg').classList.add('panning');
+                lightboxImageBox.setPointerCapture(event.pointerId);
+            });
+            lightboxImageBox.addEventListener('pointermove', event => {
+                if (!lightboxPanStart) return;
+                lightboxPanX = event.clientX - lightboxPanStart.x;
+                lightboxPanY = event.clientY - lightboxPanStart.y;
+                updateLightboxView();
+            });
+            const endLightboxPan = () => {
+                lightboxPanStart = null;
+                document.getElementById('lightboxImg').classList.remove('panning');
+            };
+            lightboxImageBox.addEventListener('pointerup', endLightboxPan);
+            lightboxImageBox.addEventListener('pointercancel', endLightboxPan);
         }
 
         // ============================================================
@@ -2470,35 +2872,40 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         // ============================================================
         // ⌨️ 方向鍵快速換位演算法 (Keyboard Page Reordering Engine)
         // ============================================================
-        function moveSelectedPages(delta) {
-            const selectedIndices = arrangerPages.map((p, idx) => p.selected ? idx : -1).filter(idx => idx !== -1);
-            if (selectedIndices.length === 0) return;
+        function getArrangerColumnCount() {
+            const cards = [...document.querySelectorAll('.arranger-card')];
+            if (cards.length < 2) return 1;
+            const firstRowTop = cards[0].getBoundingClientRect().top;
+            const nextRowIndex = cards.findIndex(card => Math.abs(card.getBoundingClientRect().top - firstRowTop) > 4);
+            return nextRowIndex === -1 ? cards.length : nextRowIndex;
+        }
 
-            if (delta < 0) {
-                // ◀ 向前/向左移動 1 格
-                if (selectedIndices[0] === 0) return; // 已經在最前
-                for (let i = 0; i < selectedIndices.length; i++) {
-                    const idx = selectedIndices[i];
-                    const temp = arrangerPages[idx - 1];
-                    arrangerPages[idx - 1] = arrangerPages[idx];
-                    arrangerPages[idx] = temp;
-                }
-            } else if (delta > 0) {
-                // ▶ 向後/向右移動 1 格
-                if (selectedIndices[selectedIndices.length - 1] === arrangerPages.length - 1) return; // 已經在最後
-                for (let i = selectedIndices.length - 1; i >= 0; i--) {
-                    const idx = selectedIndices[i];
-                    const temp = arrangerPages[idx + 1];
-                    arrangerPages[idx + 1] = arrangerPages[idx];
-                    arrangerPages[idx] = temp;
+        function moveSelectedPages(delta) {
+            if (!delta || !arrangerPages.some(page => page.selected)) return;
+
+            const direction = Math.sign(delta);
+            const stepCount = Math.abs(delta);
+            for (let step = 0; step < stepCount; step++) {
+                const selectedIndices = arrangerPages.map((page, index) => page.selected ? index : -1).filter(index => index !== -1);
+                if (direction < 0) {
+                    if (selectedIndices[0] === 0) break;
+                    for (const index of selectedIndices) {
+                        [arrangerPages[index - 1], arrangerPages[index]] = [arrangerPages[index], arrangerPages[index - 1]];
+                    }
+                } else {
+                    if (selectedIndices[selectedIndices.length - 1] === arrangerPages.length - 1) break;
+                    for (let index = selectedIndices.length - 1; index >= 0; index--) {
+                        const pageIndex = selectedIndices[index];
+                        [arrangerPages[pageIndex + 1], arrangerPages[pageIndex]] = [arrangerPages[pageIndex], arrangerPages[pageIndex + 1]];
+                    }
                 }
             }
 
             renderArrangerGrid();
 
             // 平滑滾動讓移動後的卡片保持在可視範圍內
-            const focusIdx = delta < 0 ? Math.max(0, selectedIndices[0] - 1) : Math.min(arrangerPages.length - 1, selectedIndices[selectedIndices.length - 1] + 1);
-            const cardEl = document.getElementById(`card_${arrangerPages[focusIdx]?.uid}`);
+            const focusPage = arrangerPages.find(page => page.selected);
+            const cardEl = document.getElementById(`card_${focusPage?.uid}`);
             if (cardEl) {
                 cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
             }
@@ -2536,7 +2943,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             const cardEl = document.getElementById(`card_${arrangerPages[currentIdx]?.uid}`);
             if (cardEl) {
-                cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                cardEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
             }
         }
 
@@ -2566,12 +2973,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             if (arrangerView && arrangerView.style.display !== 'none') {
                 if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
-                // ◀ / ▶ 方向鍵移動卡片 (Ctrl + ←/→ 或 Alt + ←/→)
+                // Ctrl / Alt + 方向鍵：左右移動 1 格，上下移動 1 整列。
                 if ((e.ctrlKey || e.altKey) && e.key === 'ArrowLeft') {
                     moveSelectedPages(-1);
                     e.preventDefault();
                 } else if ((e.ctrlKey || e.altKey) && e.key === 'ArrowRight') {
                     moveSelectedPages(1);
+                    e.preventDefault();
+                } else if ((e.ctrlKey || e.altKey) && e.key === 'ArrowUp') {
+                    moveSelectedPages(-getArrangerColumnCount());
+                    e.preventDefault();
+                } else if ((e.ctrlKey || e.altKey) && e.key === 'ArrowDown') {
+                    moveSelectedPages(getArrangerColumnCount());
                     e.preventDefault();
                 }
                 // Home / End 鍵 ➔ 移至最前 / 最後
@@ -2582,12 +2995,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     moveSelectedPagesToBoundary('last');
                     e.preventDefault();
                 }
-                // 單純 ← / → 方向鍵 ➔ 切換選取游標
+                // 單純方向鍵：依縮圖網格切換選取焦點。
                 else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowLeft') {
                     navigatePageSelection(-1);
                     e.preventDefault();
                 } else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowRight') {
                     navigatePageSelection(1);
+                    e.preventDefault();
+                } else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowUp') {
+                    navigatePageSelection(-getArrangerColumnCount());
+                    e.preventDefault();
+                } else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'ArrowDown') {
+                    navigatePageSelection(getArrangerColumnCount());
                     e.preventDefault();
                 }
                 // Delete / Backspace 鍵 ➔ 刪除選取頁
@@ -2653,10 +3072,63 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }
         }
 
+        function getApiHeaders() {
+            const token = sessionStorage.getItem('paperswitchAccessToken');
+            return token ? { 'X-PaperSwitch-Token': token } : {};
+        }
+
+        function closeUpdateModal() {
+            document.getElementById('updateModal').style.display = 'none';
+        }
+
+        async function checkAppUpdate() {
+            const button = document.getElementById('checkUpdateBtn');
+            const originalText = button.innerText;
+            button.disabled = true;
+            button.innerText = '⏳ 檢查中…';
+            try {
+                const response = await fetch('/api/update/check', { headers: getApiHeaders() });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || '無法檢查更新');
+                if (!result.has_update) {
+                    alert(`目前版本 v${result.current_version}：${result.message}`);
+                    return;
+                }
+                document.getElementById('updateTitle').innerText = `🎉 發現新版本 v${result.latest_version}`;
+                document.getElementById('updateSummary').innerText = `目前使用 v${result.current_version}，可直接更新至 v${result.latest_version}。更新前會自動備份目前版本。`;
+                document.getElementById('updateNotes').innerText = result.release_notes || '尚未提供更新說明';
+                document.getElementById('updateModal').style.display = 'flex';
+            } catch (error) {
+                alert(`目前無法檢查更新：${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.innerText = originalText;
+            }
+        }
+
+        async function performAppUpdate() {
+            const button = document.getElementById('performUpdateBtn');
+            if (button.disabled) return;
+            const originalText = button.innerText;
+            button.disabled = true;
+            button.innerText = '⏳ 正在安全升級…';
+            try {
+                const response = await postApi('/api/update/perform');
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.message || '更新失敗');
+                document.getElementById('updateSummary').innerText = `已更新至 v${result.version}，工坊正在重新啟動…`;
+                document.getElementById('updateNotes').innerText = '請稍候，服務恢復後將自動重新整理。';
+                setTimeout(() => location.reload(), 2200);
+            } catch (error) {
+                alert(`更新未套用：${error.message}`);
+                button.disabled = false;
+                button.innerText = originalText;
+            }
+        }
+
         async function postApi(path, body = undefined) {
             const sendRequest = async () => {
-                const token = sessionStorage.getItem('paperswitchAccessToken');
-                const headers = token ? { 'X-PaperSwitch-Token': token } : {};
+                const headers = getApiHeaders();
                 return fetch(path, { method: 'POST', body, headers });
             };
 
@@ -2702,6 +3174,14 @@ class WebAppHandler(SimpleHTTPRequestHandler):
         elif clean_path == "/api/heartbeat":
             LAST_HEARTBEAT_TIME = time.time()
             self._send_json({"status": "alive"})
+        elif clean_path == "/api/update/check":
+            if not self._is_request_authorized():
+                self._send_json({"success": False, "message": "未授權的 API 請求"}, status=401)
+                return
+            try:
+                self._send_json(_check_app_update())
+            except UpdateError as error:
+                self._send_json({"success": False, "message": str(error)}, status=503)
         elif clean_path == "/favicon.ico":
             self.send_response(204)  # No Content
             self.send_header("Content-Length", "0")
@@ -2716,7 +3196,18 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                 self._send_json({"success": False, "message": "未授權的 API 請求"}, status=401)
                 return
 
-            if self.path == "/api/convert":
+            if self.path == "/api/update/perform":
+                try:
+                    update_result = _perform_app_update()
+                except UpdateError as error:
+                    self._send_json({"success": False, "message": str(error)}, status=400)
+                    return
+                self._send_json(update_result)
+                restart_timer = threading.Timer(1.0, _restart_after_update)
+                restart_timer.daemon = True
+                restart_timer.start()
+            elif self.path == "/api/convert":
+                _clear_request_diagnostic()
                 saved_paths, form_data = self._parse_multipart()
 
                 if not saved_paths:
@@ -2757,28 +3248,32 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                         else:
                             temp_pdf = Path(CONFIG["output_dir"]) / f"temp_{request_id}_{stem}.pdf"
                             conv_res = False
+                            temp_pdf_paths = [temp_pdf]
                             if ext in [".doc", ".docx"]:
                                 conv_res = converter.convert_word(p, str(temp_pdf))
                             elif ext in [".xls", ".xlsx"]:
                                 excel_pdfs = converter.convert_excel(p, str(temp_pdf))
                                 if excel_pdfs:
-                                    temp_pdf = Path(excel_pdfs[0])
+                                    temp_pdf_paths = [Path(path) for path in excel_pdfs]
                                     conv_res = True
                             elif ext in [".ppt", ".pptx"]:
                                 conv_res = converter.convert_powerpoint(p, str(temp_pdf))
                             elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
                                 conv_res = converter.convert_image([p], str(temp_pdf))
 
-                            if conv_res and temp_pdf.exists():
-                                split_paths = converter.split_pdf(str(temp_pdf), CONFIG["output_dir"])
-                                if split_paths:
-                                    generated_pdfs.extend(split_paths)
-                                else:
-                                    overall_success = False
-                                try:
-                                    temp_pdf.unlink(missing_ok=True)
-                                except Exception:
-                                    pass
+                            if conv_res and all(path.exists() for path in temp_pdf_paths):
+                                for source_pdf in temp_pdf_paths:
+                                    split_paths = converter.split_pdf(str(source_pdf), CONFIG["output_dir"])
+                                    if split_paths:
+                                        generated_pdfs.extend(split_paths)
+                                        # 只有在單頁拆分成功完成時，才清理中間過渡 PDF
+                                        try:
+                                            source_pdf.unlink(missing_ok=True)
+                                        except Exception:
+                                            pass
+                                    else:
+                                        overall_success = False
+                                        print(f"ℹ️ [保留中介 PDF] 檔案未就緒或逾時，已安全保留於: {source_pdf}")
                             else:
                                 overall_success = False
                     elif mode == "pdf_to_images":
@@ -2791,28 +3286,32 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                         else:
                             temp_pdf = Path(CONFIG["output_dir"]) / f"temp_{request_id}_{stem}.pdf"
                             conv_res = False
+                            temp_pdf_paths = [temp_pdf]
                             if ext in [".doc", ".docx"]:
                                 conv_res = converter.convert_word(p, str(temp_pdf))
                             elif ext in [".xls", ".xlsx"]:
                                 excel_pdfs = converter.convert_excel(p, str(temp_pdf))
                                 if excel_pdfs:
-                                    temp_pdf = Path(excel_pdfs[0])
+                                    temp_pdf_paths = [Path(path) for path in excel_pdfs]
                                     conv_res = True
                             elif ext in [".ppt", ".pptx"]:
                                 conv_res = converter.convert_powerpoint(p, str(temp_pdf))
                             elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
                                 conv_res = converter.convert_image([p], str(temp_pdf))
 
-                            if conv_res and temp_pdf.exists():
-                                img_paths = converter.convert_pdf_to_images(str(temp_pdf), CONFIG["output_dir"])
-                                if img_paths:
-                                    generated_pdfs.extend(img_paths)
-                                else:
-                                    overall_success = False
-                                try:
-                                    temp_pdf.unlink(missing_ok=True)
-                                except Exception:
-                                    pass
+                            if conv_res and all(path.exists() for path in temp_pdf_paths):
+                                for source_pdf in temp_pdf_paths:
+                                    img_paths = converter.convert_pdf_to_images(str(source_pdf), CONFIG["output_dir"])
+                                    if img_paths:
+                                        generated_pdfs.extend(img_paths)
+                                        # 只有在轉圖成功完成時，才清理中間過渡 PDF
+                                        try:
+                                            source_pdf.unlink(missing_ok=True)
+                                        except Exception:
+                                            pass
+                                    else:
+                                        overall_success = False
+                                        print(f"ℹ️ [保留中介 PDF] 檔案未就緒或逾時，已安全保留於: {source_pdf}")
                             else:
                                 overall_success = False
                     elif ext in [".doc", ".docx"]:
@@ -2875,17 +3374,19 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                     if not merge_res:
                         overall_success = False
 
-                log_desc = f"產出 {len(generated_pdfs)} 個項目至 converted/" if overall_success else "轉檔處理異常"
+                diagnostic_message = _get_request_diagnostic()
+                log_desc = f"產出 {len(generated_pdfs)} 個項目至 converted/" if overall_success else (diagnostic_message or "轉檔處理異常")
                 self._send_json(
                     {
                         "success": overall_success,
-                        "message": "轉換完成" if overall_success else "部分或全部檔案轉檔失敗",
+                        "message": "轉換完成" if overall_success else (diagnostic_message or "部分或全部檔案轉檔失敗"),
                         "outputs": [Path(p).name for p in generated_pdfs],
                         "log": log_desc,
                     }
                 )
 
             elif self.path == "/api/arranger/render":
+                _clear_request_diagnostic()
                 saved_paths, _ = self._parse_multipart()
                 if not saved_paths:
                     self._send_json({"success": False, "message": "未接收到有效檔案"}, status=400)
@@ -2897,7 +3398,7 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                     ext = Path(p).suffix.lower()
                     stem = Path(p).stem
                     request_id = Path(p).parent.name
-                    target_pdf_path = p
+                    target_pdf_paths = [Path(p)]
 
                     if ext != ".pdf":
                         temp_pdf = Path(CONFIG["output_dir"]) / f"arranger_temp_{request_id}_{stem}.pdf"
@@ -2907,28 +3408,34 @@ class WebAppHandler(SimpleHTTPRequestHandler):
                         elif ext in [".xls", ".xlsx"]:
                             excel_pdfs = converter.convert_excel(p, str(temp_pdf))
                             if excel_pdfs:
-                                temp_pdf = Path(excel_pdfs[0])
+                                target_pdf_paths = [Path(path) for path in excel_pdfs]
                                 conv_res = True
                         elif ext in [".ppt", ".pptx"]:
                             conv_res = converter.convert_powerpoint(p, str(temp_pdf))
                         elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
                             conv_res = converter.convert_image([p], str(temp_pdf))
 
-                        if conv_res and temp_pdf.exists():
-                            target_pdf_path = str(temp_pdf)
-                        else:
+                        if ext not in [".xls", ".xlsx"]:
+                            target_pdf_paths = [temp_pdf]
+
+                        if not conv_res or not all(path.exists() for path in target_pdf_paths):
                             print(f"⚠️ [編排略過] 無法轉為 PDF 縮圖: {p}")
                             continue
 
-                    pages = converter.render_pdf_thumbnails(target_pdf_path)
-                    all_rendered_pages.extend(pages)
+                    for target_pdf_path in target_pdf_paths:
+                        pages = converter.render_pdf_thumbnails(str(target_pdf_path))
+                        all_rendered_pages.extend(pages)
 
-                self._send_json({
-                    "success": True,
-                    "pages": all_rendered_pages,
-                    "total_files": len(saved_paths),
-                    "total_pages": len(all_rendered_pages)
-                })
+                diagnostic_message = _get_request_diagnostic()
+                if diagnostic_message and not all_rendered_pages:
+                    self._send_json({"success": False, "message": diagnostic_message}, status=422)
+                else:
+                    self._send_json({
+                        "success": True,
+                        "pages": all_rendered_pages,
+                        "total_files": len(saved_paths),
+                        "total_pages": len(all_rendered_pages)
+                    })
 
             elif self.path == "/api/arranger/export":
                 content_len = int(self.headers.get("Content-Length", 0))
