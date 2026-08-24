@@ -31,7 +31,7 @@
 - [x] 新增版本檔與使用說明｜檢查版本格式及更新資產契約。
 - [x] 執行既有可行檢查並記錄結果｜`py_compile`、JavaScript 語法、`git diff --check`。
 - [x] 新增 VBS 無終端視窗啟動器與安全封裝腳本｜靜態檢查啟動器、封裝前依賴驗證。
-- [ ] 上傳已驗證的 ZIP 至既有 v3.0.0 GitHub Release｜檢查 Release 資產名稱、大小與 SHA-256。
+- [x] 上傳已驗證的 ZIP 至既有 v3.0.0 GitHub Release｜確認資產 `PaperSwitch_v3.0.0_Portable.zip` 為 58,212,599 bytes，遠端 SHA-256 與本機一致。
 
 ## 風險與因應
 
