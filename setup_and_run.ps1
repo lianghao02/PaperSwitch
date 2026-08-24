@@ -1,12 +1,11 @@
-﻿# ==============================================================================
-#  專案名稱：PaperSwitch 萬能轉檔與 PDF 處理器
-#  主要功能：一鍵智慧自癒啟動 PowerShell 核心腳本
-# ==============================================================================
+﻿[CmdletBinding()]
 param(
-    [switch]$NoLaunch
+    [switch]$NoLaunch,
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $projectDir = $scriptDir
@@ -31,13 +30,23 @@ Write-Host '=================================================================' -
 # 階段 ①：檢查是否已具備現成的 Python 可攜環境 (場景 1：隨身碟 / 已就緒)
 # ----------------------------------------------------------------------
 $isEnvironmentReady = $false
+
+if ($Force -and (Test-Path -LiteralPath $embedDir)) {
+    Write-Host "[強制重建] 偵測到 -Force 參數，正在重置環境..." -ForegroundColor Magenta
+    Remove-Item -LiteralPath $embedDir -Recurse -Force
+}
 if (Test-Path -LiteralPath $embedPython) {
-    $testRun = & "$embedPython" -c "import sys; print('READY')" 2>$null
-    if ($testRun -match 'READY') {
-        $isEnvironmentReady = $true
-        if ($reqFile -and (Test-Path -LiteralPath $reqFile)) {
-            & "$embedPython" -m pip install --no-warn-script-location -q -r "$reqFile" 2>$null
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $testRun = & "$embedPython" -c "import sys, PIL, fitz, pypdf; print('READY')" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $testRun -match 'READY') {
+            $isEnvironmentReady = $true
         }
+    } catch {
+        $isEnvironmentReady = $false
+    } finally {
+        $ErrorActionPreference = $oldEap
     }
 }
 
@@ -89,11 +98,10 @@ if (-not $isEnvironmentReady) {
         $pthLines = @(
             $zipName,
             '.',
-            '..',
             'Lib\site-packages',
             'import site'
         )
-        $asciiBytes = [System.Text.Encoding]::ASCII.GetBytes(($pthLines -join "`r`n") + "`r`n")
+        $asciiBytes = [System.Text.Encoding]::ASCII.GetBytes(($pthLines -join [Environment]::NewLine) + [Environment]::NewLine)
         [System.IO.File]::WriteAllBytes($pthFile.FullName, $asciiBytes)
     }
 
