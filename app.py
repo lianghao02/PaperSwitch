@@ -615,25 +615,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <title>PaperSwitch - 萬能文件轉 PDF 處理器</title>
     <style>
         :root {
-            --font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", Arial, sans-serif;
-            --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", Arial, sans-serif;
-            --bg-color: #161c28;
-            --card-bg: rgba(26, 34, 48, 0.88);
-            --panel-bg: rgba(18, 24, 35, 0.65);
-            --border-color: rgba(255, 255, 255, 0.11);
-            --border-hover: rgba(107, 164, 200, 0.55);
-            --accent-color: #6ba4c8;
-            --accent-hover: #568eb2;
-            --secondary-bg: rgba(255, 255, 255, 0.08);
-            --secondary-hover: rgba(255, 255, 255, 0.15);
-            --text-h1: #ffffff;
-            --text-h2: #f1f5f9;
-            --text-h3: #e2e8f0;
-            --text-body: #cbd5e1;
-            --text-sub: #94a3b8;
-            --success-color: #7ea88f;
-            --warning-color: #d1a368;
-            --error-color: #d47a7a;
+            --font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+            --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+            --bg-color: #F7F4ED;
+            --card-bg: #FFFFFF;
+            --panel-bg: #FAF7F0;
+            --border-color: #E3DDD2;
+            --border-hover: #C5BCAF;
+            --accent-color: #D97736;
+            --accent-hover: #C46424;
+            --accent-sub: #5B8266;
+            --secondary-bg: #EFEAE1;
+            --secondary-hover: #E4DCCF;
+            --text-h1: #2D2825;
+            --text-h2: #4A433D;
+            --text-h3: #6E655C;
+            --text-body: #4A433D;
+            --text-sub: #8C8276;
+            --success-color: #4A7C59;
+            --warning-color: #C97D30;
+            --error-color: #C85A54;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
@@ -652,6 +653,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             flex-direction: column;
             padding: 16px 24px 24px;
             box-sizing: border-box;
+            background-image: radial-gradient(rgba(140, 130, 118, 0.08) 1px, transparent 0);
+            background-size: 24px 24px;
         }
         
         header {
@@ -663,17 +666,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: var(--font-heading);
             font-size: 2.1rem;
             font-weight: 800;
-            letter-spacing: -0.03em;
-            background: linear-gradient(135deg, #ffffff 40%, #9bc8e4 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            letter-spacing: -0.02em;
+            color: #2D2825;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
         header p {
             font-family: var(--font-body);
             color: var(--text-sub);
             font-size: 0.95rem;
-            font-weight: 500;
+            font-weight: 600;
             margin-top: 4px;
             letter-spacing: 0.02em;
         }
@@ -697,13 +701,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .panel {
             background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            border: 1px solid var(--border-color);
+            border: 1.5px solid var(--border-color);
             border-radius: 16px;
             padding: 20px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.55);
+            box-shadow: 0 10px 25px -8px rgba(100, 80, 60, 0.08), 0 2px 6px rgba(100, 80, 60, 0.04);
             min-height: 0;
             height: 100%;
         }
@@ -714,7 +717,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         
         .panel-title {
             font-family: var(--font-heading);
-            font-size: 1.22rem;
+            font-size: 1.18rem;
             font-weight: 800;
             color: var(--text-h1);
             letter-spacing: -0.015em;
@@ -722,14 +725,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             display: flex;
             align-items: center;
             gap: 8px;
-            border-bottom: 2px solid rgba(107, 164, 200, 0.25);
+            border-bottom: 2px dashed var(--border-color);
             padding-bottom: 12px;
             flex-shrink: 0;
         }
 
         .drop-zone {
-            border: 2px dashed var(--border-color);
-            border-radius: 12px;
+            border: 2px dashed #D5CDC0;
+            border-radius: 14px;
             padding: 24px 16px;
             text-align: center;
             cursor: pointer;
@@ -742,21 +745,41 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             flex: 1;
             min-height: 0;
         }
-        .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-color); background: rgba(107, 164, 200, 0.12); transform: translateY(-2px); }
-        .drop-icon { font-size: 52px; margin-bottom: 16px; filter: drop-shadow(0 4px 12px rgba(209, 163, 104, 0.3)); }
-        .drop-text { font-family: var(--font-heading); font-size: 1.16rem; font-weight: 800; color: var(--text-h1); letter-spacing: -0.01em; }
-        .drop-hint { font-family: var(--font-body); font-size: 0.92rem; font-weight: 500; color: var(--text-sub); margin-top: 10px; line-height: 1.7; }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent-color);
+            background: #FDF6EE;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(217, 119, 54, 0.12);
+        }
+        .drop-icon { font-size: 52px; margin-bottom: 14px; filter: drop-shadow(0 4px 8px rgba(140, 110, 80, 0.15)); }
+        .drop-text { font-family: var(--font-heading); font-size: 1.14rem; font-weight: 800; color: var(--text-h1); letter-spacing: -0.01em; }
+        .drop-hint { font-family: var(--font-body); font-size: 0.9rem; font-weight: 500; color: var(--text-sub); margin-top: 8px; line-height: 1.6; }
+        
         .format-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 16px; }
-        .format-chip { padding: 4px 10px; color: var(--text-h2); background: rgba(142, 156, 174, 0.18); border: 1px solid rgba(142, 156, 174, 0.32); border-radius: 999px; font-size: 0.8rem; font-weight: 600; line-height: 1.3; }
+        .format-chip {
+            padding: 4px 10px;
+            color: #5A4E44;
+            background: #EFEAE1;
+            border: 1px solid #DCD4C7;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+        .format-chip.chip-word { background: #EAF0F8; color: #356093; border-color: #C8D8ED; }
+        .format-chip.chip-excel { background: #ECF5EE; color: #2E6B44; border-color: #C6E4CD; }
+        .format-chip.chip-ppt { background: #FAF0EB; color: #A64E24; border-color: #EED1C3; }
+        .format-chip.chip-img { background: #F4EEF8; color: #68428F; border-color: #DECDE8; }
+        .format-chip.chip-pdf { background: #FCEEEC; color: #B33D35; border-color: #F4C4C0; }
 
         .progress-box { margin-bottom: 14px; flex-shrink: 0; }
-        .progress-info { font-family: var(--font-body); display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; color: var(--text-h2); }
-        .progress-bar-bg { width: 100%; height: 9px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; width: 0%; background: var(--accent-color); transition: width 0.3s ease; }
+        .progress-info { font-family: var(--font-body); display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 700; margin-bottom: 6px; color: var(--text-h2); }
+        .progress-bar-bg { width: 100%; height: 9px; background: #EBE5DB; border-radius: 6px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #E28445, #D97736); transition: width 0.3s ease; border-radius: 6px; }
         
         .queue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0; }
-        .queue-count { font-size: 0.9rem; font-weight: 700; color: var(--text-h3); }
-        .clear-btn { font-size: 0.84rem; font-weight: 700; color: var(--error-color); background: none; border: none; cursor: pointer; text-decoration: underline; }
+        .queue-count { font-size: 0.88rem; font-weight: 700; color: var(--text-h2); }
+        .clear-btn { font-size: 0.82rem; font-weight: 700; color: var(--error-color); background: none; border: none; cursor: pointer; text-decoration: underline; }
         
         .file-queue {
             overflow-y: auto;
@@ -768,100 +791,128 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             min-height: 180px;
             max-height: 320px;
         }
-        .file-card { display: flex; justify-content: space-between; align-items: center; padding: 11px 13px; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 0.88rem; }
-        .file-info { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
-        .file-name { font-weight: 700; color: var(--text-h1); font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
-        .file-meta { font-size: 0.78rem; font-weight: 500; color: var(--text-sub); }
-        .file-status { font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; transition: all 0.2s ease; }
-        
-        @keyframes pulseGlow {
-            0% { opacity: 0.75; }
-            50% { opacity: 1; transform: scale(1.02); }
-            100% { opacity: 0.75; }
+        .file-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 13px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.88rem;
+            transition: all 0.15s ease;
         }
-        .status-ready { background: rgba(255,255,255,0.1); color: var(--text-body); border: 1px solid rgba(255,255,255,0.15); }
-        .status-processing { background: rgba(209, 163, 104, 0.25); color: var(--warning-color); border: 1px solid rgba(209, 163, 104, 0.5); animation: pulseGlow 1.4s infinite ease-in-out; }
-        .status-done { background: rgba(126, 168, 143, 0.25); color: var(--success-color); border: 1px solid rgba(126, 168, 143, 0.45); }
-        .status-fail { background: rgba(212, 122, 122, 0.25); color: var(--error-color); border: 1px solid rgba(212, 122, 122, 0.45); }
+        .file-card:hover { background: #FFFFFF; border-color: var(--border-hover); box-shadow: 0 3px 8px rgba(100, 80, 60, 0.06); }
+        .file-info { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+        .file-name { font-weight: 700; color: var(--text-h1); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+        .file-meta { font-size: 0.78rem; font-weight: 500; color: var(--text-sub); }
+        .file-status { font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; transition: all 0.2s ease; }
+        
+        .status-ready { background: #EFEAE1; color: var(--text-h3); border: 1px solid #DCD4C7; }
+        .status-processing { background: #FAF0EB; color: var(--accent-color); border: 1px solid #EED1C3; }
+        .status-done { background: #ECF5EE; color: var(--success-color); border: 1px solid #C6E4CD; }
+        .status-fail { background: #FCEEEC; color: var(--error-color); border: 1px solid #F4C4C0; }
 
         .option-group { margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
-        .option-label { font-family: var(--font-heading); font-size: 0.96rem; font-weight: 800; color: var(--text-h2); letter-spacing: -0.01em; }
-        .radio-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
-        .radio-card:hover { border-color: var(--border-hover); background: rgba(107, 164, 200, 0.1); }
-        .radio-card:focus-within { outline: 2px solid rgba(107, 164, 200, 0.75); outline-offset: 2px; }
-        .radio-card.active { border-color: var(--accent-color); background: linear-gradient(135deg, rgba(107, 164, 200, 0.22), rgba(107, 164, 200, 0.08)); box-shadow: inset 3.5px 0 0 var(--accent-color); }
-        .radio-card.active .radio-title { color: #ffffff; }
+        .option-label { font-family: var(--font-heading); font-size: 0.94rem; font-weight: 800; color: var(--text-h2); letter-spacing: -0.01em; }
+        .radio-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 11px 14px;
+            background: var(--panel-bg);
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .radio-card:hover { border-color: var(--border-hover); background: #FFFFFF; }
+        .radio-card.active {
+            border-color: var(--accent-color);
+            background: #FDF7F0;
+            box-shadow: inset 4px 0 0 var(--accent-color), 0 3px 10px rgba(217, 119, 54, 0.08);
+        }
+        .radio-card.active .radio-title { color: var(--accent-color); }
         .radio-card input { margin-top: 3px; accent-color: var(--accent-color); }
-        .radio-text { display: flex; flex-direction: column; gap: 3px; }
-        .radio-title { font-family: var(--font-heading); font-size: 1.02rem; font-weight: 800; color: var(--text-h1); letter-spacing: -0.01em; }
-        .radio-desc { font-size: 0.82rem; font-weight: 500; color: var(--text-sub); line-height: 1.4; }
+        .radio-text { display: flex; flex-direction: column; gap: 2px; }
+        .radio-title { font-family: var(--font-heading); font-size: 0.98rem; font-weight: 800; color: var(--text-h1); letter-spacing: -0.01em; }
+        .radio-desc { font-size: 0.8rem; font-weight: 500; color: var(--text-sub); line-height: 1.35; }
         
         .input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; flex-shrink: 0; }
-        .input-field { width: 100%; padding: 10px 12px; background: rgba(18, 24, 35, 0.7); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-h1); font-size: 0.9rem; font-weight: 600; outline: none; }
-        .input-field:focus { border-color: var(--accent-color); }
-
-        .btn-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 12px;
-            flex-shrink: 0;
+        .input-field {
+            width: 100%;
+            padding: 10px 12px;
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-h1);
+            font-size: 0.9rem;
+            font-weight: 600;
+            outline: none;
+            transition: border-color 0.2s ease;
         }
-
+        .input-field:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(217, 119, 54, 0.15); }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; flex-shrink: 0; }
+        
         .btn {
             font-family: var(--font-heading);
-            background: linear-gradient(135deg, #7dbcdb, #528fae);
-            color: #050d18;
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            padding: 13px 20px;
+            background: linear-gradient(135deg, #E28445, #D26E2B);
+            color: #FFFFFF;
+            border: none;
+            padding: 12px 20px;
             border-radius: 10px;
             font-size: 1.02rem;
             font-weight: 800;
             cursor: pointer;
-            transition: all 0.25s ease;
-            box-shadow: 0 6px 18px rgba(107, 164, 200, 0.4);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(217, 119, 54, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            letter-spacing: -0.01em;
+            letter-spacing: 0.01em;
         }
         .btn:hover {
+            background: linear-gradient(135deg, #EB8F52, #DB7632);
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(107, 164, 200, 0.55);
-            color: #ffffff;
+            box-shadow: 0 6px 18px rgba(217, 119, 54, 0.45);
         }
         .btn:active { transform: translateY(0); }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
+            background: #EFEAE1;
             color: var(--text-h2);
-            border: 1px solid var(--border-color);
+            border: 1.5px solid var(--border-color);
             box-shadow: none;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 700;
+            padding: 10px 16px;
+            border-radius: 8px;
         }
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
+            background: #E5DFD4;
             border-color: var(--border-hover);
-            color: #ffffff;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            color: var(--text-h1);
         }
 
         .btn-arranger-entry {
-            background: linear-gradient(135deg, rgba(107, 164, 200, 0.25), rgba(107, 164, 200, 0.08));
-            border: 1.5px solid var(--accent-color);
-            color: #ffffff;
-            font-size: 0.98rem;
+            background: #FAF7F0;
+            border: 1.5px solid #D5CDC0;
+            color: var(--text-h1);
+            font-size: 0.94rem;
             font-weight: 800;
-            padding: 13px;
-            margin-top: 4px;
+            padding: 11px;
+            margin-top: 2px;
             border-radius: 10px;
             letter-spacing: 0.01em;
+            box-shadow: 0 2px 8px rgba(100, 80, 60, 0.05);
         }
         .btn-arranger-entry:hover {
-            background: linear-gradient(135deg, rgba(107, 164, 200, 0.4), rgba(107, 164, 200, 0.18));
-            box-shadow: 0 0 16px rgba(107, 164, 200, 0.35);
+            background: #F4EDE0;
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+            transform: translateY(-1px);
         }
 
         #globalStatus {
@@ -879,7 +930,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .maintenance-actions {
             margin-top: auto;
             padding-top: 12px;
-            border-top: 1px dashed rgba(255, 255, 255, 0.1);
+            border-top: 1.5px dashed var(--border-color);
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -887,11 +938,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .maintenance-label {
             font-family: var(--font-heading);
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 800;
             color: var(--text-sub);
             letter-spacing: 0.04em;
-            text-transform: uppercase;
         }
         .maintenance-btns {
             display: flex;
@@ -901,59 +951,58 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .btn-tool {
             font-family: var(--font-heading);
-            font-size: 0.84rem;
+            font-size: 0.82rem;
             font-weight: 700;
             border-radius: 8px;
-            padding: 7px 12px;
+            padding: 6px 11px;
             cursor: pointer;
             transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
             gap: 5px;
             line-height: 1.3;
-            border: 1px solid transparent;
+            border: 1px solid var(--border-color);
             text-decoration: none;
             white-space: nowrap;
         }
         .btn-tool-secondary {
-            background: rgba(255, 255, 255, 0.08);
+            background: #FFFFFF;
             color: var(--text-h2);
             border-color: var(--border-color);
         }
         .btn-tool-secondary:hover {
-            background: rgba(255, 255, 255, 0.16);
+            background: #F7F3EB;
             border-color: var(--border-hover);
-            color: #ffffff;
+            color: var(--text-h1);
         }
         .btn-tool-danger {
-            background: rgba(212, 122, 122, 0.12);
+            background: #FDF2F1;
             color: var(--error-color);
-            border-color: rgba(212, 122, 122, 0.35);
+            border-color: #F4C7C4;
         }
         .btn-tool-danger:hover {
-            background: rgba(212, 122, 122, 0.25);
+            background: #FAE3E1;
             border-color: var(--error-color);
-            color: #ffffff;
         }
         .btn-tool-primary {
-            background: rgba(107, 164, 200, 0.2);
-            color: #ffffff;
+            background: #FAF0EB;
+            color: var(--accent-color);
             border: 1.5px solid var(--accent-color);
         }
         .btn-tool-primary:hover {
-            background: rgba(107, 164, 200, 0.35);
-            box-shadow: 0 0 10px rgba(107, 164, 200, 0.3);
+            background: #F5DFD4;
         }
         .btn-tool-accent {
-            background: var(--accent-color);
-            color: #0b121e;
+            background: linear-gradient(135deg, #E28445, #D26E2B);
+            color: #FFFFFF;
             font-weight: 800;
             border: none;
+            box-shadow: 0 3px 10px rgba(217, 119, 54, 0.25);
         }
         .btn-tool-accent:hover {
-            background: var(--accent-hover);
-            color: #ffffff;
-            box-shadow: 0 0 12px rgba(107, 164, 200, 0.4);
+            background: linear-gradient(135deg, #EB8F52, #DB7632);
+            transform: translateY(-1px);
+            box-shadow: 0 5px 14px rgba(217, 119, 54, 0.35);
         }
 
         /* 🗂️ 視覺化頁面編排 (Arranger View) 沉浸式全幅大頁面樣式 */
@@ -972,8 +1021,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .arranger-header {
             background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            border: 1px solid var(--border-color);
+            border: 1.5px solid var(--border-color);
             border-radius: 14px;
             padding: 10px 16px;
             display: flex;
@@ -981,7 +1029,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             align-items: center;
             flex-wrap: wrap;
             gap: 12px;
-            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 8px 20px -8px rgba(100, 80, 60, 0.08);
             flex-shrink: 0;
         }
         .arranger-title-group {
@@ -999,10 +1047,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 0.84rem;
             font-weight: 700;
             color: var(--text-sub);
-            background: rgba(255, 255, 255, 0.08);
+            background: #EFEAE1;
             padding: 3px 10px;
             border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
+            border: 1px solid #DCD4C7;
         }
         .arranger-toolbar {
             display: flex;
@@ -1014,15 +1062,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             display: flex;
             align-items: center;
             gap: 6px;
-            background: rgba(0, 0, 0, 0.22);
+            background: #FAF7F0;
             padding: 3px 6px;
             border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
         }
         .toolbar-divider {
             width: 1px;
             height: 22px;
-            background: rgba(255, 255, 255, 0.12);
+            background: #D8D0C3;
             margin: 0 2px;
         }
 
@@ -1031,7 +1079,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             display: flex;
             align-items: center;
             gap: 6px;
-            background: rgba(255, 255, 255, 0.05);
+            background: #FFFFFF;
             border: 1px solid var(--border-color);
             padding: 4px 10px;
             border-radius: 8px;
@@ -1039,7 +1087,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .zoom-label {
             font-size: 0.78rem;
             font-weight: 700;
-            color: var(--text-h3);
+            color: var(--text-h2);
             white-space: nowrap;
         }
         .zoom-slider {
@@ -1054,51 +1102,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             min-width: 36px;
         }
 
-        /* 統一按鈕階梯規範 */
-        .btn-tool {
-            font-family: var(--font-heading);
-            font-size: 0.82rem;
-            font-weight: 700;
-            border-radius: 7px;
-            padding: 6px 11px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            line-height: 1.3;
-        }
-        .arranger-toolbar .btn-tool-accent {
-            background: linear-gradient(135deg, #7dbcdb, #5997ba);
-            color: #08101a;
-            font-weight: 800;
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 4px 14px rgba(107, 164, 200, 0.35);
-        }
-        .arranger-toolbar .btn-tool-accent:hover {
-            background: linear-gradient(135deg, #8ecced, #6ba4c8);
-            color: #000000;
-            box-shadow: 0 0 16px rgba(107, 164, 200, 0.65);
-            transform: translateY(-1px);
-        }
-        .arranger-toolbar .btn-tool-primary {
-            background: rgba(107, 164, 200, 0.22);
-            color: #e6f1f8;
-            border: 1.5px solid var(--accent-color);
-        }
-        .arranger-toolbar .btn-tool-primary:hover {
-            background: rgba(107, 164, 200, 0.4);
-            color: #ffffff;
-        }
-
         /* 💡 畫布底部極致 UX 快捷操作提示列 */
         .arranger-shortcut-bar {
-            background: rgba(12, 18, 28, 0.85);
-            border: 1px solid var(--border-color);
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-color);
             border-radius: 10px;
             padding: 8px 16px;
             font-size: 0.8rem;
-            color: var(--text-sub);
+            color: var(--text-h3);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1106,7 +1117,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             flex-wrap: wrap;
             margin-top: 10px;
             flex-shrink: 0;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(100, 80, 60, 0.05);
         }
         .shortcut-pill {
             display: inline-flex;
@@ -1114,20 +1125,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             gap: 5px;
         }
         .shortcut-key {
-            background: rgba(255, 255, 255, 0.12);
+            background: #EFEAE1;
             color: var(--text-h1);
             font-family: monospace;
             padding: 1px 6px;
             border-radius: 4px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            border: 1px solid #DCD4C7;
             font-size: 0.76rem;
             font-weight: 700;
         }
 
         .arranger-canvas-container {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            border: 1.5px dashed var(--border-color);
+            background: #EDE8DF;
+            border: 2px dashed #D5CDC0;
             border-radius: 16px;
             padding: 20px;
             flex: 1;
@@ -1139,7 +1149,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .arranger-canvas-container.dragover {
             border-color: var(--accent-color);
-            background: rgba(107, 164, 200, 0.08);
+            background: #F8EFE4;
         }
 
         .arranger-empty-state {
@@ -1151,7 +1161,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             transition: all 0.2s ease;
         }
         .arranger-empty-state:hover {
-            background: rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.6);
             transform: scale(1.02);
         }
 
@@ -1163,7 +1173,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .arranger-card {
-            background: rgba(15, 20, 30, 0.78);
+            background: #FFFFFF;
             border: 1.5px solid var(--border-color);
             border-radius: 10px;
             padding: 8px;
@@ -1174,6 +1184,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             user-select: none;
             transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
             position: relative;
+            box-shadow: 0 4px 12px rgba(100, 80, 60, 0.08);
         }
         .arranger-card:active {
             cursor: grabbing;
@@ -1181,38 +1192,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .arranger-card:hover {
             border-color: var(--border-hover);
             transform: translateY(-3px);
-            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 8px 18px rgba(100, 80, 60, 0.14);
         }
         .arranger-card.selected {
             border-color: var(--accent-color);
-            background: linear-gradient(135deg, rgba(107, 164, 200, 0.22), rgba(107, 164, 200, 0.06));
-            box-shadow: 0 0 0 2px rgba(107, 164, 200, 0.6), 0 10px 20px -5px rgba(0, 0, 0, 0.6);
+            background: #FDF7F0;
+            box-shadow: 0 0 0 2px var(--accent-color), 0 8px 18px rgba(217, 119, 54, 0.18);
         }
         .arranger-card.dragging {
-            opacity: 0.25;
+            opacity: 0.3;
             border: 2px dashed var(--accent-color);
             transform: scale(0.94);
         }
         .arranger-card.dragging-stacked {
-            opacity: 0.35;
+            opacity: 0.4;
             border: 2px dashed var(--accent-color);
             transform: scale(0.94);
-            filter: grayscale(0.4) brightness(0.9);
-            box-shadow: 0 0 12px rgba(107, 164, 200, 0.4);
+            filter: grayscale(0.2) brightness(0.95);
+            box-shadow: 0 0 12px rgba(217, 119, 54, 0.3);
         }
         .arranger-card.drag-lead {
-            opacity: 0.7;
-            box-shadow: 0 0 0 3px var(--accent-color), 0 12px 25px rgba(0, 0, 0, 0.8);
+            opacity: 0.8;
+            box-shadow: 0 0 0 3px var(--accent-color), 0 12px 25px rgba(100, 80, 60, 0.25);
             transform: scale(0.98) rotate(2deg);
         }
         .arranger-card.drag-target-left {
             border-left: 4px solid var(--accent-color) !important;
-            box-shadow: -8px 0 18px rgba(107, 164, 200, 0.75) !important;
+            box-shadow: -6px 0 16px rgba(217, 119, 54, 0.5) !important;
             transform: translateX(4px);
         }
         .arranger-card.drag-target-right {
             border-right: 4px solid var(--accent-color) !important;
-            box-shadow: 8px 0 18px rgba(107, 164, 200, 0.75) !important;
+            box-shadow: 6px 0 16px rgba(217, 119, 54, 0.5) !important;
             transform: translateX(-4px);
         }
 
@@ -1223,11 +1234,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 0.8rem;
             color: var(--text-sub);
             padding-bottom: 4px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid #EFEAE1;
         }
         .arranger-badge {
             font-weight: 800;
-            background: rgba(255, 255, 255, 0.12);
+            background: #EFEAE1;
             color: var(--text-h1);
             padding: 2px 7px;
             border-radius: 4px;
@@ -1236,7 +1247,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .arranger-card-actions {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
         }
         .arranger-action-btn {
             background: none;
@@ -1249,12 +1260,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             transition: all 0.15s ease;
         }
         .arranger-action-btn:hover {
-            color: #ffffff;
-            background: rgba(255, 255, 255, 0.12);
+            color: var(--text-h1);
+            background: #EFEAE1;
         }
         .arranger-action-btn.btn-del:hover {
             color: var(--error-color);
-            background: rgba(212, 122, 122, 0.2);
+            background: #FDF2F1;
         }
 
         .arranger-card-img-box {
@@ -1264,7 +1275,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            background: rgba(0, 0, 0, 0.4);
+            background: #F6F3ED;
             border-radius: 6px;
             position: relative;
         }
@@ -1272,26 +1283,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             max-width: 92%;
             max-height: 92%;
             object-fit: contain;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 2px 8px rgba(80, 60, 40, 0.15);
             border-radius: 2px;
             transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .arranger-card-bottom {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.76rem;
-            color: var(--text-sub);
-            margin-top: 2px;
-        }
-        .arranger-card-filename {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: calc(100% - 55px);
-            font-weight: 600;
-        }
         .arranger-card-rot {
             font-weight: 700;
             color: var(--warning-color);
@@ -1304,8 +1300,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(10, 14, 22, 0.88);
-            backdrop-filter: blur(12px);
+            background: rgba(30, 25, 20, 0.75);
+            backdrop-filter: blur(8px);
             z-index: 9999;
             display: flex;
             align-items: center;
@@ -1315,25 +1311,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         .lightbox-content {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-color);
             border-radius: 16px;
-            width: 90vw;
-            max-width: 980px;
-            height: 90vh;
+            width: 82vw;
+            max-width: 1200px;
+            height: 88vh;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
             overflow: hidden;
         }
         .lightbox-header {
-            padding: 14px 20px;
-            background: rgba(15, 20, 30, 0.8);
-            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-shrink: 0;
+            padding: 14px 20px;
+            border-bottom: 1.5px solid var(--border-color);
+            background: #FAF7F0;
         }
         .lightbox-title {
             font-size: 1.05rem;
@@ -1386,46 +1381,93 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             flex-shrink: 0;
             z-index: 2;
         }
-        .lightbox-nav-btn:hover {
-            background: var(--accent-color);
-            color: #0b121e;
-            transform: scale(1.1);
+        /* 📜 溫暖手帳風格即時日誌終端框 */
+        .log-console-box {
+            margin-top: 10px;
+            background: #FAF7F0;
+            border: 1.5px solid var(--border-color);
+            border-radius: 10px;
+            padding: 8px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+            box-shadow: inset 0 1px 4px rgba(100, 80, 60, 0.05);
         }
+        .log-console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-h3);
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 4px;
+        }
+        .log-clear-btn {
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            cursor: pointer;
+            font-size: 0.75rem;
+            text-decoration: underline;
+        }
+        .log-clear-btn:hover { color: var(--accent-color); }
+        .log-console {
+            height: 80px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-family: monospace;
+            font-size: 0.76rem;
+            color: #5A4E44;
+        }
+        .log-line { word-break: break-all; line-height: 1.4; }
+        .log-info { color: #5A4E44; }
+        .log-success { color: var(--success-color); font-weight: 700; }
+        .log-error { color: var(--error-color); font-weight: 700; }
+
+        /* 自訂細緻捲軸 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #D5CDC0; border-radius: 999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #B8ADA0; }
     </style>
 </head>
 <body>
     <div id="mainView">
         <header>
-            <h1>📄 PaperSwitch</h1>
-            <p>萬能 Word / Excel / PowerPoint / 圖片 轉 PDF 與 PDF 合併引擎</p>
+            <h1>📑 紙飛機 · PaperSwitch</h1>
+            <p>溫暖手作的文件與紙張轉換所 ｜ 支援 Word · Excel · PPT · 圖片 · PDF</p>
         </header>
 
         <div class="dashboard">
-            <!-- 區塊 1: 檔案拖曳區 (左欄) -->
+            <!-- 區塊 1: 檔案投遞區 (左欄) -->
             <div class="panel panel-upload">
-                <h2 class="panel-title">📥 1. 檔案拖曳區</h2>
+                <h2 class="panel-title">📦 1. 文件投遞區</h2>
                 <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-                    <div class="drop-icon">✨</div>
-                    <div class="drop-text">將檔案拖曳至此處</div>
-                    <div class="drop-hint">或點擊此區域選擇檔案</div>
+                    <div class="drop-icon">💌</div>
+                    <div class="drop-text">輕輕將檔案拖放到這裡</div>
+                    <div class="drop-hint">或點擊此處挑選您的紙張文件</div>
                     <div class="format-chips" aria-label="支援格式">
-                        <span class="format-chip">Word</span>
-                        <span class="format-chip">Excel</span>
-                        <span class="format-chip">PowerPoint</span>
-                        <span class="format-chip">圖片</span>
-                        <span class="format-chip">PDF</span>
+                        <span class="format-chip chip-word">Word</span>
+                        <span class="format-chip chip-excel">Excel</span>
+                        <span class="format-chip chip-ppt">PowerPoint</span>
+                        <span class="format-chip chip-img">圖片圖紙</span>
+                        <span class="format-chip chip-pdf">PDF</span>
                     </div>
                     <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFiles(this.files)">
                 </div>
             </div>
 
-            <!-- 區塊 2: 檔案佇列與進度 (中欄) -->
+            <!-- 區塊 2: 待整理清單與進度 (中欄) -->
             <div class="panel panel-queue">
-                <h2 class="panel-title">📋 2. 檔案佇列與進度</h2>
+                <h2 class="panel-title">📋 2. 待整理文件清單</h2>
                 
                 <div class="progress-box">
                     <div class="progress-info">
-                        <span id="progressStatusText">佇列就緒</span>
+                        <span id="progressStatusText">工坊準備就緒</span>
                         <span id="progressPercentText">0%</span>
                     </div>
                     <div class="progress-bar-bg">
@@ -1434,85 +1476,85 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </div>
 
                 <div class="queue-header">
-                    <span class="queue-count" id="queueCountText">共 0 個檔案</span>
-                    <button class="clear-btn" onclick="clearQueue()">清空佇列</button>
+                    <span class="queue-count" id="queueCountText">共 0 份文件</span>
+                    <button class="clear-btn" onclick="clearQueue()">清空清單</button>
                 </div>
 
                 <div class="file-queue" id="fileQueue">
-                    <div style="text-align: center; color: var(--text-sub); font-size: 0.85rem; margin: auto 0;">尚無待處理檔案</div>
+                    <div style="text-align: center; color: var(--text-sub); font-size: 0.88rem; margin: auto 0;">尚未挑選任何文件</div>
                 </div>
 
-                <!-- 即時動態日誌終端框 -->
+                <!-- 溫暖手帳備忘日誌框 -->
                 <div class="log-console-box">
                     <div class="log-console-header">
-                        <span>🖥️ 系統執行日誌</span>
-                        <button class="log-clear-btn" type="button" onclick="clearConsoleLog()">清除</button>
+                        <span>📝 工坊製作筆記</span>
+                        <button class="log-clear-btn" type="button" onclick="clearConsoleLog()">清空紀錄</button>
                     </div>
                     <div class="log-console" id="logConsole">
-                        <div class="log-line log-info">[系統連線] PaperSwitch 伺服器運作正常</div>
+                        <div class="log-line log-info">[工坊就緒] PaperSwitch 轉換引擎運作正常</div>
                     </div>
                 </div>
             </div>
 
-            <!-- 區塊 3: 轉換功能設定 (右欄) -->
+            <!-- 區塊 3: 裝訂與製作工坊 (右欄) -->
             <div class="panel panel-settings">
-                <h2 class="panel-title">⚙️ 3. 轉換功能設定</h2>
+                <h2 class="panel-title">📐 3. 裝訂與製作工坊</h2>
                 
                 <div class="option-group">
-                    <h3 class="option-label">輸出模式設定：</h3>
+                    <h3 class="option-label">選擇裝訂方式：</h3>
                     
                     <label class="radio-card active" id="cardSingle" onclick="setMode('single')">
                         <input type="radio" name="convertMode" value="single" checked>
                         <div class="radio-text">
-                            <span class="radio-title">📄 文件轉 PDF</span>
-                            <span class="radio-desc">每個檔案個別轉換為對應同名 PDF (Excel 多分頁自動拆分獨立產出)</span>
+                            <span class="radio-title">📄 獨立轉 PDF</span>
+                            <span class="radio-desc">每份文件個別製作為 PDF（Excel 多工作表自動獨立拆分分頁）</span>
                         </div>
                     </label>
 
                     <label class="radio-card" id="cardMerge" onclick="setMode('merge')">
                         <input type="radio" name="convertMode" value="merge">
                         <div class="radio-text">
-                            <span class="radio-title">📚 多檔併 PDF</span>
-                            <span class="radio-desc">將佇列中所有檔案按自訂順序合併為單一完整 PDF 檔案</span>
+                            <span class="radio-title">📚 裝訂成冊 (多檔合併)</span>
+                            <span class="radio-desc">將清單中的所有檔案依照自訂排隊順序，整齊合為一本完整 PDF</span>
                         </div>
                     </label>
 
                     <label class="radio-card" id="cardSplit" onclick="setMode('split')">
                         <input type="radio" name="convertMode" value="split">
                         <div class="radio-text">
-                            <span class="radio-title">✂️ PDF 拆單頁</span>
-                            <span class="radio-desc">將多頁 PDF 檔案的每個頁面獨立拆解導出為單頁 PDF</span>
+                            <span class="radio-title">✂️ 拆解單頁紙張</span>
+                            <span class="radio-desc">將多頁 PDF 拆開導出為一張張獨立的單頁 PDF</span>
                         </div>
                     </label>
 
                     <label class="radio-card" id="cardPdfToImg" onclick="setMode('pdf_to_images')">
                         <input type="radio" name="convertMode" value="pdf_to_images">
                         <div class="radio-text">
-                            <span class="radio-title">🖼️ PDF 轉圖片</span>
-                            <span class="radio-desc">將 PDF 檔案的每個頁面獨立渲染導出為高清 PNG 圖片</span>
+                            <span class="radio-title">🖼️ 渲染成圖紙 (PNG)</span>
+                            <span class="radio-desc">將 PDF 每一頁紙張單獨渲染導出為清晰的高畫質 PNG 圖片</span>
                         </div>
                     </label>
                 </div>
 
                 <div class="input-group" id="mergedFilenameBox" style="display: none;">
-                    <h4 class="option-label" style="font-size: 0.8rem;">合併 PDF 檔名：</h4>
-                    <input type="text" id="mergedFilename" class="input-field" value="combined_output.pdf" placeholder="例如：combined_output.pdf">
+                    <h4 class="option-label" style="font-size: 0.82rem;">裝訂冊本名稱：</h4>
+                    <input type="text" id="mergedFilename" class="input-field" value="裝訂成果.pdf" placeholder="例如：裝訂成果.pdf">
                 </div>
 
                 <div class="btn-group">
-                    <button class="btn" onclick="uploadAndConvert()">🚀 開始轉換</button>
-                    <button class="btn btn-arranger-entry" onclick="switchToArrangerView()">🗂️ 開啟視覺化頁面編排 (PDF Arranger)</button>
-                    <button class="btn btn-secondary" id="openFolderBtn" onclick="openOutputFolder()" style="display: none;">📂 開啟 PDF 輸出資料夾</button>
+                    <button class="btn" onclick="uploadAndConvert()">☕ 開始製作 PDF</button>
+                    <button class="btn btn-arranger-entry" onclick="switchToArrangerView()">🗂️ 進入紙張排版工坊 (PDF Arranger)</button>
+                    <button class="btn btn-secondary" id="openFolderBtn" onclick="openOutputFolder()" style="display: none;">📂 打開成品資料夾</button>
                 </div>
 
                 <div id="globalStatus" aria-live="polite"></div>
 
                 <div class="maintenance-actions">
-                    <span class="maintenance-label">維護工具</span>
+                    <span class="maintenance-label">工坊工具箱</span>
                     <div class="maintenance-btns">
-                        <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ PDF 輸出資料夾">📂 開啟輸出資料夾</button>
-                        <button class="btn-tool btn-tool-danger" onclick="clearStorage()" title="清理 uploads/ 與 converted/ 暫存檔">🧹 清除歷史暫存檔</button>
-                        <button class="btn-tool btn-tool-danger" onclick="shutdownServer()" title="停止後端伺服器並關閉進程">🛑 關閉伺服器</button>
+                        <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ PDF 成品資料夾">📂 成品資料夾</button>
+                        <button class="btn-tool btn-tool-danger" onclick="clearStorage()" title="清理 uploads/ 與 converted/ 暫存紙張">🧹 清理暫存紙張</button>
+                        <button class="btn-tool btn-tool-danger" onclick="shutdownServer()" title="關閉後端服務進程">🛑 休息並關閉</button>
                     </div>
                 </div>
             </div>
@@ -1523,14 +1565,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div id="arrangerView" class="arranger-view" style="display: none;">
         <div class="arranger-header">
             <div class="arranger-title-group">
-                <button class="btn-tool btn-tool-secondary" onclick="switchToMainView()">🔙 返回批次轉檔</button>
-                <h2>🗂️ 視覺化頁面編排 (PDF Page Arranger)</h2>
+                <button class="btn-tool btn-tool-secondary" onclick="switchToMainView()">🔙 返回批次工坊</button>
+                <h2>🗂️ 紙張排版工坊 (PDF Page Arranger)</h2>
                 <span class="arranger-page-stat" id="arrangerStatText">共 0 頁 (已選取 0 頁)</span>
             </div>
             <div class="arranger-toolbar">
                 <!-- 📁 群組 1：檔案與視圖縮放 -->
                 <div class="toolbar-group">
-                    <button class="btn-tool btn-tool-secondary" onclick="document.getElementById('arrangerFileInput').click()" title="加入更多 PDF / Office / 圖片檔案">➕ 加入檔案</button>
+                    <button class="btn-tool btn-tool-secondary" onclick="document.getElementById('arrangerFileInput').click()" title="加入更多 PDF / Office / 圖片檔案">➕ 加入紙張</button>
                     <input type="file" id="arrangerFileInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.bmp,.webp" style="display: none;" onchange="handleArrangerUpload(this.files)">
                     
                     <div class="zoom-control-group" title="獨立縮放縮圖大小：可拖動滑桿、在滑桿上滾動滾輪，或在畫布上按住 Ctrl + 滾輪">
@@ -1547,7 +1589,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <button class="btn-tool btn-tool-secondary" onclick="rotateSelectedPages(-90)" title="逆時針旋轉 90° (Shift + R)">↺ 逆轉</button>
                     <button class="btn-tool btn-tool-secondary" onclick="rotateSelectedPages(90)" title="順時針旋轉 90° (快捷鍵 R)">↻ 順轉 (R)</button>
                     <button class="btn-tool btn-tool-secondary" onclick="toggleSelectAllPages()" title="全選或取消全選 (Ctrl + A)">☑️ 全選</button>
-                    <button class="btn-tool btn-tool-danger" onclick="deleteSelectedPages()" title="刪除選取頁面 (快捷鍵 Del)">🗑️ 刪除 (Del)</button>
+                    <button class="btn-tool btn-tool-danger" onclick="deleteSelectedPages()" title="刪除選取頁面 (快捷鍵 Del)">🗑️ 移除 (Del)</button>
                     <button class="btn-tool btn-tool-secondary" onclick="clearArrangerCanvas()" title="清空當前畫布所有頁面">🧹 清空</button>
                 </div>
 
@@ -1556,24 +1598,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <!-- 🚀 群組 3：導出產出核心 -->
                 <div class="toolbar-group">
                     <button class="btn-tool btn-tool-primary" onclick="exportArrangedPages('selected')" title="僅將選取的頁面抽取另存為新 PDF">💾 另存選取頁</button>
-                    <button class="btn-tool btn-tool-accent" onclick="exportArrangedPages('all')" title="依畫布當前所有頁面與旋轉角度導出完整 PDF">🚀 導出全部編排 PDF</button>
+                    <button class="btn-tool btn-tool-accent" onclick="exportArrangedPages('all')" title="依畫布當前所有頁面與旋轉角度裝訂導出完整 PDF">🚀 裝訂導出全部 PDF</button>
                 </div>
 
                 <div class="toolbar-divider"></div>
 
                 <!-- 📂 群組 4：系統資料夾 -->
                 <div class="toolbar-group">
-                    <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ 輸出資料夾">📂 資料夾</button>
+                    <button class="btn-tool btn-tool-secondary" onclick="openOutputFolder()" title="開啟本機 converted/ 輸出資料夾">📂 成品夾</button>
                 </div>
             </div>
         </div>
 
         <div class="arranger-canvas-container" id="arrangerCanvasContainer" ondragover="handleArrangerDragOver(event)" ondragleave="handleArrangerDragLeave(event)" ondrop="handleArrangerDrop(event)">
             <div class="arranger-empty-state" id="arrangerEmptyState" onclick="document.getElementById('arrangerFileInput').click()">
-                <div style="font-size: 56px; margin-bottom: 14px; filter: drop-shadow(0 4px 12px rgba(107, 164, 200, 0.4));">🗂️</div>
-                <div style="font-size: 1.25rem; font-weight: 800; color: #ffffff;">拖曳檔案至此處，或點擊選擇檔案</div>
+                <div style="font-size: 56px; margin-bottom: 14px; filter: drop-shadow(0 4px 10px rgba(140, 110, 80, 0.2));">📑</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: #2D2825;">將文件紙張拖放到桌面上，或點擊挑選檔案</div>
                 <div style="font-size: 0.92rem; color: var(--text-sub); margin-top: 8px; line-height: 1.6;">
-                    支援 PDF / Office / 圖片 自由混合、拖曳換位、旋轉、批次刪除與雙擊大圖預覽
+                    支援 PDF / Word / Excel / PPT / 圖片 自由混合、隨意拖曳換位、旋轉與雙擊大圖細看
                 </div>
             </div>
             <div class="arranger-grid" id="arrangerGrid" style="display: none;"></div>
@@ -1581,14 +1623,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         <!-- 💡 極致 UX 快捷導航說明列 -->
         <div class="arranger-shortcut-bar">
-            <span class="shortcut-pill">💡 <strong style="color: var(--text-h2);">快捷操作：</strong></span>
+            <span class="shortcut-pill">💡 <strong style="color: var(--text-h1);">貼心快捷操作：</strong></span>
             <span class="shortcut-pill"><span class="shortcut-key">Ctrl + ← / →</span> 快速換位</span>
             <span class="shortcut-pill"><span class="shortcut-key">Home / End</span> 最前/最末</span>
             <span class="shortcut-pill"><span class="shortcut-key">R / Shift+R</span> 順/逆旋轉</span>
             <span class="shortcut-pill"><span class="shortcut-key">Ctrl + A</span> 全選</span>
-            <span class="shortcut-pill"><span class="shortcut-key">Del</span> 刪除</span>
-            <span class="shortcut-pill"><span class="shortcut-key">雙擊卡片</span> 大圖預覽</span>
-            <span class="shortcut-pill"><span class="shortcut-key">Ctrl + 滾輪</span> 縮放縮圖</span>
+            <span class="shortcut-pill"><span class="shortcut-key">Del</span> 移除</span>
+            <span class="shortcut-pill"><span class="shortcut-key">雙擊紙張</span> 大圖細看</span>
+            <span class="shortcut-pill"><span class="shortcut-key">Ctrl + 滾輪</span> 縮放紙張</span>
         </div>
     </div>
 
@@ -1614,8 +1656,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- 📦 多選打包拖曳懸浮徽章 (Drag Ghost) -->
-    <div id="dragGhostBadge" style="position: fixed; top: -9999px; left: -9999px; pointer-events: none; background: #0c1420; border: 2px solid var(--accent-color); color: #ffffff; padding: 8px 16px; border-radius: 12px; font-weight: 800; font-size: 0.92rem; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.85); display: flex; align-items: center; gap: 8px; z-index: 100000;">
-        🗂️ <span id="dragGhostText">已打包 2 頁</span>
+    <div id="dragGhostBadge" style="position: fixed; top: -9999px; left: -9999px; pointer-events: none; background: #FAF7F0; border: 2px solid var(--accent-color); color: #2D2825; padding: 8px 16px; border-radius: 12px; font-weight: 800; font-size: 0.92rem; box-shadow: 0 10px 25px rgba(100, 80, 60, 0.25); display: flex; align-items: center; gap: 8px; z-index: 100000;">
+        📑 <span id="dragGhostText">已打包 2 頁紙張</span>
     </div>
 
     <script>
@@ -2373,25 +2415,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         // ============================================================
         async function exportArrangedPages(mode = 'all') {
             if (arrangerPages.length === 0) {
-                alert('畫布上尚無任何頁面可導出！');
+                alert('桌面上還沒有放置任何紙張可以裝訂導出喔！');
                 return;
             }
 
             let targetPages = [];
-            let defaultName = 'arranged_output.pdf';
+            let defaultName = '裝訂成品.pdf';
 
             if (mode === 'selected') {
                 targetPages = arrangerPages.filter(p => p.selected);
                 if (targetPages.length === 0) {
-                    alert('請先選取要另存的頁面！');
+                    alert('請先點選要另存的紙張頁面！');
                     return;
                 }
-                defaultName = 'selected_pages.pdf';
+                defaultName = '選取頁面.pdf';
             } else {
                 targetPages = arrangerPages;
             }
 
-            let filename = prompt(`請輸入導出的 PDF 檔名：`, defaultName);
+            let filename = prompt('請為即將裝訂的 PDF 冊本取個好名字：', defaultName);
             if (!filename) return;
             filename = filename.trim();
             if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
@@ -2406,15 +2448,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             };
 
             const statEl = document.getElementById('arrangerStatText');
-            statEl.innerText = `⏳ 正在無損合成 ${targetPages.length} 頁 PDF...`;
+            statEl.innerText = `⏳ 正在為您精緻裝訂 ${targetPages.length} 頁 PDF...`;
 
             try {
                 const resp = await postApi('/api/arranger/export', JSON.stringify(payload));
                 const res = await resp.json();
 
                 if (res.success) {
-                    alert(`🎉 導出成功！\n已成功將 ${targetPages.length} 頁合成導出為：converted/${res.filename}`);
-                    addLog(`✅ [編排導出成功] ${targetPages.length} 頁 ➔ converted/${res.filename}`, 'success');
+                    alert(`🎉 裝訂完成！\n已成功為您將 ${targetPages.length} 頁紙張裝訂導出為：converted/${res.filename}`);
+                    addLog(`🎉 [裝訂完成] ${targetPages.length} 頁 ➔ converted/${res.filename}`, 'success');
                 } else {
                     alert('導出失敗：' + (res.message || '未知錯誤'));
                 }
