@@ -1,5 +1,9 @@
 # 📝 變更歷史 (CHANGELOG)
 
+## 未發布（2026-08-24）
+
+- **技術架構文件**：明列 Python 3.13 本機服務與 HTML5／JavaScript 排版介面的分工；本次未進行語言遷移。
+
 本專案遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 結構與 [Semantic Versioning](https://semver.org/lang/zh-TW/) 規範。
 
 ---

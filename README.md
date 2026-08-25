@@ -1,5 +1,9 @@
 # 📑 紙飛機 · PaperSwitch 文件與紙張轉換所 v3.0.0
 
+## 技術架構現況（2026-08-24）
+
+本專案主力為 **Python 3.13 本機服務＋HTML5／JavaScript 介面**；Python 負責 PDF、影像與 Office COM 轉換，瀏覽器負責頁面編排操作。現階段維持此分工，不進行完整 C#、Rust 或 Tauri 重寫。
+
 [![Version](https://img.shields.io/badge/version-v3.0.0-orange.svg)](CHANGELOG.md)
 [![Theme](https://img.shields.io/badge/style-Warm_Cozy_Craft-E28445.svg)](README.md)
 [![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
