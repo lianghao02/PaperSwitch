@@ -1,0 +1,98 @@
+﻿<Window x:Class="PaperSwitch.LightboxWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:PaperSwitch.ViewModels"
+        mc:Ignorable="d"
+        Title="大圖預覽 — PaperSwitch 紙張排版工坊"
+        Height="780" Width="1040"
+        MinHeight="550" MinWidth="750"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BrushPaperBg}"
+        FontFamily="{StaticResource AppFontFamily}"
+        PreviewKeyDown="Window_PreviewKeyDown">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- 頂部資訊列 -->
+            <RowDefinition Height="*" />    <!-- 中央大圖檢視區 -->
+            <RowDefinition Height="Auto" /> <!-- 底部工具列 -->
+        </Grid.RowDefinitions>
+
+        <!-- 頂部資訊列 -->
+        <Border Grid.Row="0" Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource BrushTerracottaLight}" CornerRadius="6" Padding="8,4" Margin="0,0,12,0">
+                        <TextBlock Text="{Binding PageIndicator}" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}" />
+                    </Border>
+                    <TextBlock Text="{Binding CurrentPage.SourceFileName}" Style="{StaticResource TextH3}" FontWeight="Medium" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <Button Grid.Column="1" Content="✕ 關閉" Style="{StaticResource BtnOutlineCraft}" Click="Close_Click" />
+            </Grid>
+        </Border>
+
+        <!-- 中央大圖預覽區 -->
+        <Grid Grid.Row="1" Background="{StaticResource BrushPaperBg}" ClipToBounds="True">
+            <!-- 載入中動畫 -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="⏳" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                <TextBlock Text="正在渲染高畫質預覽..." Style="{StaticResource TextBody}" Foreground="{StaticResource BrushPencilGray}" />
+            </StackPanel>
+
+            <!-- 大圖呈現 -->
+            <ScrollViewer x:Name="PreviewScrollViewer"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          CanContentScroll="False"
+                          PreviewMouseWheel="PreviewScrollViewer_PreviewMouseWheel"
+                          Margin="20">
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Background="{StaticResource BrushCardBg}" CornerRadius="8" Effect="{StaticResource CardHoverShadow}" Padding="6">
+                        <Image Source="{Binding HighResImage}"
+                               Stretch="Uniform"
+                               MaxWidth="{Binding ViewportWidth, ElementName=PreviewScrollViewer}"
+                               MaxHeight="{Binding ViewportHeight, ElementName=PreviewScrollViewer}"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.LayoutTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}" />
+                                    <RotateTransform Angle="{Binding CurrentPage.Rotation}" />
+                                </TransformGroup>
+                            </Image.LayoutTransform>
+                        </Image>
+                    </Border>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- 左右翻頁按鈕 -->
+            <Button Content="‹" FontSize="32" FontWeight="Light" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="20,0,0,0"
+                    Width="48" Height="48" Style="{StaticResource BtnOutlineCraft}" Command="{Binding PreviousPageCommand}"
+                    Visibility="{Binding HasPrevious, Converter={StaticResource BooleanToVisibilityConverter}}" ToolTip="上一頁 (←)" />
+
+            <Button Content="›" FontSize="32" FontWeight="Light" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,20,0"
+                    Width="48" Height="48" Style="{StaticResource BtnOutlineCraft}" Command="{Binding NextPageCommand}"
+                    Visibility="{Binding HasNext, Converter={StaticResource BooleanToVisibilityConverter}}" ToolTip="下一頁 (→)" />
+        </Grid>
+
+        <!-- 底部控制列 -->
+        <Border Grid.Row="2" Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0" Padding="20,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="↶ 逆轉 90°" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RotateCounterClockwiseCommand}" Margin="6,0" ToolTip="快捷鍵: Shift+R" />
+                <Button Content="↷ 順轉 90°" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RotateClockwiseCommand}" Margin="6,0" ToolTip="快捷鍵: R" />
+                <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="12,0" />
+                <Button Content="🔍 放大" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ZoomInCommand}" Margin="6,0" />
+                <Button Content="縮小" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ZoomOutCommand}" Margin="6,0" />
+                <Button Content="適合視窗" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ResetZoomCommand}" Margin="6,0" ToolTip="完整顯示目前頁面" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

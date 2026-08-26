@@ -1,5 +1,22 @@
 # 實作計畫
 
+## v4.0.0 C# 遷移收尾（目前）
+
+### 已完成
+
+- [x] 使用者輸出改存 `%LOCALAPPDATA%\PaperSwitch\converted`，Office 中介檔改存 `%LOCALAPPDATA%\PaperSwitch\temp_converted`。
+- [x] 建置只清理 `dist\publish`，避免 `RUN.bat` 自動建置時刪除使用者成品。
+- [x] IGEF 或非標準 PDF 最長等待 90 秒；逾時後保留檔案、停止 PDF 載入並顯示依規定解密後重新匯入的提示。
+- [x] .NET 8 Release 建置與 10 項 xUnit 測試通過，包含 IGEF 辨識與拒絕載入測試。
+
+### 待驗證與後續
+
+- [ ] 在受公務端加密代理程式管理的實機，以 Word、Excel、PowerPoint 各一份文件驗證 IGEF 提示與解密後重新匯入流程。
+- [ ] 建立 v4 的 Self-Contained 發行 ZIP、Release 說明、版本檢查與更新契約；v3 的 Python 更新機制不直接沿用至 WPF 執行檔。
+- [ ] 於目標電腦實測啟動時間與 Office COM 端對端轉檔，取得可公開宣告的效能數據。
+
+## 歷史：v3.0.0 Python 發布與更新
+
 ## 目標與驗收條件
 
 為本機 PaperSwitch 提供 GitHub Release 的版本檢查與一鍵更新 `app.py`，並建立免安裝可攜套件：使用者可看見目前與最新版本、更新摘要，並在更新前建立備份；下載或驗證失敗時保留可運作舊版。可攜版解壓縮後可透過 VBS 啟動器以獨立 Edge 視窗開啟。

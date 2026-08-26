@@ -1,4 +1,14 @@
-# Python
+﻿# .NET / C#
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+temp_converted/
+
+# Python (Legacy)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -8,6 +18,8 @@ env/
 venv/
 ENV/
 .venv
+python_embed/
+python-embed/
 
 # 環境變數與機密
 .env
@@ -16,11 +28,9 @@ ENV/
 uploads/
 converted/
 *.pdf
+dist/
+*.log
 
 # IDE
 .vscode/
 .idea/
-python_embed/
-python-embed/
-dist/
-*.log

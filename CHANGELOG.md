@@ -1,10 +1,47 @@
-# 📝 變更歷史 (CHANGELOG)
+﻿# 📝 變更歷史 (CHANGELOG)
 
-## 未發布（2026-08-24）
+## 🏆 v4.0.0 (2026-08-26) - 原生 Windows .NET 8 / WPF 重構旗艦版
 
-- **技術架構文件**：明列 Python 3.13 本機服務與 HTML5／JavaScript 排版介面的分工；本次未進行語言遷移。
+> **全面重構為 Windows 原生 C# 12 / .NET 8.0 LTS / WPF 桌面架構，帶來極致流暢、安全隔離與手帳質感的紙張排版工坊體驗。**
 
-本專案遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 結構與 [Semantic Versioning](https://semver.org/lang/zh-TW/) 規範。
+### 🌟 核心架構重大升級
+- **⚡ 原生桌面架構**：徹底淘汰舊有 Flask 本機服務與 150MB+ 內嵌 Python 環境，改由 Windows 原生 WPF 執行檔直接秒開；發行模式可選 Framework-Dependent 或 Self-Contained。
+- **🛡️ Office COM 生命週期精準管理與安全防禦**：
+  - 專屬 STA 執行緒隔離與全域 Semaphore 佇列，徹底杜絕多執行緒死鎖。
+  - 加入 COM 啟動 null 安全檢查，消除 CS8602 警告，防範端點資安限制或授權異常。
+  - 落實 `Marshal.FinalReleaseComObject` 與 `try...finally` 搭配確定性垃圾回收，徹底根除 Office 背景進程殘留。
+  - Excel 智慧分頁匯出、自動寬度適應與全空白分頁過濾。
+  - 支援微軟 Office IGEF 中介狀態自動偵測與最長 90 秒等待；逾時時保留檔案、停止載入並引導使用者依規定解密後重新匯入。
+- **🎨 手作插畫手帳風格 (Warm Cozy Craft Style)**：
+  - 採用厚磅水彩紙米白底（`#F7F4ED`）、陶土暖橘（`#D97736`）、森林苔綠（`#5B8266`）與深炭焙棕黑（`#2D2825`）配色。
+  - 專屬 XAML 圓角柔和按鈕、立體卡片陰影與手繪風標籤。
+- **🗂️ 極速視覺化排版工坊 (Page Arranger)**：
+  - Windows 原生 `Windows.Data.Pdf` (WinRT) 非同步多執行緒高畫質縮圖渲染與記憶體快取。
+  - 基於 `PdfSharp` 的 100% 向量無損 PDF 合成、頁面旋轉與拆分。
+  - 多選打包整批拖曳與換位演算法。
+- **🔍 大圖燈箱 (Lightbox) 體驗全面升級**：
+  - 大圖預覽預設以 `Stretch="Uniform"` 與 Viewport 比例自適應（適合視窗），徹底解決高解析頁面局部裁切問題。
+  - 支援直接滾動滑鼠滾輪平滑縮放（**35% ～ 400%**），並以滑鼠游標座標為錨點，滾動縮放不跳位。
+  - 換頁時自動重設為適合視窗比例。
+- **🏷️ 多選分頁序列化命名 (F2)**：
+  - 新增 `RenameDialog`，選取單頁或多頁卡片後按下 `F2`，可批次指定基礎檔名並自動產生三位流水序號。
+- **🧹 儲存空間與暫存健康管理**：
+  - 輸出資料夾與暫存資料夾遷移至 `%LOCALAPPDATA%\PaperSwitch`，與執行檔完全隔離，避免重新建置時誤刪使用者檔案。
+  - 開機自動清理超過 7 天之 `temp_converted` 暫存檔，維持系統健康。
+- **⌨️ 完整鍵盤導航支援**：
+  - `Ctrl + ←` / `Ctrl + →`：向前/向後移動 1 格（防覆寫無衝突交換）。
+  - `Home` / `End`：瞬移至首頁或末頁。
+  - `R` / `Shift + R`：順時針 / 逆時針 90° 旋轉。
+  - `Delete`：移除選取紙張。
+  - `Ctrl + A`：全選 / 取消全選。
+  - `F2`：重新命名選取頁面。
+  - `Ctrl + 滾輪`：90px ~ 400px 即時縮放主畫布卡片。
+- **📦 自動化建置與測試**：
+  - 提供 `build.ps1` 一鍵編譯發行至 `dist\publish\PaperSwitch.exe`。
+  - 提供 `qa.ps1` 自動化執行建置清理與 xUnit 單元測試檢驗（14 項測試 100% 通過）。
+  - 舊版 Python 完整封存至 `legacy-python/` 備援。
+
+---本專案遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 結構與 [Semantic Versioning](https://semver.org/lang/zh-TW/) 規範。
 
 ---
 
@@ -258,3 +295,4 @@
   - Excel 智慧分頁與欄位自適應適應單頁寬度 (`FitToPagesWide = 1`)。
   - 支援獨立單檔模式與多檔合併 PDF 模式。
   - 採用 ThreadingHTTPServer 與深色玻璃擬物視窗 UI (Dark Glassmorphic UI)。
+

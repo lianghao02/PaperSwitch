@@ -1,34 +1,50 @@
-# 系統架構與資料流向
+﻿# 系統架構與資料流向 (Architecture)
 
-## 1. 系統整體架構
+## 1. 系統整體架構 (C# 12 / .NET 8 / WPF)
 
-本專案以單一 `app.py` 提供本機 HTTP 服務、轉檔引擎與前端介面；服務預設僅綁定 `127.0.0.1`，Office COM 操作由全域 `COM_LOCK` 序列化保護。
+本專案採用 Windows 原生 WPF + MVVM 架構，提供向量無損 PDF 裝訂與安全隔離的 Office COM 轉檔服務。啟動效能須於目標電腦另行量測，不以文件宣告取代實測。
 
 ```
-[前端 Web UI（暖色手作工坊）]
-         │
-         ├─ POST /api/convert          → 四種轉換模式
-         ├─ POST /api/arranger/render  → PDF 縮圖渲染
-         └─ POST /api/arranger/export  → 向量 PDF 匯出
-         ├─ GET /api/update/check      → GitHub Release 版本檢查
-         └─ POST /api/update/perform   → 驗證、備份與套用 app.py 更新
-                         ▼
-     uploads/（請求暫存）與 converted/（產出及編排來源 PDF）
+[MainWindow.xaml / LightboxWindow.xaml] (WPF XAML 溫暖手作工坊)
+                   │
+                   ▼ (雙向資料綁定 / RelayCommand)
+[MainViewModel / LightboxViewModel] (CommunityToolkit.Mvvm)
+                   │
+    ┌──────────────┼──────────────┬──────────────┐
+    ▼              ▼              ▼              ▼
+[OfficeConverter] [PdfService]  [ThumbnailCache] [ImageConverter]
+ (Word/Excel/PPT)  (PdfSharp)    (Windows.Data)   (BitmapDecoder)
+   STA 隔離執行   向量無損合成   WinRT 非同步縮圖  無損包裝 PDF
+    │              │              │              │
+    └──────────────┴───────┬──────┴──────────────┘
+                           ▼
+ %LOCALAPPDATA%\\PaperSwitch\\converted/ (裝訂產出 PDF 檔案)
 ```
 
-## 2. 模組職責
-- **`WebAppHandler`**：負責主畫面、API 路由、存取權杖驗證與 multipart 檔案接收。
-- **更新器**：僅讀取固定 GitHub Release 的 `app.py` 與 `version.json` 資產，先比對 SHA-256 與語法，再以備份及原子替換套用更新。
-- **`DocumentConverter`**：
-  - `convert_word`：利用 `win32com.client` 呼叫本機 Word 渲染產出 PDF (wdFormatPDF = 17)。
-  - `convert_excel`：呼叫 Excel 引擎匯出 PDF (xlTypePDF = 0)，並自動校正頁面寬度自適應。
-  - `convert_image`：利用 `Pillow` 將單張或多張圖片無損合成 PDF。
-  - `split_pdf`、`convert_pdf_to_images`：處理 PDF 拆頁與轉圖片。
-  - `render_pdf_thumbnails`、`export_arranged_pdf`：提供紙張編排工坊的縮圖與無損匯出。
+## 2. 核心模組職責
 
-## 資料生命週期
+- **`MainWindow` / `LightboxWindow`**：
+  - 手作插畫手帳質感介面（水彩紙米白 `#F7F4ED`、陶土橘 `#D97736`、森林苔綠 `#5B8266`）。
+  - 支援檔案拖放 (Drag & Drop)、多選打包拖曳、鍵盤快速換位與大圖燈箱預覽。
+- **`MainViewModel`**：
+  - 統籌狀態管理、紙張清單 (`ObservableCollection<PaperItem>`)、非同步佇列調度與導出參數。
+- **`OfficeConverterService`**：
+  - 專屬 STA 執行緒隔離與 `SemaphoreSlim` 併發鎖。
+  - 動態 COM Automation (`Word.Application`, `Excel.Application`, `PowerPoint.Application`)。
+  - `Marshal.FinalReleaseComObject` 與確定性垃圾回收，防止背景進程殘留。
+  - Excel 智慧工作表偵測、自動寬度適應與全空白分頁過濾。
+  - IGEF 中介狀態自動偵測與最長 90 秒等待；逾時時保留檔案並阻止其進入 PDF 流程。
+- **`PdfService`**：
+  - 基於 `PdfSharp` 進行 100% 向量無損頁面抽取、旋轉角度矩陣累加、合併與單頁拆分。
+- **`ThumbnailCacheService`**：
+  - 使用 Windows 10/11 內建 `Windows.Data.Pdf` (WinRT) 進行多執行緒高解析光柵化縮圖，搭配記憶體快取。
+- **`ImageConverterService`**：
+  - 使用 WPF `BitmapDecoder` 與 `PdfSharp` 將 PNG/JPG/WebP/BMP 影像轉換為標準向量頁面 PDF。
 
-1. 上傳檔案依請求識別碼存入 `uploads/`。
-2. 一般轉檔輸出至 `converted/`；合併用途的暫存 PDF 在合併後清除。
-3. 編排工坊需保留其轉換後 PDF，直到匯出或使用者透過維護工具清理，才能重新讀取原始向量頁面。
-4. 一鍵更新只替換 `app.py` 與 `version.json`；`uploads/`、`converted/`、內嵌 Python 與使用者設定不在更新範圍內。
+## 3. 資料與資源生命週期
+
+1. **檔案匯入**：使用者拖入之 Office 或圖片檔案，經由對應 Service 轉換為標準中介 PDF，存放於 `%LOCALAPPDATA%\\PaperSwitch\\temp_converted`；IGEF 檔案不載入，保留供依規定解密後重新匯入。
+2. **縮圖產生**：`ThumbnailCacheService` 非同步產生 `BitmapImage` 並呼叫 `Freeze()` 供 UI 執行緒直接渲染。
+3. **無損導出**：導出時僅讀取來源 PDF 原始頁面物件並套用旋轉矩陣，不重新壓縮點陣圖，輸出至 `%LOCALAPPDATA%\\PaperSwitch\\converted`。
+4. **發行隔離**：建置腳本只清理 `dist\\publish`；此目錄僅存程式發行檔，不得用於使用者文件。
+5. **進程與記憶體銷毀**：COM 物件操作完成即時觸發 `FinalReleaseComObject` 與垃圾回收，確保離開工坊時系統零負擔。
