@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # PaperSwitch 一鍵編譯發行腳本 (Build & Publish Script)
 # ============================================================
 param (
@@ -41,12 +41,11 @@ $PublishArgs = @(
     "$SrcDir\PaperSwitch.csproj",
     "-c", $Configuration,
     "-r", "win-x64",
-    "--no-restore",
     "-o", $PublishDir
 )
 
 if ($SelfContained) {
-    Write-Host "📦 發行模式: Self-Contained (單一免安裝 Exe，內嵌 .NET 8 執行階段)..." -ForegroundColor Yellow
+    Write-Host "[PaperSwitch] Mode: Self-Contained" -ForegroundColor Yellow
     $PublishArgs += @(
         "--self-contained", "true",
         "-p:PublishSingleFile=true",
@@ -54,7 +53,7 @@ if ($SelfContained) {
         "-p:EnableCompressionInSingleFile=true"
     )
 } else {
-    Write-Host "⚡ 發行模式: Framework-Dependent (極致輕量秒開，複用本機 .NET 8 執行階段)..." -ForegroundColor Yellow
+    Write-Host "[PaperSwitch] Mode: Framework-Dependent" -ForegroundColor Yellow
     $PublishArgs += @(
         "--self-contained", "false",
         "-p:PublishSingleFile=true",
@@ -66,15 +65,14 @@ if ($SelfContained) {
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "============================================================" -ForegroundColor Green
-    Write-Host "✅ [PaperSwitch] 編譯發行成功！" -ForegroundColor Green
+    Write-Host "[PaperSwitch] Build & Publish Successful!" -ForegroundColor Green
     $ExePath = Join-Path $PublishDir "PaperSwitch.exe"
     if (Test-Path $ExePath) {
-        $Size = (Get-Item $ExePath).Length / 1MB
-        $Msg = ("   產生成品: {0} ({1:N2} MB)" -f $ExePath, $Size)
-        Write-Host $Msg -ForegroundColor Green
+        $Size = [Math]::Round((Get-Item $ExePath).Length / 1MB, 2)
+        Write-Host "   Output: $ExePath ($Size MB)" -ForegroundColor Green
     }
     Write-Host "============================================================" -ForegroundColor Green
 } else {
-    Write-Host "❌ [PaperSwitch] 編譯發行失敗，結束代碼: $LASTEXITCODE" -ForegroundColor Red
+    Write-Host "[PaperSwitch] Build Failed, ExitCode: $LASTEXITCODE" -ForegroundColor Red
     exit $LASTEXITCODE
 }

@@ -357,9 +357,13 @@ namespace PaperSwitch.ViewModels
         {
             if (filePaths == null || filePaths.Length == 0) return;
 
+            var existingFiles = filePaths.Where(File.Exists).ToArray();
+            if (existingFiles.Length == 0) return;
+
             IsBusy = true;
-            IsProgressIndeterminate = true;
-            StatusMessage = "正在處理匯入之檔案...";
+            IsProgressIndeterminate = false;
+            ProgressValue = 0;
+            StatusMessage = $"準備匯入 {existingFiles.Length} 個檔案...";
 
             string workTempDir = AppPaths.TemporaryConversionDirectory;
 
@@ -367,12 +371,13 @@ namespace PaperSwitch.ViewModels
 
             try
             {
-                foreach (var path in filePaths)
+                for (int fileIndex = 0; fileIndex < existingFiles.Length; fileIndex++)
                 {
-                    if (!File.Exists(path)) continue;
+                    string path = existingFiles[fileIndex];
+                    int displayIndex = fileIndex + 1;
 
                     string ext = Path.GetExtension(path).ToLowerInvariant();
-                    StatusMessage = $"正在轉換: {Path.GetFileName(path)}...";
+                    StatusMessage = $"正在轉換第 {displayIndex} / {existingFiles.Length} 個檔案：\n{Path.GetFileName(path)}";
 
                     if (ext == ".pdf")
                     {
@@ -427,14 +432,19 @@ namespace PaperSwitch.ViewModels
                             pdfsToLoad.Add(outPdf);
                         }
                     }
+
+                    ProgressValue = displayIndex * 70.0 / existingFiles.Length;
                 }
 
                 // 拆解 PDF 頁面並加入畫布
-                StatusMessage = "正在載入頁面與生成縮圖...";
+                ProgressValue = 75;
+                StatusMessage = $"檔案轉換完成，正在載入 {pdfsToLoad.Count} 份 PDF 的頁面與縮圖...";
                 var newItems = new List<PaperItem>();
 
-                foreach (var pdf in pdfsToLoad)
+                for (int pdfIndex = 0; pdfIndex < pdfsToLoad.Count; pdfIndex++)
                 {
+                    string pdf = pdfsToLoad[pdfIndex];
+                    StatusMessage = $"正在讀取第 {pdfIndex + 1} / {pdfsToLoad.Count} 份 PDF：\n{Path.GetFileName(pdf)}";
                     int totalPages = _pdfService.GetPageCount(pdf);
                     string fileName = Path.GetFileName(pdf);
 
@@ -456,11 +466,14 @@ namespace PaperSwitch.ViewModels
                         newItems.Add(item);
                         Pages.Add(item);
                     }
+
+                    ProgressValue = 75 + ((pdfIndex + 1) * 20.0 / Math.Max(pdfsToLoad.Count, 1));
                 }
 
                 // 背景非同步載入縮圖
                 _ = LoadThumbnailsAsync(newItems);
 
+                ProgressValue = 100;
                 StatusMessage = $"已順利裝載 {newItems.Count} 頁新紙張至工坊畫布";
             }
             catch (Exception ex)
@@ -471,6 +484,7 @@ namespace PaperSwitch.ViewModels
             finally
             {
                 IsBusy = false;
+                IsProgressIndeterminate = true;
                 NotifySelectionChanged();
             }
         }

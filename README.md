@@ -1,12 +1,42 @@
-﻿# 📑 PaperSwitch 紙張排版工坊 v4.0.0
+# 📑 PaperSwitch 紙張排版工坊 v4.0.0
 
-[![Version](https://img.shields.io/badge/version-v4.0.0-orange.svg)](CHANGELOG.md)
+[![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
 [![Theme](https://img.shields.io/badge/style-Warm_Cozy_Craft-E28445.svg)](README.md)
 [![Constitution](https://img.shields.io/badge/Constitution-v8.1-purple.svg)](https://github.com/lianghao02/home)
 
 > **手帳質感的 Windows 原生文件轉 PDF、批次合併與視覺化紙張排版工坊。**<br>
 > 全面重構自 Python 服務架構，升級為 C# 12 / .NET 8.0 LTS / WPF 原生應用程式，帶來秒開速度、確定性 Office COM 生命週期防禦與極致流暢的紙張排版體驗。
+
+---
+
+## 📥 快速下載與使用指南 (Quick Start)
+
+請前往 **[👉 GitHub Releases 最新發布頁面](https://github.com/lianghao02/PaperSwitch/releases/latest)** 下載最新版本：
+
+| 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
+| :--- | :--- | :--- |
+| 🌟 **免安裝獨立單檔版<br>（強烈推薦）** | **`PaperSwitch-v4.0.0-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
+| ⚡ **極致輕量版** | **`PaperSwitch-v4.0.0-FrameworkDependent.zip`** | 體積僅約 26MB；適合本機已安裝 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) 的使用者，解壓縮後執行 `PaperSwitch.exe`。 |
+
+### 💡 首次啟動與使用須知
+1. **Windows SmartScreen 提示**：
+   - 首次執行時若 Windows 出現「Windows 已保護您的電腦」藍色保護畫面，請點選 **「其他資訊」** ➜ 點擊 **「仍要執行」** 即可正常啟動。
+2. **Office 轉檔支援**：
+   - PDF 與圖片（PNG, JPG, WebP, BMP）排版 **完全零環境依賴**。
+   - 若需拖曳轉換 Word (`.docx`/`.doc`)、Excel (`.xlsx`/`.xls`) 或 PPT (`.pptx`/`.ppt`)，本機需安裝有 Microsoft Office 桌面軟體。
+
+---
+
+## 📖 核心操作流程
+
+1. **匯入檔案**：直接將 PDF、Word、Excel、PPT 或圖片檔案拖曳至工坊視窗，系統會自動在背景排程轉檔並載入每頁縮圖。
+2. **紙張排版與調整**：
+   - **調整順序**：使用滑鼠拖曳卡片，或選取後按 `Ctrl + ←` / `Ctrl + →` 左右移動；按 `Home` / `End` 瞬移至首頁或末頁。
+   - **旋轉頁面**：選取卡片後按鍵盤 `R`（順時針 90°）或 `Shift + R`（逆時針 90°）。
+   - **大圖檢視 (Lightbox)**：雙擊任意卡片開啟高解析燈箱，支援滾輪平滑縮放（35% ~ 400%）與鍵盤翻頁。
+   - **序號重新命名**：選取單頁或多頁卡片後按 `F2`，輸入基礎名稱即可批次自動流水編號。
+3. **匯出 PDF**：點擊右上方「匯出為 PDF」按鈕，即可瞬間產出 100% 向量無損合成的 PDF 文件。
 
 ---
 
@@ -86,9 +116,9 @@
 
 ---
 
-## 🚀 快速啟動與建置
+## 🚀 本地開發與建置
 
-### 1. 直接啟動
+### 1. 直接啟動開發版本
 雙擊專案根目錄的 **[`RUN.bat`](RUN.bat)**，若尚未編譯會自動執行建置並直接啟動 `dist\publish\PaperSwitch.exe`。
 
 ### 2. 手動建置與發行

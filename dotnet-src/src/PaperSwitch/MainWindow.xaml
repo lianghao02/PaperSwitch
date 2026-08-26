@@ -336,14 +336,17 @@
             </Border>
 
             <!-- 忙碌指示遮罩 (Busy Overlay) -->
-            <Border Background="#99FFFFFF" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" IsHitTestVisible="True" x:Name="BusyOverlay">
+            <Border Background="#BFEFE9DF" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" IsHitTestVisible="True" x:Name="BusyOverlay" Panel.ZIndex="20">
                 <Border Background="{StaticResource BrushCardBg}" CornerRadius="12" Padding="28,20" HorizontalAlignment="Center" VerticalAlignment="Center"
                         BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" Effect="{StaticResource CardHoverShadow}">
-                    <StackPanel HorizontalAlignment="Center" Width="280">
+                    <StackPanel HorizontalAlignment="Center" Width="360">
                         <TextBlock Text="⚙️" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,10" />
                         <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource TextBody}" FontWeight="SemiBold"
                                    TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,14" />
-                        <ProgressBar IsIndeterminate="True" Height="6" Background="{StaticResource BrushPaperBg}" Foreground="{StaticResource BrushTerracotta}" />
+                        <ProgressBar IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" Maximum="100"
+                                     Height="8" Background="{StaticResource BrushPaperBg}" Foreground="{StaticResource BrushTerracotta}" />
+                        <TextBlock Text="請勿關閉工坊；完成後會自動將紙張加入畫布。" Style="{StaticResource TextMeta}"
+                                   Foreground="{StaticResource BrushPencilGray}" TextAlignment="Center" Margin="0,12,0,0" />
                     </StackPanel>
                 </Border>
             </Border>
