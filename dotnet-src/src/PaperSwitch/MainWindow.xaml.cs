@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
@@ -29,9 +30,44 @@ namespace PaperSwitch
 
         #region 鍵盤快捷鍵極速導航
 
+        private void Window_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            var source = e.OriginalSource as DependencyObject;
+            bool isPlainLeftClick = (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control;
+
+            if (!isPlainLeftClick
+                || !IsInsideElement(source, ArrangerCanvas)
+                || IsInsidePaperCard(source)
+                || IsInsideScrollBar(source))
+            {
+                return;
+            }
+
+            // 視窗預覽階段優先處理，保證中央畫布任何空白處都能取消選取。
+            ViewModel.DeselectAll();
+            ClearDropIndicator();
+        }
+
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (ViewModel.IsBusy) return;
+
+            // Ctrl + Z / Ctrl + Y：復原 / 重做編排動作
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                if (e.Key == Key.Z)
+                {
+                    ViewModel.Undo();
+                    e.Handled = true;
+                    return;
+                }
+                if (e.Key == Key.Y)
+                {
+                    ViewModel.Redo();
+                    e.Handled = true;
+                    return;
+                }
+            }
 
             // Ctrl + A: 全選 / 取消全選切換
             if (e.Key == Key.A && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
@@ -345,6 +381,8 @@ namespace PaperSwitch
         {
             if (IsInsidePaperCard(e.OriginalSource as DependencyObject)) return;
 
+            // 空白畫布是明確的取消選取動作，也同時移除可能殘留的拖曳插入橘框。
+            ClearDropIndicator();
             _isBoxSelecting = true;
             _boxSelectionStart = e.GetPosition(SelectionCanvas);
             _initialBoxSelection.Clear();
@@ -352,10 +390,12 @@ namespace PaperSwitch
             foreach (var page in ViewModel.Pages)
             {
                 if (page.IsSelected) _initialBoxSelection.Add(page);
-                if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
-                {
-                    page.IsSelected = false;
-                }
+            }
+
+            // Ctrl + 空白處保留既有選取，讓後續框選能追加；一般點擊則取消所有選取。
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            {
+                ViewModel.DeselectAll();
             }
 
             SelectionRectangle.Visibility = Visibility.Visible;
@@ -408,6 +448,36 @@ namespace PaperSwitch
             while (source != null)
             {
                 if (source is FrameworkElement element && element.DataContext is PaperItem)
+                {
+                    return true;
+                }
+
+                source = VisualTreeHelper.GetParent(source);
+            }
+
+            return false;
+        }
+
+        private static bool IsInsideScrollBar(DependencyObject? source)
+        {
+            while (source != null)
+            {
+                if (source is ScrollBar)
+                {
+                    return true;
+                }
+
+                source = VisualTreeHelper.GetParent(source);
+            }
+
+            return false;
+        }
+
+        private static bool IsInsideElement(DependencyObject? source, DependencyObject container)
+        {
+            while (source != null)
+            {
+                if (ReferenceEquals(source, container))
                 {
                     return true;
                 }

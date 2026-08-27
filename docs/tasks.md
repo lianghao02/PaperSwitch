@@ -1,9 +1,7 @@
-# tasks.md — 原子化工作任務清單
+# tasks.md — 目前工作清單
 
-- [x] 建立專案骨架與 `.gitignore`、`.env.example`
-- [x] 實作 `DocumentConverter` 轉檔邏輯 (Word, Excel, Image)
-- [x] 實作 Web UI (深色玻璃擬物風格) 與 API 上傳處理
-- [x] 建立 Windows 一鍵雙擊啟動檔 `start.bat`
-- [x] 完成 9 核心工程規格文件建置
-- [ ] (選填) 實作 PDF 檔案預覽功能
-- [ ] (選填) 使用 PyInstaller 進行單檔 `.exe` 打包
+- [x] 新增畫布編排歷史紀錄與復原／重做。
+- [x] 支援 `Ctrl+Z`／`Ctrl+Y` 與工具列復原／重做按鈕。
+- [x] 為復原／重做新增單元測試。
+- [x] 更新 `docs/DESIGN.md`、`docs/spec.md` 與 `docs/plan.md` 為 WPF v4 架構。
+- [x] 執行 QA 與發行建置。

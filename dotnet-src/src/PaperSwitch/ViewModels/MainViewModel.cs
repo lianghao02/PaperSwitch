@@ -57,12 +57,16 @@ namespace PaperSwitch.ViewModels
         private readonly ImageConverterService _imageService = ImageConverterService.Instance;
         private readonly ThumbnailCacheService _thumbnailService = ThumbnailCacheService.Instance;
         private readonly UpdateService _updateService = UpdateService.Instance;
+        private readonly Stack<ArrangementSnapshot> _undoHistory = new();
+        private readonly Stack<ArrangementSnapshot> _redoHistory = new();
 
         public int TotalPageCount => Pages.Count;
         public int SelectedPageCount => Pages.Count(p => p.IsSelected);
         public bool HasPages => Pages.Count > 0;
         public bool HasSelectedPages => SelectedPageCount > 0;
         public bool IsDraggingPages => DraggedPageCount > 0;
+        public bool CanUndo => _undoHistory.Count > 0;
+        public bool CanRedo => _redoHistory.Count > 0;
 
         public string SummaryText => $"已裝載 {TotalPageCount} 頁紙張" + (SelectedPageCount > 0 ? $" (已選取 {SelectedPageCount} 頁)" : string.Empty);
 
@@ -93,6 +97,78 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(IsDraggingPages));
         }
 
+        private bool ApplyPageEdit(Action editAction)
+        {
+            var before = CaptureArrangementSnapshot();
+            editAction();
+
+            if (before.Matches(Pages, SelectedPage))
+            {
+                return false;
+            }
+
+            _undoHistory.Push(before);
+            _redoHistory.Clear();
+            NotifyHistoryChanged();
+            return true;
+        }
+
+        private ArrangementSnapshot CaptureArrangementSnapshot()
+        {
+            return new ArrangementSnapshot(Pages, SelectedPage);
+        }
+
+        private void RestoreArrangementSnapshot(ArrangementSnapshot snapshot)
+        {
+            Pages.Clear();
+
+            foreach (var state in snapshot.PageStates)
+            {
+                state.Restore();
+                Pages.Add(state.Page);
+            }
+
+            SelectedPage = snapshot.SelectedPage is not null && Pages.Contains(snapshot.SelectedPage)
+                ? snapshot.SelectedPage
+                : Pages.FirstOrDefault(page => page.IsSelected);
+            NotifySelectionChanged();
+        }
+
+        private void NotifyHistoryChanged()
+        {
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+        }
+
+        private void ClearHistory()
+        {
+            _undoHistory.Clear();
+            _redoHistory.Clear();
+            NotifyHistoryChanged();
+        }
+
+        [RelayCommand]
+        public void Undo()
+        {
+            if (!CanUndo) return;
+
+            _redoHistory.Push(CaptureArrangementSnapshot());
+            RestoreArrangementSnapshot(_undoHistory.Pop());
+            NotifyHistoryChanged();
+            StatusMessage = "已復原上一個編排動作";
+        }
+
+        [RelayCommand]
+        public void Redo()
+        {
+            if (!CanRedo) return;
+
+            _undoHistory.Push(CaptureArrangementSnapshot());
+            RestoreArrangementSnapshot(_redoHistory.Pop());
+            NotifyHistoryChanged();
+            StatusMessage = "已重做下一個編排動作";
+        }
+
         [RelayCommand]
         public void SelectAll()
         {
@@ -110,6 +186,7 @@ namespace PaperSwitch.ViewModels
             {
                 page.IsSelected = false;
             }
+            SelectedPage = null;
             NotifySelectionChanged();
         }
 
@@ -132,14 +209,21 @@ namespace PaperSwitch.ViewModels
                 targetPages.Add(SelectedPage);
             }
 
-            foreach (var p in targetPages)
+            if (targetPages.Count == 0) return;
+
+            if (ApplyPageEdit(() =>
             {
-                if (deltaDegrees > 0)
-                    p.RotateClockwise();
-                else
-                    p.RotateCounterClockwise();
+                foreach (var p in targetPages)
+                {
+                    if (deltaDegrees > 0)
+                        p.RotateClockwise();
+                    else
+                        p.RotateCounterClockwise();
+                }
+            }))
+            {
+                StatusMessage = $"已將 {targetPages.Count} 頁紙張旋轉 {deltaDegrees}°";
             }
-            StatusMessage = $"已將 {targetPages.Count} 頁紙張旋轉 {deltaDegrees}°";
         }
 
         [RelayCommand]
@@ -151,29 +235,34 @@ namespace PaperSwitch.ViewModels
                 targetPages.Add(SelectedPage);
             }
 
+            if (targetPages.Count == 0) return;
+
             int nextSelectionIndex = targetPages.Count > 0
                 ? Pages.IndexOf(targetPages[0])
                 : 0;
 
-            foreach (var p in targetPages)
+            if (!ApplyPageEdit(() =>
             {
-                Pages.Remove(p);
-            }
+                foreach (var p in targetPages)
+                {
+                    Pages.Remove(p);
+                }
 
-            foreach (var page in Pages)
-            {
-                page.IsSelected = false;
-            }
+                foreach (var page in Pages)
+                {
+                    page.IsSelected = false;
+                }
 
-            if (Pages.Count > 0)
-            {
-                SelectedPage = Pages[Math.Min(nextSelectionIndex, Pages.Count - 1)];
-                SelectedPage.IsSelected = true;
-            }
-            else
-            {
-                SelectedPage = null;
-            }
+                if (Pages.Count > 0)
+                {
+                    SelectedPage = Pages[Math.Min(nextSelectionIndex, Pages.Count - 1)];
+                    SelectedPage.IsSelected = true;
+                }
+                else
+                {
+                    SelectedPage = null;
+                }
+            })) return;
 
             NotifySelectionChanged();
             StatusMessage = $"已移除 {targetPages.Count} 頁紙張";
@@ -182,8 +271,14 @@ namespace PaperSwitch.ViewModels
         [RelayCommand]
         public void ClearAll()
         {
-            Pages.Clear();
-            SelectedPage = null;
+            if (Pages.Count == 0) return;
+
+            if (!ApplyPageEdit(() =>
+            {
+                Pages.Clear();
+                SelectedPage = null;
+            })) return;
+
             _thumbnailService.ClearCache();
             NotifySelectionChanged();
             StatusMessage = "已清空排版畫布";
@@ -214,17 +309,24 @@ namespace PaperSwitch.ViewModels
                 return false;
             }
 
-            if (targetPages.Count == 1)
+            if (!ApplyPageEdit(() =>
             {
-                targetPages[0].SourceFileName = $"{nameStem}.pdf";
-            }
-            else
-            {
-                int digits = Math.Max(3, targetPages.Count.ToString().Length);
-                for (int index = 0; index < targetPages.Count; index++)
+                if (targetPages.Count == 1)
                 {
-                    targetPages[index].SourceFileName = $"{nameStem}_{(index + 1).ToString($"D{digits}")}.pdf";
+                    targetPages[0].SourceFileName = $"{nameStem}.pdf";
                 }
+                else
+                {
+                    int digits = Math.Max(3, targetPages.Count.ToString().Length);
+                    for (int index = 0; index < targetPages.Count; index++)
+                    {
+                        targetPages[index].SourceFileName = $"{nameStem}_{(index + 1).ToString($"D{digits}")}.pdf";
+                    }
+                }
+            }))
+            {
+                message = "選取紙張的名稱未變更。";
+                return false;
             }
 
             message = targetPages.Count == 1
@@ -238,6 +340,11 @@ namespace PaperSwitch.ViewModels
 
         [RelayCommand]
         public void MoveSelectedLeft()
+        {
+            ApplyPageEdit(MoveSelectedLeftCore);
+        }
+
+        private void MoveSelectedLeftCore()
         {
             // 向左移動 (←)：由左至右 (最小索引開始) 依序交換，防範索引覆寫衝突
             var selectedIndices = Pages
@@ -260,6 +367,11 @@ namespace PaperSwitch.ViewModels
 
         [RelayCommand]
         public void MoveSelectedRight()
+        {
+            ApplyPageEdit(MoveSelectedRightCore);
+        }
+
+        private void MoveSelectedRightCore()
         {
             // 向右移動 (→)：由右至左 (最大索引開始) 依序交換
             var selectedIndices = Pages
@@ -287,14 +399,17 @@ namespace PaperSwitch.ViewModels
         {
             if (positions == 0) return;
 
-            int steps = Math.Abs(positions);
-            for (int i = 0; i < steps; i++)
+            ApplyPageEdit(() =>
             {
-                if (positions < 0)
-                    MoveSelectedLeft();
-                else
-                    MoveSelectedRight();
-            }
+                int steps = Math.Abs(positions);
+                for (int i = 0; i < steps; i++)
+                {
+                    if (positions < 0)
+                        MoveSelectedLeftCore();
+                    else
+                        MoveSelectedRightCore();
+                }
+            });
         }
 
         [RelayCommand]
@@ -303,12 +418,15 @@ namespace PaperSwitch.ViewModels
             var selectedItems = Pages.Where(p => p.IsSelected).ToList();
             if (selectedItems.Count == 0) return;
 
-            for (int i = 0; i < selectedItems.Count; i++)
+            ApplyPageEdit(() =>
             {
-                var item = selectedItems[i];
-                int curIdx = Pages.IndexOf(item);
-                Pages.Move(curIdx, i);
-            }
+                for (int i = 0; i < selectedItems.Count; i++)
+                {
+                    var item = selectedItems[i];
+                    int curIdx = Pages.IndexOf(item);
+                    Pages.Move(curIdx, i);
+                }
+            });
         }
 
         [RelayCommand]
@@ -317,13 +435,16 @@ namespace PaperSwitch.ViewModels
             var selectedItems = Pages.Where(p => p.IsSelected).ToList();
             if (selectedItems.Count == 0) return;
 
-            int targetIndex = Pages.Count - 1;
-            for (int i = selectedItems.Count - 1; i >= 0; i--)
+            ApplyPageEdit(() =>
             {
-                var item = selectedItems[i];
-                int curIdx = Pages.IndexOf(item);
-                Pages.Move(curIdx, targetIndex);
-            }
+                int targetIndex = Pages.Count - 1;
+                for (int i = selectedItems.Count - 1; i >= 0; i--)
+                {
+                    var item = selectedItems[i];
+                    int curIdx = Pages.IndexOf(item);
+                    Pages.Move(curIdx, targetIndex);
+                }
+            });
         }
 
         /// <summary>
@@ -337,23 +458,26 @@ namespace PaperSwitch.ViewModels
             if (targetInsertionIndex < 0) targetInsertionIndex = 0;
             if (targetInsertionIndex > Pages.Count) targetInsertionIndex = Pages.Count;
 
-            // 取得目標插入錨點項目
-            PaperItem? anchorItem = targetInsertionIndex < Pages.Count ? Pages[targetInsertionIndex] : null;
-
-            // 移除所有選取項目
-            foreach (var item in selectedItems)
+            ApplyPageEdit(() =>
             {
-                Pages.Remove(item);
-            }
+                // 取得目標插入錨點項目
+                PaperItem? anchorItem = targetInsertionIndex < Pages.Count ? Pages[targetInsertionIndex] : null;
 
-            // 計算新的插入點
-            int newInsertPos = anchorItem != null ? Pages.IndexOf(anchorItem) : Pages.Count;
-            if (newInsertPos < 0) newInsertPos = Pages.Count;
+                // 移除所有選取項目
+                foreach (var item in selectedItems)
+                {
+                    Pages.Remove(item);
+                }
 
-            for (int i = 0; i < selectedItems.Count; i++)
-            {
-                Pages.Insert(newInsertPos + i, selectedItems[i]);
-            }
+                // 計算新的插入點
+                int newInsertPos = anchorItem != null ? Pages.IndexOf(anchorItem) : Pages.Count;
+                if (newInsertPos < 0) newInsertPos = Pages.Count;
+
+                for (int i = 0; i < selectedItems.Count; i++)
+                {
+                    Pages.Insert(newInsertPos + i, selectedItems[i]);
+                }
+            });
 
             NotifySelectionChanged();
         }
@@ -481,6 +605,12 @@ namespace PaperSwitch.ViewModels
 
                 // 背景非同步載入縮圖
                 _ = LoadThumbnailsAsync(newItems);
+
+                // 匯入會加入新的外部來源，作為新的手動編排歷史起點，避免復原誤移除新匯入紙張。
+                if (newItems.Count > 0)
+                {
+                    ClearHistory();
+                }
 
                 ProgressValue = 100;
                 StatusMessage = $"已順利裝載 {newItems.Count} 頁新紙張至工坊畫布";
@@ -698,5 +828,56 @@ namespace PaperSwitch.ViewModels
         }
 
         #endregion
+
+        private sealed class ArrangementSnapshot
+        {
+            public IReadOnlyList<PageState> PageStates { get; }
+            public PaperItem? SelectedPage { get; }
+
+            public ArrangementSnapshot(IEnumerable<PaperItem> pages, PaperItem? selectedPage)
+            {
+                PageStates = pages.Select(page => new PageState(page)).ToList();
+                SelectedPage = selectedPage;
+            }
+
+            public bool Matches(IEnumerable<PaperItem> pages, PaperItem? selectedPage)
+            {
+                var currentPages = pages.ToList();
+                return SelectedPage == selectedPage
+                    && PageStates.Count == currentPages.Count
+                    && PageStates.Zip(currentPages, (state, page) => state.Matches(page)).All(matches => matches);
+            }
+        }
+
+        private sealed class PageState
+        {
+            public PaperItem Page { get; }
+            private int Rotation { get; }
+            private bool IsSelected { get; }
+            private string SourceFileName { get; }
+
+            public PageState(PaperItem page)
+            {
+                Page = page;
+                Rotation = page.Rotation;
+                IsSelected = page.IsSelected;
+                SourceFileName = page.SourceFileName;
+            }
+
+            public bool Matches(PaperItem page)
+            {
+                return ReferenceEquals(Page, page)
+                    && Rotation == page.Rotation
+                    && IsSelected == page.IsSelected
+                    && SourceFileName == page.SourceFileName;
+            }
+
+            public void Restore()
+            {
+                Page.Rotation = Rotation;
+                Page.IsSelected = IsSelected;
+                Page.SourceFileName = SourceFileName;
+            }
+        }
     }
 }

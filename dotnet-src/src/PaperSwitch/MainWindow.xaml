@@ -15,6 +15,7 @@
         FontFamily="{StaticResource AppFontFamily}"
         AllowDrop="True"
         PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewMouseLeftButtonDown="Window_PreviewMouseLeftButtonDown"
         Drop="Window_Drop"
         DragOver="Window_DragOver">
 
@@ -90,6 +91,8 @@
 
                 <!-- 批次編輯工具移至頂部，和排版操作保持相近。 -->
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                    <Button Content="↶ 復原" Style="{StaticResource BtnOutlineCraft}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Z" />
+                    <Button Content="↷ 重做" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Y" />
                     <Button Content="全選" Style="{StaticResource BtnOutlineCraft}" Command="{Binding SelectAllCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+A" />
                     <Button Content="反選" Style="{StaticResource BtnOutlineCraft}" Command="{Binding InvertSelectionCommand}" Margin="4,0" />
                     <Button Content="↶ 逆轉 90°" Style="{StaticResource BtnOutlineCraft}" Click="BatchRotateCCW_Click" Margin="4,0" ToolTip="快捷鍵: Shift+R" />
@@ -105,7 +108,7 @@
         <!-- ============================================================ -->
         <!-- 中央主畫布 (Center Arranger Canvas) -->
         <!-- ============================================================ -->
-        <Grid Grid.Row="1" Background="{StaticResource BrushPaperBg}">
+        <Grid Grid.Row="1" Background="{StaticResource BrushPaperBg}" x:Name="ArrangerCanvas">
             <!-- 空白狀態提示 (Empty State Dropzone) -->
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                     Margin="40" Padding="48,36"

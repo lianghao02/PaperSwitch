@@ -68,16 +68,19 @@ namespace PaperSwitch.Models
 
         public string RotationDisplay => Rotation > 0 ? $"{Rotation}°" : string.Empty;
 
+        partial void OnRotationChanged(int value)
+        {
+            OnPropertyChanged(nameof(RotationDisplay));
+        }
+
         public void RotateClockwise()
         {
             Rotation = (Rotation + 90) % 360;
-            OnPropertyChanged(nameof(RotationDisplay));
         }
 
         public void RotateCounterClockwise()
         {
             Rotation = (Rotation + 270) % 360;
-            OnPropertyChanged(nameof(RotationDisplay));
         }
     }
 }

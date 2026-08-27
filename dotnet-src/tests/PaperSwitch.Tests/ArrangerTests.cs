@@ -140,5 +140,69 @@ namespace PaperSwitch.Tests
             Assert.False(renamed);
             Assert.Contains("不可", message);
         }
+
+        [Fact]
+        public void MainViewModel_UndoRedo_ShouldRestoreReorderedPages()
+        {
+            var vm = new MainViewModel();
+            var first = new PaperItem { DisplayPageNumber = 1 };
+            var second = new PaperItem { DisplayPageNumber = 2, IsSelected = true };
+            var third = new PaperItem { DisplayPageNumber = 3 };
+            vm.Pages.Add(first);
+            vm.Pages.Add(second);
+            vm.Pages.Add(third);
+
+            vm.MoveSelectedLeft();
+
+            Assert.Equal(new[] { 2, 1, 3 }, vm.Pages.Select(page => page.DisplayPageNumber));
+            Assert.True(vm.CanUndo);
+
+            vm.Undo();
+
+            Assert.Equal(new[] { 1, 2, 3 }, vm.Pages.Select(page => page.DisplayPageNumber));
+            Assert.True(second.IsSelected);
+            Assert.True(vm.CanRedo);
+
+            vm.Redo();
+
+            Assert.Equal(new[] { 2, 1, 3 }, vm.Pages.Select(page => page.DisplayPageNumber));
+        }
+
+        [Fact]
+        public void MainViewModel_Undo_ShouldRestoreDeletedPageRotationAndExportName()
+        {
+            var vm = new MainViewModel();
+            var page = new PaperItem { IsSelected = true, SourceFileName = "原始檔案.pdf" };
+            vm.Pages.Add(page);
+
+            vm.RotateSelected(90);
+            vm.TryRenameSelectedPages("整理後檔案", out _);
+            vm.DeleteSelected();
+
+            Assert.Empty(vm.Pages);
+
+            vm.Undo();
+
+            Assert.Single(vm.Pages);
+            Assert.Equal("整理後檔案.pdf", page.SourceFileName);
+            Assert.Equal(90, page.Rotation);
+            Assert.True(page.IsSelected);
+        }
+
+        [Fact]
+        public void MainViewModel_DeselectAll_ShouldClearSelectedPageAndItemStates()
+        {
+            var vm = new MainViewModel();
+            var first = new PaperItem { IsSelected = true };
+            var second = new PaperItem { IsSelected = true };
+            vm.Pages.Add(first);
+            vm.Pages.Add(second);
+            vm.SelectedPage = first;
+
+            vm.DeselectAll();
+
+            Assert.Null(vm.SelectedPage);
+            Assert.All(vm.Pages, page => Assert.False(page.IsSelected));
+        }
     }
 }

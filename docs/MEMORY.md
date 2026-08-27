@@ -14,12 +14,16 @@
   - `Home` / `End`：整包移至第 1 頁或最後一頁。
   - `R` / `Shift + R`：順時針 / 逆時針 90° 旋轉。
 
-### 3. 向量無損合成與旋轉 (Zero-loss Vector PDF Synthesis)
+### 3. 編排復原與重做 (Arrangement Undo / Redo)
+- **狀態快照範圍**：每筆手動編排動作保存紙張物件順序、旋轉角度、選取狀態與匯出用檔名；不複製縮圖或來源檔案。
+- **行為邊界**：移動、拖曳重排、旋轉、刪除、清空與重新命名可透過 `Ctrl+Z`／`Ctrl+Y` 復原或重做。匯入完成後清空歷史，避免復原誤移除新匯入紙張，也不重跑 Office COM 轉檔。
+
+### 4. 向量無損合成與旋轉 (Zero-loss Vector PDF Synthesis)
 - **架構設計**：
   - 縮圖渲染：利用 Windows 10/11 內建 `Windows.Data.Pdf` (WinRT) 進行高畫質非同步光柵化並呼叫 `BitmapImage.Freeze()` 供 WPF UI 跨執行緒安全綁定。
   - 導出合成：完全不使用縮圖重壓，而是採用 `PdfSharp` 抽取原始 PDF Page 物件，並累加旋轉矩陣 `page.Rotate = (srcPage.Rotate + item.Rotation) % 360`，保持 100% 原始向量清晰度、文字可選取性與極小檔案體積。
 
-### 4. 溫暖手作插畫風格規範 (Warm Cozy Craft Palette)
+### 5. 溫暖手作插畫風格規範 (Warm Cozy Craft Palette)
 - **視覺規範**：
   - 底色：水彩紙米白 `#F7F4ED`
   - 面板卡片：純白 `#FFFFFF` + 米黃柔邊 `#E3DDD2`
@@ -28,13 +32,13 @@
   - 文字色調：深炭焙棕黑 `#2D2825`、鉛筆灰褐 `#736B63`
   - 語彙：採用生活感手作詞彙（紙張排版工坊、裝訂成冊、待整理清單）。
 
-### 5. Office COM 穩定性防禦
+### 6. Office COM 穩定性防禦
 - **執行緒隔離與資源釋放**：
   - 跨執行緒調用必須包裹於專屬 STA 執行緒中（`thread.SetApartmentState(ApartmentState.STA)`）。
   - 全域 `SemaphoreSlim` 序列化調用，並在 `finally` 確實 `Close(false)`、`Quit()` 與 `Marshal.FinalReleaseComObject`，最後呼叫 `GC.Collect()` 與 `GC.WaitForPendingFinalizers()`。
   - Excel 寬度適應：`ws.PageSetup.FitToPagesWide = 1`。
 
-### 6. Office IGEF 中介狀態與非同步安全保留機制 (Office Intermediate IGEF State)
+### 7. Office IGEF 中介狀態與非同步安全保留機制 (Office Intermediate IGEF State)
 - **問題本質**：Windows 下 MS Office 執行 `ExportAsFixedFormat` 時，輸出檔案初期可能短暫呈現 `IGEF\x02` 中介標記（常見於 MIP/AIP 敏感度標籤或背景列印 flush），之後才轉為標準 `%PDF-`。
 - **處方規範**：
   1. `CheckPdfHeaderAndSize()` 辨識 `IGEF` 並在 `WaitForPdfReadyAsync()` 期間最長輪詢 90 秒，直到寫入完成。
