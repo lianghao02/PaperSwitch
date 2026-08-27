@@ -21,6 +21,10 @@
   <ItemGroup>
     <Resource Include="app_icon.ico" />
     <Resource Include="app_icon.png" />
+    <Resource Include="version.txt" />
+    <None Update="version.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="PdfSharp" Version="6.1.1" />
   </ItemGroup>

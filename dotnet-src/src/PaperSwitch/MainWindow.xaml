@@ -1,4 +1,4 @@
-﻿<Window x:Class="PaperSwitch.MainWindow"
+<Window x:Class="PaperSwitch.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -57,11 +57,16 @@
                         <Image Source="{StaticResource PaperSwitchFileIcon}" Width="24" Height="28" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="PaperSwitch" Style="{StaticResource TextH1}" Foreground="{StaticResource BrushTerracotta}" Margin="0,0,8,0" />
-                            <Border Background="{StaticResource BrushForestMossLight}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
-                                <TextBlock Text="紙張排版工坊 v4.0" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushForestMoss}" />
+                            <Border Background="{StaticResource BrushForestMossLight}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <TextBlock Text="{Binding AppVersionBadge, FallbackValue='v4.0.0'}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushForestMoss}" />
                             </Border>
+                            <Button Content="{Binding CheckUpdateButtonText, FallbackValue='🔄 檢查更新'}" 
+                                    Style="{StaticResource BtnOutlineCraft}" 
+                                    Command="{Binding CheckUpdateCommand}" 
+                                    Padding="8,2" FontSize="11" VerticalAlignment="Center" 
+                                    ToolTip="透過 GitHub Release 檢查是否有新版本" />
                         </StackPanel>
                         <TextBlock Text="Windows 原生 .NET 8 · 100% 向量無損 PDF 裝訂與 Office 轉換" Style="{StaticResource TextCaption}" Margin="0,2,0,0" />
                     </StackPanel>

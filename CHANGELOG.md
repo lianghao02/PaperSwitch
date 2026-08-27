@@ -1,4 +1,4 @@
-﻿# 📝 變更歷史 (CHANGELOG)
+# 📝 變更歷史 (CHANGELOG)
 
 ## 🏆 v4.0.0 (2026-08-26) - 原生 Windows .NET 8 / WPF 重構旗艦版
 
@@ -6,6 +6,10 @@
 
 ### 🌟 核心架構重大升級
 - **⚡ 原生桌面架構**：徹底淘汰舊有 Flask 本機服務與 150MB+ 內嵌 Python 環境，改由 Windows 原生 WPF 執行檔直接秒開；發行模式可選 Framework-Dependent 或 Self-Contained。
+- **🔄 GitHub Release 即時檢查更新**：
+  - 頂部導覽列內嵌 `version.txt` 版本標籤徽章與「`🔄 檢查更新`」手帳風按鈕。
+  - 透過 `UpdateService` 非同步查詢 GitHub Release API，防重複點擊與連線逾時保護。
+  - 若為最新版彈出已是最新版提示；若有新版本則完整顯示 Release Notes 摘要並引導一鍵開啟瀏覽器下載。
 - **🛡️ Office COM 生命週期精準管理與安全防禦**：
   - 專屬 STA 執行緒隔離與全域 Semaphore 佇列，徹底杜絕多執行緒死鎖。
   - 加入 COM 啟動 null 安全檢查，消除 CS8602 警告，防範端點資安限制或授權異常。

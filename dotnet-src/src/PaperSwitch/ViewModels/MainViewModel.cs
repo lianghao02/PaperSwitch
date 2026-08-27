@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -44,10 +44,19 @@ namespace PaperSwitch.ViewModels
         [ObservableProperty]
         private ExportOptions _options = new();
 
+        [ObservableProperty]
+        private bool _isCheckingUpdate;
+
+        [ObservableProperty]
+        private string _checkUpdateButtonText = "🔄 檢查更新";
+
+        public string AppVersionBadge => UpdateService.Instance.GetCurrentVersion();
+
         private readonly PdfService _pdfService = PdfService.Instance;
         private readonly OfficeConverterService _officeService = OfficeConverterService.Instance;
         private readonly ImageConverterService _imageService = ImageConverterService.Instance;
         private readonly ThumbnailCacheService _thumbnailService = ThumbnailCacheService.Instance;
+        private readonly UpdateService _updateService = UpdateService.Instance;
 
         public int TotalPageCount => Pages.Count;
         public int SelectedPageCount => Pages.Count(p => p.IsSelected);
@@ -618,6 +627,73 @@ namespace PaperSwitch.ViewModels
                     FileName = outputDir,
                     UseShellExecute = true
                 });
+            }
+        }
+
+        [RelayCommand]
+        public async Task CheckUpdateAsync()
+        {
+            if (IsCheckingUpdate) return;
+
+            IsCheckingUpdate = true;
+            CheckUpdateButtonText = "⏳ 檢查中...";
+
+            try
+            {
+                var result = await _updateService.CheckForUpdatesAsync();
+
+                if (!result.Success)
+                {
+                    MessageBox.Show(
+                        $"檢查更新失敗：\n{result.ErrorMessage}\n\n請確認電腦網路連線是否通暢，或稍後再試。",
+                        "檢查更新",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!result.HasUpdate)
+                {
+                    MessageBox.Show(
+                        $"🎉 目前已是最新版本 ({result.CurrentVersion})，無需更新！",
+                        "檢查更新",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    var message = $"發現新版本：{result.LatestVersion} (目前版本: {result.CurrentVersion})\n\n" +
+                                  (string.IsNullOrWhiteSpace(result.ReleaseNotes) ? string.Empty : $"【更新摘要】：\n{result.ReleaseNotes}\n\n") +
+                                  "是否立即開啟瀏覽器前往下載更新？";
+
+                    var dialogResult = MessageBox.Show(
+                        message,
+                        $"🎉 發現新版本 {result.LatestVersion}",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (dialogResult == MessageBoxResult.Yes && !string.IsNullOrWhiteSpace(result.HtmlUrl))
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = result.HtmlUrl,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"檢查更新過程發生異常：\n{ex.Message}",
+                    "檢查更新",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsCheckingUpdate = false;
+                CheckUpdateButtonText = "🔄 檢查更新";
             }
         }
 
