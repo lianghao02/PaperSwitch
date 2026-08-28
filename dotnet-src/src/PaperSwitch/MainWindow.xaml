@@ -100,6 +100,7 @@
                     <Button Content="← 前移" Style="{StaticResource BtnOutlineCraft}" Command="{Binding MoveSelectedLeftCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+←" />
                     <Button Content="後移 →" Style="{StaticResource BtnOutlineCraft}" Command="{Binding MoveSelectedRightCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+→" />
                     <Button Content="🗑 移除選取" Style="{StaticResource BtnOutlineCraft}" Command="{Binding DeleteSelectedCommand}" Margin="4,0" ToolTip="快捷鍵: Delete" />
+                    <Button Content="＋ 插入空白頁" Style="{StaticResource BtnOutlineCraft}" Command="{Binding InsertBlankPageCommand}" Margin="4,0" ToolTip="在目前選取頁後插入 A4 空白頁" />
                     <Button Content="清空" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ClearAllCommand}" Margin="4,0" />
                 </StackPanel>
             </Grid>

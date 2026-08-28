@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,11 +19,26 @@ namespace PaperSwitch.Services
     {
         public static ThumbnailCacheService Instance { get; } = new();
 
-        private readonly ConcurrentDictionary<string, ImageSource> _cache = new();
+        private const int MaximumCacheEntries = 180;
+        private readonly object _cacheLock = new();
+        private readonly Dictionary<string, CacheEntry> _cache = new();
+        private readonly ConcurrentDictionary<string, Lazy<Task<ImageSource?>>> _inflight = new();
+
+        private sealed class CacheEntry(ImageSource image)
+        {
+            public ImageSource Image { get; } = image;
+            public LinkedListNode<string>? Node { get; set; }
+        }
+
+        private readonly LinkedList<string> _leastRecentlyUsed = new();
 
         public void ClearCache()
         {
-            _cache.Clear();
+            lock (_cacheLock)
+            {
+                _cache.Clear();
+                _leastRecentlyUsed.Clear();
+            }
         }
 
         public async Task<ImageSource?> GetThumbnailAsync(string pdfPath, int pageIndex, int targetWidth = 320)
@@ -30,50 +46,74 @@ namespace PaperSwitch.Services
             if (!File.Exists(pdfPath) || pageIndex < 0) return null;
 
             string key = $"{pdfPath}|{pageIndex}|{targetWidth}";
-            if (_cache.TryGetValue(key, out var cached))
-            {
-                return cached;
-            }
+            if (TryGetCached(key, out var cached)) return cached;
 
+            var lazyRender = _inflight.GetOrAdd(key, _ => new Lazy<Task<ImageSource?>>(
+                () => RenderAndCacheAsync(pdfPath, pageIndex, targetWidth, key)));
+
+            try
+            {
+                return await lazyRender.Value;
+            }
+            finally
+            {
+                _inflight.TryRemove(key, out _);
+            }
+        }
+
+        private bool TryGetCached(string key, out ImageSource? image)
+        {
+            lock (_cacheLock)
+            {
+                if (_cache.TryGetValue(key, out var entry))
+                {
+                    _leastRecentlyUsed.Remove(entry.Node!);
+                    _leastRecentlyUsed.AddFirst(entry.Node!);
+                    image = entry.Image;
+                    return true;
+                }
+            }
+            image = null;
+            return false;
+        }
+
+        private async Task<ImageSource?> RenderAndCacheAsync(string pdfPath, int pageIndex, int targetWidth, string key)
+        {
+            ImageSource image;
             try
             {
                 var storageFile = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(pdfPath));
                 var pdfDoc = await PdfDocument.LoadFromFileAsync(storageFile);
-
                 if (pageIndex >= (int)pdfDoc.PageCount) return null;
 
                 using var page = pdfDoc.GetPage((uint)pageIndex);
                 using var memStream = new InMemoryRandomAccessStream();
-
-                var options = new PdfPageRenderOptions();
-                if (targetWidth > 0)
-                {
-                    options.DestinationWidth = (uint)targetWidth;
-                }
-
+                var options = new PdfPageRenderOptions { DestinationWidth = (uint)Math.Max(1, targetWidth) };
                 await page.RenderToStreamAsync(memStream, options);
-
                 memStream.Seek(0);
                 using var netStream = memStream.AsStreamForRead();
-
                 var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.StreamSource = netStream;
-                bitmap.EndInit();
-                bitmap.Freeze(); // 凍結物件以支援跨 UI 執行緒綁定
-
-                _cache[key] = bitmap;
-                return bitmap;
+                bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = netStream; bitmap.EndInit(); bitmap.Freeze();
+                image = bitmap;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ThumbnailCacheService] 縮圖渲染失敗 {pdfPath} 頁 {pageIndex}: {ex.Message}");
-                // 產生優雅的後備預設手帳卡片
-                var fallback = CreateFallbackThumbnail(pageIndex + 1);
-                _cache[key] = fallback;
-                return fallback;
+                image = CreateFallbackThumbnail(pageIndex + 1);
             }
+
+            lock (_cacheLock)
+            {
+                var node = _leastRecentlyUsed.AddFirst(key);
+                _cache[key] = new CacheEntry(image) { Node = node };
+                while (_cache.Count > MaximumCacheEntries)
+                {
+                    var oldest = _leastRecentlyUsed.Last!;
+                    _cache.Remove(oldest.Value);
+                    _leastRecentlyUsed.RemoveLast();
+                }
+            }
+            return image;
         }
 
         /// <summary>

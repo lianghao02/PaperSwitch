@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using PaperSwitch.Models;
+using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 
@@ -14,6 +15,33 @@ namespace PaperSwitch.Services
     public class PdfService
     {
         public static PdfService Instance { get; } = new();
+
+        /// <summary>
+        /// 建立一張可由既有無損導出流程處理的標準 A4 空白 PDF。
+        /// </summary>
+        public bool CreateBlankA4Pdf(string outputPath)
+        {
+            try
+            {
+                var directory = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                using var document = new PdfDocument();
+                var page = document.AddPage();
+                page.Width = XUnit.FromMillimeter(210);
+                page.Height = XUnit.FromMillimeter(297);
+                document.Save(outputPath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PdfService] 建立空白頁失敗 {outputPath}: {ex.Message}");
+                return false;
+            }
+        }
 
         /// <summary>
         /// 取得 PDF 總頁數

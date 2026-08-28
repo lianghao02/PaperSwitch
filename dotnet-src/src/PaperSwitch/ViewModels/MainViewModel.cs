@@ -284,6 +284,42 @@ namespace PaperSwitch.ViewModels
             StatusMessage = "已清空排版畫布";
         }
 
+        [RelayCommand]
+        public void InsertBlankPage()
+        {
+            string blankPath = Path.Combine(AppPaths.TemporaryConversionDirectory, $"blank_{Guid.NewGuid():N}.pdf");
+            if (!_pdfService.CreateBlankA4Pdf(blankPath))
+            {
+                MessageBox.Show("建立空白頁失敗，請確認暫存資料夾是否可寫入。", "插入空白頁", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var item = new PaperItem
+            {
+                SourceFilePath = blankPath,
+                SourceFileName = "空白頁.pdf",
+                SourcePageIndex = 0,
+                DisplayPageNumber = 1,
+                TotalPagesInSource = 1,
+                OriginalWidth = 595,
+                OriginalHeight = 842,
+                IsSelected = true,
+                IsLoadingThumbnail = true
+            };
+
+            ApplyPageEdit(() =>
+            {
+                foreach (var page in Pages) page.IsSelected = false;
+                int insertIndex = SelectedPage is null ? Pages.Count : Pages.IndexOf(SelectedPage) + 1;
+                Pages.Insert(Math.Clamp(insertIndex, 0, Pages.Count), item);
+                SelectedPage = item;
+            });
+
+            _ = LoadThumbnailAsync(item);
+            NotifySelectionChanged();
+            StatusMessage = "已插入一張 A4 空白頁";
+        }
+
         /// <summary>
         /// 設定選取紙張在「拆分獨立存檔」模式下的輸出檔名。
         /// 不會重新命名來源檔、Office 暫存檔或使用者原始文件。
