@@ -101,7 +101,10 @@
                     <Button Content="後移 →" Style="{StaticResource BtnOutlineCraft}" Command="{Binding MoveSelectedRightCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+→" />
                     <Button Content="🗑 移除選取" Style="{StaticResource BtnOutlineCraft}" Command="{Binding DeleteSelectedCommand}" Margin="4,0" ToolTip="快捷鍵: Delete" />
                     <Button Content="＋ 插入空白頁" Style="{StaticResource BtnOutlineCraft}" Command="{Binding InsertBlankPageCommand}" Margin="4,0" ToolTip="在目前選取頁後插入 A4 空白頁" />
+                    <Button Content="↶ 復原" Style="{StaticResource BtnOutlineCraft}" Command="{Binding UndoCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Z" />
+                    <Button Content="↷ 重做" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RedoCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Y" />
                     <Button Content="清空" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ClearAllCommand}" Margin="4,0" />
+                    <TextBlock Text="提示：Shift 連選／空白處拖曳框選／方向鍵移焦點／Ctrl+方向鍵換位" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilGray}" Margin="14,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -228,6 +231,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" /> <!-- 卡片頂部標籤 -->
                                         <RowDefinition Height="*" />    <!-- 縮圖主體 -->
+                                        <RowDefinition Height="Auto" /> <!-- 來源檔名 -->
                                     </Grid.RowDefinitions>
 
                                     <!-- 頂部頁碼與旋轉角度標籤 -->
@@ -268,8 +272,12 @@
                                         </Grid>
                                     </Border>
 
+                                    <TextBlock Grid.Row="2" Text="{Binding SourceFileName}" Style="{StaticResource TextMeta}"
+                                               Foreground="{StaticResource BrushPencilGray}" TextTrimming="CharacterEllipsis"
+                                               TextWrapping="NoWrap" ToolTip="{Binding SourceFileName}" Margin="2,0,2,0" />
+
                                     <!-- 拖曳插入槽：隨目標左右半邊顯示於兩張紙中間。 -->
-                                    <Border x:Name="DropBeforeSlot" Grid.RowSpan="2" Width="30" HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                                    <Border x:Name="DropBeforeSlot" Grid.RowSpan="3" Width="30" HorizontalAlignment="Left" VerticalAlignment="Stretch"
                                             Margin="-40,0,0,0" Background="#FFFDF9" BorderBrush="{StaticResource BrushTerracotta}"
                                             BorderThickness="1.5" CornerRadius="7" Panel.ZIndex="10">
                                         <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}"
@@ -290,7 +298,7 @@
                                         </Border.Style>
                                     </Border>
 
-                                    <Border x:Name="DropAfterSlot" Grid.RowSpan="2" Width="30" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                                    <Border x:Name="DropAfterSlot" Grid.RowSpan="3" Width="30" HorizontalAlignment="Right" VerticalAlignment="Stretch"
                                             Margin="0,0,-40,0" Background="#FFFDF9" BorderBrush="{StaticResource BrushTerracotta}"
                                             BorderThickness="1.5" CornerRadius="7" Panel.ZIndex="10">
                                         <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}"
@@ -380,6 +388,8 @@
                     <Border Background="{StaticResource BrushTagBg}" CornerRadius="6" Padding="10,5" Margin="0,0,12,0">
                         <TextBlock Text="{Binding SummaryText}" Style="{StaticResource TextCaption}" FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}" />
                     </Border>
+                    <TextBlock Text="{Binding SelectedPageCount, StringFormat='已選取 {0} 頁'}" Style="{StaticResource TextCaption}"
+                               FontWeight="SemiBold" Foreground="{StaticResource BrushTerracotta}" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- 右側：所有輸出設定與導出動作改為橫向排列。 -->

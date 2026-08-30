@@ -110,6 +110,21 @@ namespace PaperSwitch
             }
 
             // Home / End: 移至開頭 / 移至結尾
+            if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
+            {
+                int columns = GetVisualColumnCount();
+                int delta = e.Key switch
+                {
+                    Key.Left => -1,
+                    Key.Right => 1,
+                    Key.Up => -columns,
+                    _ => columns
+                };
+                NavigateSelection(delta, (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.Home)
             {
                 ViewModel.MoveSelectedToStart();
@@ -150,6 +165,42 @@ namespace PaperSwitch
             if (availableWidth <= 0) availableWidth = MainScrollViewer.ActualWidth;
 
             return Math.Max(1, (int)(availableWidth / (ViewModel.ZoomLevel + cardHorizontalMargin)));
+        }
+
+        private void NavigateSelection(int delta, bool extendSelection)
+        {
+            if (ViewModel.Pages.Count == 0) return;
+
+            int currentIndex = ViewModel.SelectedPage is null
+                ? 0
+                : ViewModel.Pages.IndexOf(ViewModel.SelectedPage);
+            if (currentIndex < 0) currentIndex = 0;
+            int targetIndex = Math.Clamp(currentIndex + delta, 0, ViewModel.Pages.Count - 1);
+
+            if (extendSelection)
+            {
+                if (_lastClickedIndex < 0) _lastClickedIndex = currentIndex;
+                int start = Math.Min(_lastClickedIndex, targetIndex);
+                int end = Math.Max(_lastClickedIndex, targetIndex);
+                for (int index = 0; index < ViewModel.Pages.Count; index++)
+                {
+                    ViewModel.Pages[index].IsSelected = index >= start && index <= end;
+                }
+            }
+            else
+            {
+                foreach (var page in ViewModel.Pages) page.IsSelected = false;
+                ViewModel.Pages[targetIndex].IsSelected = true;
+                _lastClickedIndex = targetIndex;
+            }
+
+            ViewModel.SelectedPage = ViewModel.Pages[targetIndex];
+            ViewModel.NotifySelectionChanged();
+            CardsItemsControl.UpdateLayout();
+            if (CardsItemsControl.ItemContainerGenerator.ContainerFromItem(ViewModel.SelectedPage) is FrameworkElement card)
+            {
+                card.BringIntoView();
+            }
         }
 
         #endregion

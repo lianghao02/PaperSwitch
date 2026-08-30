@@ -59,6 +59,7 @@ namespace PaperSwitch.ViewModels
         private readonly UpdateService _updateService = UpdateService.Instance;
         private readonly Stack<ArrangementSnapshot> _undoHistory = new();
         private readonly Stack<ArrangementSnapshot> _redoHistory = new();
+        private const int MaximumConcurrentThumbnailRenders = 4;
 
         public int TotalPageCount => Pages.Count;
         public int SelectedPageCount => Pages.Count(p => p.IsSelected);
@@ -666,7 +667,20 @@ namespace PaperSwitch.ViewModels
 
         private async Task LoadThumbnailsAsync(List<PaperItem> items)
         {
-            await Task.WhenAll(items.Select(LoadThumbnailAsync));
+            using var renderSlots = new System.Threading.SemaphoreSlim(MaximumConcurrentThumbnailRenders);
+            var tasks = items.Select(async item =>
+            {
+                await renderSlots.WaitAsync();
+                try
+                {
+                    await LoadThumbnailAsync(item);
+                }
+                finally
+                {
+                    renderSlots.Release();
+                }
+            });
+            await Task.WhenAll(tasks);
         }
 
         private async Task LoadThumbnailAsync(PaperItem item)
