@@ -37,7 +37,7 @@
                 Background="{StaticResource BrushCardBg}"
                 BorderBrush="{StaticResource BrushBorder}"
                 BorderThickness="0,0,0,1"
-                Padding="24,14">
+                Padding="24,12">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="10" Direction="270" ShadowDepth="1" Opacity="0.05" Color="#2D2825" />
             </Border.Effect>
@@ -52,16 +52,16 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- 左側：標題與手帳徽章 -->
+                <!-- 頂層左側：標題與版本徽章 -->
                 <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="40" Height="40" CornerRadius="10" Background="{StaticResource BrushTerracottaLight}" Margin="0,0,14,0">
-                        <Image Source="{StaticResource PaperSwitchFileIcon}" Width="24" Height="28" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource BrushTerracottaLight}" Margin="0,0,12,0">
+                        <Image Source="{StaticResource PaperSwitchFileIcon}" Width="22" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="PaperSwitch" Style="{StaticResource TextH1}" Foreground="{StaticResource BrushTerracotta}" Margin="0,0,8,0" />
+                            <TextBlock Text="PaperSwitch" Style="{StaticResource TextH1}" FontSize="20" Foreground="{StaticResource BrushTerracotta}" Margin="0,0,8,0" />
                             <Border Background="{StaticResource BrushForestMossLight}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,8,0">
-                                <TextBlock Text="{Binding AppVersionBadge, FallbackValue='v4.0.0'}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushForestMoss}" />
+                                <TextBlock Text="{Binding AppVersionBadge, FallbackValue='v4.0.0'}" Style="{StaticResource TextMeta}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource BrushForestMoss}" />
                             </Border>
                             <Button Content="{Binding CheckUpdateButtonText, FallbackValue='🔄 檢查更新'}" 
                                     Style="{StaticResource BtnOutlineCraft}" 
@@ -69,43 +69,54 @@
                                     Padding="8,2" FontSize="11" VerticalAlignment="Center" 
                                     ToolTip="透過 GitHub Release 檢查是否有新版本" />
                         </StackPanel>
-                        <TextBlock Text="Windows 原生 .NET 8 · 100% 向量無損 PDF 裝訂與 Office 轉換" Style="{StaticResource TextCaption}" Margin="0,2,0,0" />
+                        <TextBlock Text="Windows 原生 .NET 8 · 100% 向量無損 PDF 裝訂與 Office 轉換" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilLight}" Margin="0,2,0,0" />
                     </StackPanel>
                 </StackPanel>
 
-                <!-- 右側：縮放滑桿與檔案匯入 -->
+                <!-- 頂層右側：縮放滑桿與檔案加入主按鈕 -->
                 <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- 縮放控制器 -->
-                    <Border Background="{StaticResource BrushPaperBg}" CornerRadius="8" Padding="12,6" Margin="0,0,16,0" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                    <Border Background="{StaticResource BrushPaperBg}" CornerRadius="8" Padding="10,5" Margin="0,0,12,0" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="🔍" FontSize="12" Foreground="{StaticResource BrushPencilGray}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                            <Slider Width="110" Minimum="90" Maximum="480" Value="{Binding ZoomLevel, Mode=TwoWay}"
+                            <TextBlock Text="🔍" FontSize="11" Foreground="{StaticResource BrushPencilGray}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <Slider Width="100" Minimum="90" Maximum="480" Value="{Binding ZoomLevel, Mode=TwoWay}"
                                     Style="{StaticResource CozySlider}" VerticalAlignment="Center" ToolTip="縮放卡片大小 (支援 Ctrl+滾輪)" />
-                            <TextBlock Text="{Binding ZoomLevel, StringFormat='{}{0:F0}px'}" Style="{StaticResource TextMeta}" Width="42" Margin="8,0,0,0" VerticalAlignment="Center" TextAlignment="Right" />
+                            <TextBlock Text="{Binding ZoomLevel, StringFormat='{}{0:F0}px'}" Style="{StaticResource TextMeta}" Width="38" Margin="6,0,0,0" VerticalAlignment="Center" TextAlignment="Right" />
                         </StackPanel>
                     </Border>
 
-                    <!-- 選擇檔案按鈕 -->
-                    <Button Content="＋ 選擇檔案" Style="{StaticResource BtnOutlineCraft}" Click="SelectFiles_Click" ToolTip="支援 PDF、Word、Excel、PPT 與圖片" />
+                    <!-- 選擇檔案 (Primary 核心起點) -->
+                    <Button Content="📂 ＋ 加入檔案" Style="{StaticResource BtnPrimaryCraft}" Click="SelectFiles_Click" Padding="14,7" FontSize="14" ToolTip="支援 PDF、Word、Excel、PPT 與圖片" />
                 </StackPanel>
 
-                <!-- 批次編輯工具移至頂部，和排版操作保持相近。 -->
-                <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
-                    <Button Content="↶ 復原" Style="{StaticResource BtnOutlineCraft}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Z" />
-                    <Button Content="↷ 重做" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Y" />
-                    <Button Content="全選" Style="{StaticResource BtnOutlineCraft}" Command="{Binding SelectAllCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+A" />
-                    <Button Content="反選" Style="{StaticResource BtnOutlineCraft}" Command="{Binding InvertSelectionCommand}" Margin="4,0" />
-                    <Button Content="↶ 逆轉 90°" Style="{StaticResource BtnOutlineCraft}" Click="BatchRotateCCW_Click" Margin="4,0" ToolTip="快捷鍵: Shift+R" />
-                    <Button Content="↷ 順轉 90°" Style="{StaticResource BtnOutlineCraft}" Click="BatchRotateCW_Click" Margin="4,0" ToolTip="快捷鍵: R" />
-                    <Button Content="← 前移" Style="{StaticResource BtnOutlineCraft}" Command="{Binding MoveSelectedLeftCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+←" />
-                    <Button Content="後移 →" Style="{StaticResource BtnOutlineCraft}" Command="{Binding MoveSelectedRightCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+→" />
-                    <Button Content="🗑 移除選取" Style="{StaticResource BtnOutlineCraft}" Command="{Binding DeleteSelectedCommand}" Margin="4,0" ToolTip="快捷鍵: Delete" />
-                    <Button Content="＋ 插入空白頁" Style="{StaticResource BtnOutlineCraft}" Command="{Binding InsertBlankPageCommand}" Margin="4,0" ToolTip="在目前選取頁後插入 A4 空白頁" />
-                    <Button Content="↶ 復原" Style="{StaticResource BtnOutlineCraft}" Command="{Binding UndoCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Z" />
-                    <Button Content="↷ 重做" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RedoCommand}" Margin="4,0" ToolTip="快捷鍵: Ctrl+Y" />
-                    <Button Content="清空" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ClearAllCommand}" Margin="4,0" />
-                    <TextBlock Text="提示：Shift 連選／空白處拖曳框選／方向鍵移焦點／Ctrl+方向鍵換位" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilGray}" Margin="14,0,0,0" VerticalAlignment="Center" />
-                </StackPanel>
+                <!-- 底層：語意結構化分組工具列 (Segmented Toolbar) -->
+                <Border Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,0" Padding="0,8,0,0" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- 【群組 1：歷史與選取】 -->
+                        <Button Content="↶ 復原" Style="{StaticResource BtnOutlineCraft}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" Margin="0,0,4,0" ToolTip="快捷鍵: Ctrl+Z" />
+                        <Button Content="↷ 重做" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" Margin="0,0,4,0" ToolTip="快捷鍵: Ctrl+Y" />
+                        <Button Content="全選" Style="{StaticResource BtnOutlineCraft}" Command="{Binding SelectAllCommand}" Margin="0,0,4,0" ToolTip="快捷鍵: Ctrl+A" />
+                        <Button Content="反選" Style="{StaticResource BtnOutlineCraft}" Command="{Binding InvertSelectionCommand}" Margin="0,0,4,0" ToolTip="反向選取紙張" />
+
+                        <!-- 縱向細分隔線 -->
+                        <Border Width="1" Height="18" Background="{StaticResource BrushBorder}" Margin="8,0" VerticalAlignment="Center" />
+
+                        <!-- 【群組 2：紙張排版與編輯】 -->
+                        <Button Content="↶ 逆轉 90°" Style="{StaticResource BtnOutlineCraft}" Click="BatchRotateCCW_Click" Margin="0,0,4,0" ToolTip="快捷鍵: Shift+R" />
+                        <Button Content="↷ 順轉 90°" Style="{StaticResource BtnOutlineCraft}" Click="BatchRotateCW_Click" Margin="0,0,4,0" ToolTip="快捷鍵: R" />
+                        <Button Content="← 前移" Style="{StaticResource BtnOutlineCraft}" Command="{Binding MoveSelectedLeftCommand}" Margin="0,0,4,0" ToolTip="快捷鍵: Ctrl+←" />
+                        <Button Content="後移 →" Style="{StaticResource BtnOutlineCraft}" Command="{Binding MoveSelectedRightCommand}" Margin="0,0,4,0" ToolTip="快捷鍵: Ctrl+→" />
+                        <Button Content="✏️ 重新命名" Style="{StaticResource BtnOutlineCraft}" Click="RenameSelected_Click" Margin="0,0,4,0" ToolTip="批次指定輸出檔名 (快捷鍵: F2)" />
+                        <Button Content="📄 插入空白頁" Style="{StaticResource BtnOutlineCraft}" Command="{Binding InsertBlankPageCommand}" Margin="0,0,4,0" ToolTip="在選取頁後方插入 A4 空白頁" />
+
+                        <!-- 縱向細分隔線 -->
+                        <Border Width="1" Height="18" Background="{StaticResource BrushBorder}" Margin="8,0" VerticalAlignment="Center" />
+
+                        <!-- 【群組 3：清理與維護 (Danger Hover)】 -->
+                        <Button Content="🗑️ 刪除選取" Style="{StaticResource BtnDangerCraft}" Command="{Binding DeleteSelectedCommand}" Margin="0,0,4,0" ToolTip="刪除選取紙張 (快捷鍵: Delete)" />
+                        <Button Content="🧹 清空畫布" Style="{StaticResource BtnDangerCraft}" Command="{Binding ClearAllCommand}" Margin="0,0,4,0" ToolTip="清空目前排版畫布" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
 
@@ -180,6 +191,7 @@
                                     Cursor="Hand"
                                     AllowDrop="True"
                                     MouseLeftButtonDown="Card_MouseLeftButtonDown"
+                                    MouseLeftButtonUp="Card_MouseLeftButtonUp"
                                     MouseMove="Card_MouseMove"
                                     DragOver="Card_DragOver"
                                     DragLeave="Card_DragLeave"
@@ -248,16 +260,16 @@
 
                                         <!-- 旋轉標記 -->
                                         <Border Grid.Column="1" HorizontalAlignment="Right" Background="{StaticResource BrushTerracottaLight}" CornerRadius="4" Padding="5,2"
-                                                Visibility="Visible">
+                                                Visibility="{Binding HasManualRotation, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <TextBlock Text="{Binding RotationDisplay}" Style="{StaticResource TextMeta}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}" />
                                         </Border>
                                     </Grid>
 
-                                    <!-- 縮圖呈現與旋轉矩陣 -->
-                                    <Border Grid.Row="1" Background="{StaticResource BrushPaperBg}" CornerRadius="6" MinHeight="140" MaxHeight="480" ClipToBounds="True" Margin="0,2,0,6">
+                                    <!-- 縮圖呈現與旋轉矩陣 (自動等比例高度貼合) -->
+                                    <Border Grid.Row="1" Background="{StaticResource BrushPaperBg}" CornerRadius="6" MinHeight="40" ClipToBounds="True" Margin="0,2,0,6">
                                         <Grid>
                                             <!-- 載入中動畫 -->
-                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="8"
                                                         Visibility="{Binding IsLoadingThumbnail, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                 <TextBlock Text="⏳" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,4" />
                                                 <TextBlock Text="載入中..." Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilLight}" HorizontalAlignment="Center" />
@@ -385,27 +397,40 @@
 
                 <!-- 左側：紙張張數統計與選取摘要 -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="{StaticResource BrushTagBg}" CornerRadius="6" Padding="10,5" Margin="0,0,12,0">
+                    <Border Background="{StaticResource BrushTagBg}" CornerRadius="6" Padding="10,5" Margin="0,0,10,0">
                         <TextBlock Text="{Binding SummaryText}" Style="{StaticResource TextCaption}" FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}" />
                     </Border>
                     <TextBlock Text="{Binding SelectedPageCount, StringFormat='已選取 {0} 頁'}" Style="{StaticResource TextCaption}"
-                               FontWeight="SemiBold" Foreground="{StaticResource BrushTerracotta}" VerticalAlignment="Center" />
+                               FontWeight="SemiBold" Foreground="{StaticResource BrushTerracotta}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <TextBlock Text="💡 Shift 連選 · F2 命名 · Del 刪除" Style="{StaticResource TextMeta}"
+                               Foreground="{StaticResource BrushPencilLight}" VerticalAlignment="Center" />
                 </StackPanel>
 
-                <!-- 右側：所有輸出設定與導出動作改為橫向排列。 -->
+                <!-- 右側：所有輸出設定與導出動作改為橫向結構化排列。 -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="輸出方式" Style="{StaticResource TextMeta}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <TextBlock Text="輸出方式" Style="{StaticResource TextMeta}" Margin="0,0,8,0" VerticalAlignment="Center" />
                     <RadioButton Content="合併單檔" IsChecked="{Binding Options.MergeIntoSinglePdf, Mode=TwoWay}"
-                                 GroupName="ExportMode" Margin="0,0,10,0" Cursor="Hand" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" />
+                                 GroupName="ExportMode" Margin="0,0,8,0" Cursor="Hand" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" />
                     <RadioButton Content="拆分獨立存檔" GroupName="ExportMode" Cursor="Hand" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center"
                                  Click="SplitMode_Click" />
-                    <TextBlock Text="檔名／前綴" Style="{StaticResource TextMeta}" Margin="14,0,6,0" VerticalAlignment="Center" />
-                    <TextBox Width="190" Height="34" Padding="10,4" VerticalContentAlignment="Center"
+
+                    <TextBlock Text="檔名／前綴" Style="{StaticResource TextMeta}" Margin="12,0,6,0" VerticalAlignment="Center" />
+                    <TextBox Width="180" Height="34" Padding="10,4" VerticalContentAlignment="Center"
                              Text="{Binding Options.CustomFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="合併：輸入完整檔名；拆分：輸入共同前綴（例如：報告_001.pdf）" />
-                    <Button Content="🧹 清理成品與暫存" Style="{StaticResource BtnOutlineCraft}" Click="ClearProcessingFolders_Click" Margin="0,0,8,0" ToolTip="清空 PaperSwitch 的成品與轉檔暫存資料夾" />
-                    <Button Content="📁 輸出資料夾" Style="{StaticResource BtnOutlineCraft}" Command="{Binding OpenConvertedFolderCommand}" Margin="0,0,8,0" ToolTip="開啟 converted/ 目錄" />
-                    <Button Content="✨ 開始裝訂導出" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportPdfCommand}" />
+                             KeyDown="ExportFileNameTextBox_KeyDown"
+                             ToolTip="合併：輸入完整檔名；拆分：輸入共同前綴（例如：報告_001.pdf）。按 Enter 可直接開始裝訂導出。" />
+
+                    <!-- 縱向細分隔線 -->
+                    <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="12,0" VerticalAlignment="Center" />
+
+                    <Button Content="📁 輸出資料夾" Style="{StaticResource BtnOutlineCraft}" Command="{Binding OpenConvertedFolderCommand}" Margin="0,0,6,0" ToolTip="開啟 converted/ 目錄" />
+                    <Button Content="🧹 清理暫存" Style="{StaticResource BtnOutlineCraft}" Click="ClearProcessingFolders_Click" Margin="0,0,12,0" ToolTip="清空 PaperSwitch 的成品與轉檔暫存資料夾" />
+
+                    <!-- 縱向細分隔線 -->
+                    <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="0,0,12,0" VerticalAlignment="Center" />
+
+                    <!-- 開始裝訂導出 (Primary 實心大按鈕) -->
+                    <Button Content="✨ 開始裝訂導出" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportPdfCommand}" Padding="18,8" />
                 </StackPanel>
             </Grid>
         </Border>

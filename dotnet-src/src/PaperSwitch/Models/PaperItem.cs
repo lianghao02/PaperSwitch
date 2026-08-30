@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Media;
@@ -68,9 +68,12 @@ namespace PaperSwitch.Models
 
         public string RotationDisplay => Rotation > 0 ? $"{Rotation}°" : string.Empty;
 
+        public bool HasManualRotation => Rotation > 0;
+
         partial void OnRotationChanged(int value)
         {
             OnPropertyChanged(nameof(RotationDisplay));
+            OnPropertyChanged(nameof(HasManualRotation));
         }
 
         public void RotateClockwise()

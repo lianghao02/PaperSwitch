@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -22,6 +22,7 @@ namespace PaperSwitch
         private Point _boxSelectionStart;
         private readonly HashSet<PaperItem> _initialBoxSelection = new();
         private PaperItem? _dropIndicatorItem;
+        private bool _dragOccurred;
 
         public MainWindow()
         {
@@ -44,6 +45,11 @@ namespace PaperSwitch
             }
 
             // 視窗預覽階段優先處理，保證中央畫布任何空白處都能取消選取。
+            if (Keyboard.FocusedElement is TextBoxBase or PasswordBox)
+            {
+                Keyboard.ClearFocus();
+            }
+
             ViewModel.DeselectAll();
             ClearDropIndicator();
         }
@@ -51,6 +57,12 @@ namespace PaperSwitch
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (ViewModel.IsBusy) return;
+
+            // 當焦點位於文字輸入框或其子元素時，完全放行文字編輯操作，絕不攔截畫布快捷鍵。
+            if (Keyboard.FocusedElement is TextBoxBase or PasswordBox || IsInsideTextBox(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
 
             // Ctrl + Z / Ctrl + Y：復原 / 重做編排動作
             if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
@@ -149,8 +161,8 @@ namespace PaperSwitch
                 return;
             }
 
-            // Delete: 刪除選取紙張
-            if (e.Key == Key.Delete || e.Key == Key.Back)
+            // Delete: 刪除選取紙張 (僅 Key.Delete)
+            if (e.Key == Key.Delete)
             {
                 ViewModel.DeleteSelected();
                 e.Handled = true;
@@ -255,6 +267,11 @@ namespace PaperSwitch
         {
             if (sender is FrameworkElement element && element.DataContext is PaperItem item)
             {
+                if (Keyboard.FocusedElement is TextBoxBase or PasswordBox)
+                {
+                    Keyboard.ClearFocus();
+                }
+
                 if (e.ClickCount == 2)
                 {
                     // 雙擊開啟大圖燈箱 (Lightbox)
@@ -267,6 +284,7 @@ namespace PaperSwitch
                     return;
                 }
 
+                _dragOccurred = false;
                 _dragStartPoint = e.GetPosition(this);
                 _draggedItem = item;
 
@@ -284,14 +302,14 @@ namespace PaperSwitch
                     int start = Math.Min(_lastClickedIndex, currentIndex);
                     int end = Math.Max(_lastClickedIndex, currentIndex);
 
-                    for (int i = 0; i < ViewModel.Pages.Count; i++)
+                    for (int j = 0; j < ViewModel.Pages.Count; j++)
                     {
-                        ViewModel.Pages[i].IsSelected = (i >= start && i <= end);
+                        ViewModel.Pages[j].IsSelected = (j >= start && j <= end);
                     }
                 }
                 else
                 {
-                    // 普通點擊：若尚未選取則設為唯一選取；若已選取則保留群組供拖曳
+                    // 普通點擊：若尚未選取則設為唯一單選
                     if (!item.IsSelected)
                     {
                         foreach (var p in ViewModel.Pages)
@@ -307,6 +325,26 @@ namespace PaperSwitch
             }
         }
 
+        private void Card_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is PaperItem item)
+            {
+                bool hasModifier = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != ModifierKeys.None;
+                if (!_dragOccurred && !hasModifier)
+                {
+                    // 普通單點放開（無拖曳、無修飾鍵）：退出多選狀態，變為僅單選此卡片
+                    foreach (var p in ViewModel.Pages)
+                    {
+                        p.IsSelected = (p == item);
+                    }
+                    ViewModel.SelectedPage = item;
+                    _lastClickedIndex = ViewModel.Pages.IndexOf(item);
+                    ViewModel.NotifySelectionChanged();
+                }
+            }
+            _draggedItem = null;
+            _dragOccurred = false;
+        }
         private void Card_MouseMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton == MouseButtonState.Pressed && _draggedItem != null)
@@ -317,6 +355,7 @@ namespace PaperSwitch
                 if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
                     Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
                 {
+                    _dragOccurred = true;
                     // 啟動拖曳
                     var selected = ViewModel.Pages.Where(p => p.IsSelected).ToList();
                     if (!selected.Contains(_draggedItem))
@@ -494,6 +533,21 @@ namespace PaperSwitch
             e.Handled = true;
         }
 
+        private static bool IsInsideTextBox(DependencyObject? source)
+        {
+            while (source != null)
+            {
+                if (source is TextBoxBase or PasswordBox)
+                {
+                    return true;
+                }
+
+                source = VisualTreeHelper.GetParent(source);
+            }
+
+            return false;
+        }
+
         private static bool IsInsidePaperCard(DependencyObject? source)
         {
             while (source != null)
@@ -649,6 +703,23 @@ namespace PaperSwitch
             catch (Exception ex)
             {
                 MessageBox.Show($"清理資料夾時發生錯誤：{ex.Message}", "清理失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportFileNameTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                if (ViewModel.ExportPdfCommand.CanExecute(null))
+                {
+                    ViewModel.ExportPdfCommand.Execute(null);
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                Keyboard.ClearFocus();
+                e.Handled = true;
             }
         }
 

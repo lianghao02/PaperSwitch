@@ -620,7 +620,7 @@ namespace PaperSwitch.ViewModels
 
                     for (int pageIdx = 0; pageIdx < totalPages; pageIdx++)
                     {
-                        var (w, h, rot) = _pdfService.GetPageDimensions(pdf, pageIdx);
+                        var (w, h, _) = _pdfService.GetPageDimensions(pdf, pageIdx);
                         var item = new PaperItem
                         {
                             SourceFilePath = pdf,
@@ -628,7 +628,7 @@ namespace PaperSwitch.ViewModels
                             SourcePageIndex = pageIdx,
                             DisplayPageNumber = pageIdx + 1,
                             TotalPagesInSource = totalPages,
-                            Rotation = rot,
+                            Rotation = 0,
                             OriginalWidth = w,
                             OriginalHeight = h,
                             IsLoadingThumbnail = true
@@ -753,8 +753,8 @@ namespace PaperSwitch.ViewModels
 
                 if (Options.MergeIntoSinglePdf)
                 {
-                    string finalName = string.IsNullOrWhiteSpace(Options.CustomFileName) ? "PaperSwitch_裝訂成品.pdf" : Options.CustomFileName;
-                    if (!finalName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) finalName += ".pdf";
+                    string safeBaseName = SanitizeFileName(Options.CustomFileName, "PaperSwitch_裝訂成品.pdf");
+                    string finalName = safeBaseName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? safeBaseName : safeBaseName + ".pdf";
 
                     string outputPath = Path.Combine(outputDir, finalName);
                     int counter = 1;
@@ -777,7 +777,8 @@ namespace PaperSwitch.ViewModels
                 }
                 else
                 {
-                    var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, Options.CustomFileName));
+                    string safePrefix = string.IsNullOrWhiteSpace(Options.CustomFileName) ? string.Empty : SanitizeFileName(Options.CustomFileName, string.Empty);
+                    var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix));
                     StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
                     OpenConvertedFolder();
                 }
@@ -928,6 +929,18 @@ namespace PaperSwitch.ViewModels
                 Page.IsSelected = IsSelected;
                 Page.SourceFileName = SourceFileName;
             }
+        }
+
+        public static string SanitizeFileName(string? fileName, string defaultName = "PaperSwitch_裝訂成品.pdf")
+        {
+            if (string.IsNullOrWhiteSpace(fileName)) return defaultName;
+            string clean = fileName.Trim();
+            foreach (char invalid in Path.GetInvalidFileNameChars())
+            {
+                clean = clean.Replace(invalid, '_');
+            }
+            clean = clean.Trim('.', ' ', '_');
+            return string.IsNullOrWhiteSpace(clean) ? defaultName : clean;
         }
     }
 }

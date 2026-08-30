@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -119,7 +119,7 @@ namespace PaperSwitch.Services
         /// <summary>
         /// 渲染高解析大圖以供燈箱 (Lightbox) 檢視
         /// </summary>
-        public async Task<ImageSource?> GetHighResPreviewAsync(string pdfPath, int pageIndex, int targetWidth = 1600)
+        public async Task<ImageSource?> GetHighResPreviewAsync(string pdfPath, int pageIndex, int targetWidth = 3840)
         {
             return await GetThumbnailAsync(pdfPath, pageIndex, targetWidth);
         }

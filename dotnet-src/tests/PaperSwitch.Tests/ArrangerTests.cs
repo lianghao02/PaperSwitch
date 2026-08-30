@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using PaperSwitch.Models;
 using PaperSwitch.ViewModels;
 using Xunit;
@@ -11,21 +11,30 @@ namespace PaperSwitch.Tests
         public void PaperItem_Rotation_ShouldCycleCorrectly()
         {
             var item = new PaperItem { Rotation = 0 };
+            Assert.False(item.HasManualRotation);
+            Assert.Equal(string.Empty, item.RotationDisplay);
 
             item.RotateClockwise();
             Assert.Equal(90, item.Rotation);
+            Assert.True(item.HasManualRotation);
+            Assert.Equal("90°", item.RotationDisplay);
 
             item.RotateClockwise();
             Assert.Equal(180, item.Rotation);
+            Assert.True(item.HasManualRotation);
 
             item.RotateClockwise();
             Assert.Equal(270, item.Rotation);
+            Assert.True(item.HasManualRotation);
 
             item.RotateClockwise();
             Assert.Equal(0, item.Rotation);
+            Assert.False(item.HasManualRotation);
+            Assert.Equal(string.Empty, item.RotationDisplay);
 
             item.RotateCounterClockwise();
             Assert.Equal(270, item.Rotation);
+            Assert.True(item.HasManualRotation);
         }
 
         [Fact]
@@ -111,6 +120,16 @@ namespace PaperSwitch.Tests
             Assert.Equal(item4, vm.Pages[2]);
             Assert.Equal(item1, vm.Pages[3]);
             Assert.Equal(item2, vm.Pages[4]);
+        }
+
+        [Fact]
+        public void MainViewModel_SanitizeFileName_ShouldCleanInvalidChars()
+        {
+            Assert.Equal("PaperSwitch_裝訂成品.pdf", MainViewModel.SanitizeFileName(null));
+            Assert.Equal("PaperSwitch_裝訂成品.pdf", MainViewModel.SanitizeFileName("   "));
+            Assert.Equal("報告_2026", MainViewModel.SanitizeFileName("報告:2026"));
+            Assert.Equal("公文_案號_123", MainViewModel.SanitizeFileName("公文/案號\\123"));
+            Assert.Equal("合約書", MainViewModel.SanitizeFileName("合約書?*|<>"));
         }
 
         [Fact]

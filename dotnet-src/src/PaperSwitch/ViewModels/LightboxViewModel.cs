@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -61,7 +61,7 @@ namespace PaperSwitch.ViewModels
                 var image = await _thumbnailService.GetHighResPreviewAsync(
                     CurrentPage.SourceFilePath,
                     CurrentPage.SourcePageIndex,
-                    1600
+                    3840
                 );
                 HighResImage = image ?? CurrentPage.Thumbnail;
                 ResetZoom();
