@@ -3,7 +3,11 @@
 # ============================================================
 $ErrorActionPreference = "Stop"
 
-if (Test-Path "$env:USERPROFILE\.dotnet\dotnet.exe") {
+if (Test-Path "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe") {
+    $env:DOTNET_ROOT = "$env:LOCALAPPDATA\Microsoft\dotnet"
+    $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
+    $DotnetExe = "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe"
+} elseif (Test-Path "$env:USERPROFILE\.dotnet\dotnet.exe") {
     $env:DOTNET_ROOT = "$env:USERPROFILE\.dotnet"
     $env:PATH = "$env:USERPROFILE\.dotnet;$env:PATH"
     $DotnetExe = "$env:USERPROFILE\.dotnet\dotnet.exe"
