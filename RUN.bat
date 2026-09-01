@@ -16,7 +16,10 @@ if exist "%DEV_EXE%" (
 )
 
 echo [PaperSwitch] 尚未建置發行成品，正在進行自動建置...
-powershell -ExecutionPolicy Bypass -File "%~dp0dotnet-src\scripts\build.ps1"
+set "PS_HOST=pwsh.exe"
+where.exe pwsh.exe >nul 2>&1
+if errorlevel 1 set "PS_HOST=powershell.exe"
+"%PS_HOST%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0dotnet-src\scripts\build.ps1"
 
 if exist "%DIST_EXE%" (
     start "" "%DIST_EXE%"
