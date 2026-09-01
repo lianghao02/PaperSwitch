@@ -2,6 +2,8 @@
 
 ## 未發布
 
+## 🏆 v4.1.1 (2026-09-01)
+
 - **建置入口相容性**：`RUN.bat` 在找不到已發布 EXE 時，優先以 PowerShell 7 執行建置腳本；未安裝時自動退回 Windows PowerShell 5.1。
 
 ## 🔮 未來版本規劃預告 (Roadmap for v4.2.0)

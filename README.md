@@ -1,4 +1,4 @@
-# 📑 PaperSwitch 紙張排版工坊 v4.1.0
+# 📑 PaperSwitch 紙張排版工坊 v4.1.1
 
 [![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
@@ -16,8 +16,8 @@
 
 | 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
 | :--- | :--- | :--- |
-| 🌟 **免安裝獨立單檔版<br>（強烈推薦）** | **`PaperSwitch-v4.1.0-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
-| ⚡ **極致輕量版** | **`PaperSwitch-v4.1.0-FrameworkDependent.zip`** | 體積僅約 26MB；適合本機已安裝 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) 的使用者，解壓縮後執行 `PaperSwitch.exe`。 |
+| 🌟 **免安裝獨立單檔版<br>（強烈推薦）** | **`PaperSwitch-v4.1.1-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
+| ⚡ **極致輕量版** | **`PaperSwitch-v4.1.1-FrameworkDependent.zip`** | 體積僅約 26MB；適合本機已安裝 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) 的使用者，解壓縮後執行 `PaperSwitch.exe`。 |
 
 ### 💡 首次啟動與使用須知
 1. **Windows SmartScreen 提示**：
