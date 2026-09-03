@@ -124,6 +124,75 @@
         <!-- 中央主畫布 (Center Arranger Canvas) -->
         <!-- ============================================================ -->
         <Grid Grid.Row="1" Background="{StaticResource BrushPaperBg}" x:Name="ArrangerCanvas">
+            <!-- 輕量轉檔任務列：只提供每檔狀態與必要復原動作，不改成儀表板。 -->
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Width="408" MaxHeight="310" Margin="0,16,20,0"
+                    Background="#FCFAF6" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
+                    CornerRadius="10" Padding="10" Effect="{StaticResource CardShadow}" Panel.ZIndex="30"
+                    Visibility="{Binding HasConversionTasks, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Expander IsExpanded="True">
+                    <Expander.Header>
+                        <DockPanel Width="370">
+                            <TextBlock Text="轉檔任務" Style="{StaticResource TextBody}" FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}" />
+                            <TextBlock Text="{Binding ConversionQueueSummary}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilGray}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+                    </Expander.Header>
+                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                        <ItemsControl ItemsSource="{Binding ConversionTasks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:ConversionTaskItem}">
+                                    <Border Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
+                                            CornerRadius="7" Padding="9,7" Margin="0,0,0,6">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.RowSpan="2" Text="{Binding StateIcon}" FontSize="16" VerticalAlignment="Top" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FileName}" Style="{StaticResource TextCaption}"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}"
+                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}" />
+                                            <Border Grid.Row="0" Grid.Column="2" Background="{StaticResource BrushTagBg}" CornerRadius="4" Padding="5,2" Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding StateLabel}" Style="{StaticResource TextMeta}" FontWeight="SemiBold" Foreground="{StaticResource BrushPencilGray}" />
+                                            </Border>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding StatusMessage}" Style="{StaticResource TextMeta}"
+                                                       Foreground="{StaticResource BrushPencilGray}" TextWrapping="Wrap" Margin="0,3,0,0" />
+
+                                            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,7,0,0"
+                                                        Visibility="{Binding CanRetry, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Button Content="重新嘗試" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3" Margin="0,0,5,0"
+                                                        Command="{Binding DataContext.RetryConversionTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Content="跳過" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3" Margin="0,0,5,0"
+                                                        Command="{Binding DataContext.SkipConversionTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Content="開啟位置" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3"
+                                                        Command="{Binding DataContext.OpenConversionTaskLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                            <Expander Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,7,0,0" Header="技術資訊"
+                                                      Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBox Text="{Binding TechnicalDetails}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                                         FontFamily="Consolas" FontSize="10" Foreground="{StaticResource BrushPencilGray}"
+                                                         TextWrapping="Wrap" MaxHeight="90" VerticalScrollBarVisibility="Auto" />
+                                            </Expander>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Expander>
+            </Border>
+
             <!-- 空白狀態提示 (Empty State Dropzone) -->
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                     Margin="40" Padding="48,36"

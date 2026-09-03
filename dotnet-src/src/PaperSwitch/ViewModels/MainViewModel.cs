@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,6 +20,7 @@ namespace PaperSwitch.ViewModels
     public partial class MainViewModel : ObservableObject
     {
         public ObservableCollection<PaperItem> Pages { get; } = new();
+        public ObservableCollection<ConversionTaskItem> ConversionTasks { get; } = new();
 
         [ObservableProperty]
         private PaperItem? _selectedPage;
@@ -59,6 +61,7 @@ namespace PaperSwitch.ViewModels
         private readonly UpdateService _updateService = UpdateService.Instance;
         private readonly Stack<ArrangementSnapshot> _undoHistory = new();
         private readonly Stack<ArrangementSnapshot> _redoHistory = new();
+        private readonly SemaphoreSlim _conversionBatchGate = new(1, 1);
         private const int MaximumConcurrentThumbnailRenders = 4;
 
         public int TotalPageCount => Pages.Count;
@@ -68,6 +71,14 @@ namespace PaperSwitch.ViewModels
         public bool IsDraggingPages => DraggedPageCount > 0;
         public bool CanUndo => _undoHistory.Count > 0;
         public bool CanRedo => _redoHistory.Count > 0;
+        public bool HasConversionTasks => ConversionTasks.Count > 0;
+        public int FailedConversionTaskCount => ConversionTasks.Count(task => task.State == ConversionTaskState.Failed);
+        public int ActiveConversionTaskCount => ConversionTasks.Count(task => task.State is ConversionTaskState.Waiting or ConversionTaskState.Processing);
+        public string ConversionQueueSummary => ActiveConversionTaskCount > 0
+            ? $"{ActiveConversionTaskCount} 個檔案待處理"
+            : FailedConversionTaskCount > 0
+                ? $"{FailedConversionTaskCount} 個檔案需要處理"
+                : "本輪轉檔已完成";
 
         public string SummaryText => $"已裝載 {TotalPageCount} 頁紙張" + (SelectedPageCount > 0 ? $" (已選取 {SelectedPageCount} 頁)" : string.Empty);
 
@@ -84,6 +95,8 @@ namespace PaperSwitch.ViewModels
                 OnPropertyChanged(nameof(HasSelectedPages));
                 OnPropertyChanged(nameof(SummaryText));
             };
+
+            ConversionTasks.CollectionChanged += (s, e) => NotifyConversionQueueChanged();
         }
 
         public void NotifySelectionChanged()
@@ -91,6 +104,14 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(SelectedPageCount));
             OnPropertyChanged(nameof(HasSelectedPages));
             OnPropertyChanged(nameof(SummaryText));
+        }
+
+        private void NotifyConversionQueueChanged()
+        {
+            OnPropertyChanged(nameof(HasConversionTasks));
+            OnPropertyChanged(nameof(FailedConversionTaskCount));
+            OnPropertyChanged(nameof(ActiveConversionTaskCount));
+            OnPropertyChanged(nameof(ConversionQueueSummary));
         }
 
         partial void OnDraggedPageCountChanged(int value)
@@ -530,138 +551,310 @@ namespace PaperSwitch.ViewModels
             var existingFiles = filePaths.Where(File.Exists).ToArray();
             if (existingFiles.Length == 0) return;
 
-            IsBusy = true;
-            IsProgressIndeterminate = false;
-            ProgressValue = 0;
-            StatusMessage = $"準備匯入 {existingFiles.Length} 個檔案...";
+            var tasks = existingFiles.Select(CreateConversionTask).ToList();
+            await ProcessConversionTasksAsync(tasks);
+        }
 
-            string workTempDir = AppPaths.TemporaryConversionDirectory;
+        private ConversionTaskItem CreateConversionTask(string sourcePath)
+        {
+            var task = new ConversionTaskItem(sourcePath);
+            task.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName is nameof(ConversionTaskItem.State) or nameof(ConversionTaskItem.StatusMessage))
+                {
+                    NotifyConversionQueueChanged();
+                }
+            };
+            ConversionTasks.Add(task);
+            return task;
+        }
 
-            var pdfsToLoad = new List<string>();
+        private async Task ProcessConversionTasksAsync(IReadOnlyList<ConversionTaskItem> tasks)
+        {
+            if (tasks.Count == 0) return;
 
+            await _conversionBatchGate.WaitAsync();
             try
             {
-                for (int fileIndex = 0; fileIndex < existingFiles.Length; fileIndex++)
+                IsBusy = true;
+                IsProgressIndeterminate = false;
+                ProgressValue = 0;
+                StatusMessage = $"準備處理 {tasks.Count} 個檔案...";
+
+                string workTempDir = AppPaths.TemporaryConversionDirectory;
+                var pdfsToLoad = new List<(string PdfPath, ConversionTaskItem Task)>();
+
+                for (int fileIndex = 0; fileIndex < tasks.Count; fileIndex++)
                 {
-                    string path = existingFiles[fileIndex];
+                    var task = tasks[fileIndex];
+                    if (task.State == ConversionTaskState.Skipped)
+                    {
+                        continue;
+                    }
+
                     int displayIndex = fileIndex + 1;
-
-                    string ext = Path.GetExtension(path).ToLowerInvariant();
-                    StatusMessage = $"正在轉換第 {displayIndex} / {existingFiles.Length} 個檔案：\n{Path.GetFileName(path)}";
-
-                    if (ext == ".pdf")
-                    {
-                        pdfsToLoad.Add(path);
-                    }
-                    else if (_officeService.IsWordFile(path))
-                    {
-                        string outPdf = Path.Combine(workTempDir, $"{Path.GetFileNameWithoutExtension(path)}_{Guid.NewGuid():N}.pdf");
-                        var result = await _officeService.ConvertWordAsync(path, outPdf);
-                        if (result.Success)
-                        {
-                            await AddReadyOfficePdfAsync(outPdf, pdfsToLoad);
-                        }
-                        else
-                        {
-                            MessageBox.Show(result.ErrorMessage, "Word 轉檔提醒", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        }
-                    }
-                    else if (_officeService.IsExcelFile(path))
-                    {
-                        var result = await _officeService.ConvertExcelAsync(path, workTempDir, Options.ExcelFitToPage);
-                        if (result.Success)
-                        {
-                            foreach (var p in result.GeneratedPdfPaths)
-                            {
-                                await AddReadyOfficePdfAsync(p, pdfsToLoad);
-                            }
-                        }
-                        else
-                        {
-                            MessageBox.Show(result.ErrorMessage, "Excel 轉檔提醒", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        }
-                    }
-                    else if (_officeService.IsPowerPointFile(path))
-                    {
-                        string outPdf = Path.Combine(workTempDir, $"{Path.GetFileNameWithoutExtension(path)}_{Guid.NewGuid():N}.pdf");
-                        var result = await _officeService.ConvertPowerPointAsync(path, outPdf);
-                        if (result.Success)
-                        {
-                            await AddReadyOfficePdfAsync(outPdf, pdfsToLoad);
-                        }
-                        else
-                        {
-                            MessageBox.Show(result.ErrorMessage, "PowerPoint 轉檔提醒", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        }
-                    }
-                    else if (_imageService.IsImageFile(path))
-                    {
-                        string outPdf = Path.Combine(workTempDir, $"{Path.GetFileNameWithoutExtension(path)}_{Guid.NewGuid():N}.pdf");
-                        if (_imageService.ConvertImagesToPdf(new[] { path }, outPdf))
-                        {
-                            pdfsToLoad.Add(outPdf);
-                        }
-                    }
-
-                    ProgressValue = displayIndex * 70.0 / existingFiles.Length;
+                    StatusMessage = $"正在處理第 {displayIndex} / {tasks.Count} 個檔案：\n{task.FileName}";
+                    await ProcessSingleConversionTaskAsync(task, workTempDir, pdfsToLoad);
+                    ProgressValue = displayIndex * 70.0 / tasks.Count;
                 }
 
-                // 拆解 PDF 頁面並加入畫布
                 ProgressValue = 75;
-                StatusMessage = $"檔案轉換完成，正在載入 {pdfsToLoad.Count} 份 PDF 的頁面與縮圖...";
+                StatusMessage = pdfsToLoad.Count > 0
+                    ? $"正在讀取 {pdfsToLoad.Count} 份 PDF 的頁面與縮圖..."
+                    : "本輪沒有可載入的 PDF 文件。";
                 var newItems = new List<PaperItem>();
 
                 for (int pdfIndex = 0; pdfIndex < pdfsToLoad.Count; pdfIndex++)
                 {
-                    string pdf = pdfsToLoad[pdfIndex];
+                    var (pdf, task) = pdfsToLoad[pdfIndex];
                     StatusMessage = $"正在讀取第 {pdfIndex + 1} / {pdfsToLoad.Count} 份 PDF：\n{Path.GetFileName(pdf)}";
-                    int totalPages = _pdfService.GetPageCount(pdf);
-                    string fileName = Path.GetFileName(pdf);
-
-                    for (int pageIdx = 0; pageIdx < totalPages; pageIdx++)
-                    {
-                        var (w, h, _) = _pdfService.GetPageDimensions(pdf, pageIdx);
-                        var item = new PaperItem
-                        {
-                            SourceFilePath = pdf,
-                            SourceFileName = fileName,
-                            SourcePageIndex = pageIdx,
-                            DisplayPageNumber = pageIdx + 1,
-                            TotalPagesInSource = totalPages,
-                            Rotation = 0,
-                            OriginalWidth = w,
-                            OriginalHeight = h,
-                            IsLoadingThumbnail = true
-                        };
-                        newItems.Add(item);
-                        Pages.Add(item);
-                    }
-
+                    await LoadPdfPagesForTaskAsync(pdf, task, newItems);
                     ProgressValue = 75 + ((pdfIndex + 1) * 20.0 / Math.Max(pdfsToLoad.Count, 1));
                 }
 
-                // 背景非同步載入縮圖
+                foreach (var task in tasks.Where(task => task.State == ConversionTaskState.Processing && task.PendingPdfCount == 0))
+                {
+                    task.MarkCompleted(task.CompletedPageCount);
+                }
+
                 _ = LoadThumbnailsAsync(newItems);
 
-                // 匯入會加入新的外部來源，作為新的手動編排歷史起點，避免復原誤移除新匯入紙張。
                 if (newItems.Count > 0)
                 {
                     ClearHistory();
                 }
 
                 ProgressValue = 100;
-                StatusMessage = $"已順利裝載 {newItems.Count} 頁新紙張至工坊畫布";
+                int failedCount = tasks.Count(task => task.State == ConversionTaskState.Failed);
+                StatusMessage = failedCount == 0
+                    ? $"已順利裝載 {newItems.Count} 頁新紙張至工坊畫布"
+                    : $"已裝載 {newItems.Count} 頁紙張；另有 {failedCount} 個檔案需要處理";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"處理檔案時發生例外: {ex.Message}";
-                MessageBox.Show($"載入檔案失敗: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                foreach (var task in tasks.Where(task => task.State == ConversionTaskState.Processing))
+                {
+                    task.MarkFailed("此檔案未能完成處理。原始檔案沒有被修改，請確認後重新嘗試。", ex.ToString());
+                }
+
+                StatusMessage = "本輪處理發生未預期錯誤，請查看任務清單中的失敗原因。";
             }
             finally
             {
                 IsBusy = false;
                 IsProgressIndeterminate = true;
                 NotifySelectionChanged();
+                NotifyConversionQueueChanged();
+                _conversionBatchGate.Release();
+            }
+        }
+
+        private async Task ProcessSingleConversionTaskAsync(
+            ConversionTaskItem task,
+            string workTempDir,
+            ICollection<(string PdfPath, ConversionTaskItem Task)> pdfsToLoad)
+        {
+            if (!File.Exists(task.SourcePath))
+            {
+                task.MarkFailed("找不到原始檔案，請確認檔案未被移動或刪除。", actionPath: task.SourcePath);
+                return;
+            }
+
+            string extension = Path.GetExtension(task.SourcePath).ToLowerInvariant();
+            task.MarkProcessing("正在轉換...");
+
+            try
+            {
+                if (extension == ".pdf")
+                {
+                    RegisterPdfForLoading(task, task.SourcePath, pdfsToLoad);
+                    return;
+                }
+
+                if (_officeService.IsWordFile(task.SourcePath))
+                {
+                    string outputPath = Path.Combine(workTempDir, $"{Path.GetFileNameWithoutExtension(task.SourcePath)}_{Guid.NewGuid():N}.pdf");
+                    var result = await _officeService.ConvertWordAsync(task.SourcePath, outputPath);
+                    await RegisterOfficeResultAsync(task, result, pdfsToLoad);
+                    return;
+                }
+
+                if (_officeService.IsExcelFile(task.SourcePath))
+                {
+                    var result = await _officeService.ConvertExcelAsync(task.SourcePath, workTempDir, Options.ExcelFitToPage);
+                    await RegisterOfficeResultAsync(task, result, pdfsToLoad);
+                    return;
+                }
+
+                if (_officeService.IsPowerPointFile(task.SourcePath))
+                {
+                    string outputPath = Path.Combine(workTempDir, $"{Path.GetFileNameWithoutExtension(task.SourcePath)}_{Guid.NewGuid():N}.pdf");
+                    var result = await _officeService.ConvertPowerPointAsync(task.SourcePath, outputPath);
+                    await RegisterOfficeResultAsync(task, result, pdfsToLoad);
+                    return;
+                }
+
+                if (_imageService.IsImageFile(task.SourcePath))
+                {
+                    string outputPath = Path.Combine(workTempDir, $"{Path.GetFileNameWithoutExtension(task.SourcePath)}_{Guid.NewGuid():N}.pdf");
+                    if (_imageService.ConvertImagesToPdf(new[] { task.SourcePath }, outputPath))
+                    {
+                        RegisterPdfForLoading(task, outputPath, pdfsToLoad);
+                    }
+                    else
+                    {
+                        task.MarkFailed("圖片無法轉為 PDF。原始圖片沒有被修改，請確認檔案未損毀後重新嘗試。");
+                    }
+                    return;
+                }
+
+                task.MarkSkipped("此檔案格式目前不支援，已跳過且不影響其他檔案。");
+            }
+            catch (Exception ex)
+            {
+                task.MarkFailed("轉檔時發生未預期錯誤。原始檔案沒有被修改，請確認後重新嘗試。", ex.ToString());
+            }
+        }
+
+        private async Task RegisterOfficeResultAsync(
+            ConversionTaskItem task,
+            ConversionResult result,
+            ICollection<(string PdfPath, ConversionTaskItem Task)> pdfsToLoad)
+        {
+            if (!result.Success)
+            {
+                MarkFriendlyConversionFailure(task, result);
+                return;
+            }
+
+            foreach (var pdfPath in result.GeneratedPdfPaths)
+            {
+                if (await _officeService.WaitForPdfReadyAsync(pdfPath))
+                {
+                    RegisterPdfForLoading(task, pdfPath, pdfsToLoad);
+                    continue;
+                }
+
+                task.MarkFailed(
+                    "Office 已產生暫存 PDF，但目前仍受加密或保護程序處理，請依規定解密後重新加入。原始檔案沒有被修改。",
+                    "Office 暫存 PDF 未在可等待期限內成為標準 %PDF 檔案。",
+                    pdfPath);
+            }
+        }
+
+        private static void RegisterPdfForLoading(
+            ConversionTaskItem task,
+            string pdfPath,
+            ICollection<(string PdfPath, ConversionTaskItem Task)> pdfsToLoad)
+        {
+            task.PendingPdfCount++;
+            task.StatusMessage = "轉換完成，正在讀取 PDF 頁面...";
+            pdfsToLoad.Add((pdfPath, task));
+        }
+
+        private async Task LoadPdfPagesForTaskAsync(string pdfPath, ConversionTaskItem task, ICollection<PaperItem> newItems)
+        {
+            try
+            {
+                int totalPages = _pdfService.GetPageCount(pdfPath);
+                if (totalPages <= 0)
+                {
+                    task.MarkFailed("PDF 無法讀取或內容已損毀。原始檔案沒有被修改，請確認檔案後重新嘗試。", actionPath: pdfPath);
+                    return;
+                }
+
+                string fileName = Path.GetFileName(pdfPath);
+                for (int pageIndex = 0; pageIndex < totalPages; pageIndex++)
+                {
+                    var (width, height, _) = _pdfService.GetPageDimensions(pdfPath, pageIndex);
+                    var item = new PaperItem
+                    {
+                        SourceFilePath = pdfPath,
+                        SourceFileName = fileName,
+                        SourcePageIndex = pageIndex,
+                        DisplayPageNumber = pageIndex + 1,
+                        TotalPagesInSource = totalPages,
+                        Rotation = 0,
+                        OriginalWidth = width,
+                        OriginalHeight = height,
+                        IsLoadingThumbnail = true
+                    };
+                    newItems.Add(item);
+                    Pages.Add(item);
+                }
+
+                task.CompletedPageCount += totalPages;
+            }
+            catch (Exception ex)
+            {
+                task.MarkFailed("PDF 頁面載入失敗。原始檔案沒有被修改，請確認檔案後重新嘗試。", ex.ToString(), pdfPath);
+            }
+            finally
+            {
+                task.PendingPdfCount = Math.Max(0, task.PendingPdfCount - 1);
+                if (task.State == ConversionTaskState.Processing && task.PendingPdfCount == 0)
+                {
+                    task.MarkCompleted(task.CompletedPageCount);
+                }
+            }
+
+            await Task.CompletedTask;
+        }
+
+        private static void MarkFriendlyConversionFailure(ConversionTaskItem task, ConversionResult result)
+        {
+            string technical = string.IsNullOrWhiteSpace(result.DiagnosticInfo) ? result.ErrorMessage ?? string.Empty : result.DiagnosticInfo;
+            string message = result.ErrorMessage ?? "轉檔失敗。";
+            string lower = technical.ToLowerInvariant();
+
+            if (message.Contains("未安裝", StringComparison.OrdinalIgnoreCase))
+            {
+                task.MarkFailed("找不到相容的 Microsoft Office。請確認對應的 Word、Excel 或 PowerPoint 已安裝。原始檔案沒有被修改。", technical);
+            }
+            else if (lower.Contains("used") || lower.Contains("lock") || lower.Contains("使用中") || lower.Contains("拒絕存取") || lower.Contains("access denied"))
+            {
+                task.MarkFailed("檔案可能正被 Office 或其他程式開啟。請關閉檔案後重新嘗試；原始檔案沒有被修改。", technical);
+            }
+            else if (lower.Contains("0x800") || lower.Contains("comexception") || lower.Contains("無法啟動"))
+            {
+                task.MarkFailed("Office 無法啟動或被系統政策限制。請關閉 Office 後重試，並確認授權與資訊安全設定。原始檔案沒有被修改。", technical);
+            }
+            else
+            {
+                task.MarkFailed("無法轉換此檔案。請確認檔案未損毀、未受保護且未被其他程式使用；原始檔案沒有被修改。", technical);
+            }
+        }
+
+        [RelayCommand]
+        public async Task RetryConversionTaskAsync(ConversionTaskItem? task)
+        {
+            if (task is null || !task.CanRetry || IsBusy) return;
+
+            task.MarkWaiting();
+            await ProcessConversionTasksAsync(new[] { task });
+        }
+
+        [RelayCommand]
+        public void SkipConversionTask(ConversionTaskItem? task)
+        {
+            if (task is null || !task.CanSkip) return;
+            task.MarkSkipped();
+            NotifyConversionQueueChanged();
+        }
+
+        [RelayCommand]
+        public void OpenConversionTaskLocation(ConversionTaskItem? task)
+        {
+            if (task is null) return;
+            string path = task.ActionPath ?? task.SourcePath;
+            if (File.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true
+                });
             }
         }
 
@@ -695,34 +888,6 @@ namespace PaperSwitch.ViewModels
             {
                 item.IsLoadingThumbnail = false;
                 item.HasError = true;
-            }
-        }
-
-        private async Task AddReadyOfficePdfAsync(string pdfPath, ICollection<string> pdfsToLoad)
-        {
-            if (await _officeService.WaitForPdfReadyAsync(pdfPath))
-            {
-                pdfsToLoad.Add(pdfPath);
-                return;
-            }
-
-            StatusMessage = "暫存 PDF 尚未完成，已保留供解密後重新匯入";
-            var choice = MessageBox.Show(
-                $"已產生暫存 PDF，但尚非可處理的標準 PDF。\n\n" +
-                "可能正受公務端檔案加密程序處理；請依規定完成解密後，再將該 PDF 重新加入工坊。\n\n" +
-                $"保留位置：{pdfPath}\n\n是否現在開啟所在資料夾？",
-                "Office 文件轉檔提醒",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (choice == MessageBoxResult.Yes)
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = $"/select,\"{pdfPath}\"",
-                    UseShellExecute = true
-                });
             }
         }
 
@@ -845,7 +1010,8 @@ namespace PaperSwitch.ViewModels
                 {
                     var message = $"發現新版本：{result.LatestVersion} (目前版本: {result.CurrentVersion})\n\n" +
                                   (string.IsNullOrWhiteSpace(result.ReleaseNotes) ? string.Empty : $"【更新摘要】：\n{result.ReleaseNotes}\n\n") +
-                                  "是否立即開啟瀏覽器前往下載更新？";
+                                  "選擇「是」會下載新版、驗證 SHA-256，並在本程式關閉後自動替換與重新啟動。\n" +
+                                  "若驗證資料或寫入權限不足，則會保留目前版本並提供手動下載備援。\n\n是否立即更新？";
 
                     var dialogResult = MessageBox.Show(
                         message,
@@ -853,13 +1019,34 @@ namespace PaperSwitch.ViewModels
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
 
-                    if (dialogResult == MessageBoxResult.Yes && !string.IsNullOrWhiteSpace(result.HtmlUrl))
+                    if (dialogResult == MessageBoxResult.Yes)
                     {
-                        Process.Start(new ProcessStartInfo
+                        CheckUpdateButtonText = "⏳ 正在下載並驗證...";
+                        var applyResult = await _updateService.DownloadAndApplyAsync(result);
+                        if (applyResult.ShouldExitApplication)
                         {
-                            FileName = result.HtmlUrl,
-                            UseShellExecute = true
-                        });
+                            MessageBox.Show(
+                                applyResult.Message,
+                                "正在套用更新",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Information);
+                            Application.Current.Shutdown();
+                            return;
+                        }
+
+                        var fallback = MessageBox.Show(
+                            $"{applyResult.Message}\n\n是否改為開啟 Release 頁面手動下載？",
+                            "無法自動更新",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning);
+                        if (fallback == MessageBoxResult.Yes && !string.IsNullOrWhiteSpace(result.HtmlUrl))
+                        {
+                            Process.Start(new ProcessStartInfo
+                            {
+                                FileName = result.HtmlUrl,
+                                UseShellExecute = true
+                            });
+                        }
                     }
                 }
             }

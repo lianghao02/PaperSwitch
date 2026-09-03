@@ -28,6 +28,7 @@
   - 支援檔案拖放 (Drag & Drop)、多選打包拖曳、鍵盤快速換位與大圖燈箱預覽。
 - **`MainViewModel`**：
   - 統籌狀態管理、紙張清單 (`ObservableCollection<PaperItem>`)、非同步佇列調度與導出參數。
+  - 以 `ObservableCollection<ConversionTaskItem>` 追蹤每個匯入檔案的等待、處理中、完成、失敗與跳過狀態；單檔失敗不會中斷後續任務。
 - **`OfficeConverterService`**：
   - 專屬 STA 執行緒隔離與 `SemaphoreSlim` 併發鎖。
   - 動態 COM Automation (`Word.Application`, `Excel.Application`, `PowerPoint.Application`)。
