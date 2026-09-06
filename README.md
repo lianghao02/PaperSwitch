@@ -123,7 +123,7 @@
 ## 🚀 本地開發與建置
 
 ### 1. 直接啟動開發版本
-雙擊專案根目錄的 **[`RUN.bat`](RUN.bat)**，若尚未編譯會自動執行建置並直接啟動 `dist\publish\PaperSwitch.exe`。
+雙擊專案根目錄的 **[`RUN.bat`](RUN.bat)**。BAT 僅選擇 PowerShell 主機並呼叫 `dotnet-src/scripts/run.ps1`；若尚未編譯，PowerShell 啟動器會執行建置，再啟動 `dist\publish\PaperSwitch.exe`。路徑可包含空白或中文。
 
 ### 2. 手動建置與發行
 ```powershell
