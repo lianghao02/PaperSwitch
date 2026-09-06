@@ -46,6 +46,46 @@ namespace PaperSwitch.Tests
             return path;
         }
 
+        private string CreateSizedPdf(string fileName, double widthPoints, double heightPoints)
+        {
+            string path = Path.Combine(_testDir, fileName);
+            using var doc = new PdfDocument();
+            var page = doc.AddPage();
+            page.Width = XUnit.FromPoint(widthPoints);
+            page.Height = XUnit.FromPoint(heightPoints);
+            doc.Save(path);
+            return path;
+        }
+
+        [Fact]
+        public void CreateBlankA4Pdf_ShouldCreateSinglePortraitA4Page()
+        {
+            string output = Path.Combine(_testDir, "blank-a4.pdf");
+
+            bool ok = _pdfService.CreateBlankA4Pdf(output);
+            var (width, height, rotate) = _pdfService.GetPageDimensions(output, 0);
+
+            Assert.True(ok);
+            Assert.Equal(1, _pdfService.GetPageCount(output));
+            Assert.InRange(width, 594, 596);
+            Assert.InRange(height, 841, 843);
+            Assert.Equal(0, rotate);
+        }
+
+        [Theory]
+        [InlineData(420, 595)]
+        [InlineData(595, 420)]
+        [InlineData(20000, 20000)]
+        public void GetPageDimensions_ShouldPreserveSupportedPageBounds(double width, double height)
+        {
+            string path = CreateSizedPdf($"size-{width}-{height}.pdf", width, height);
+
+            var dimensions = _pdfService.GetPageDimensions(path, 0);
+
+            Assert.Equal(width, dimensions.Width, 2);
+            Assert.Equal(height, dimensions.Height, 2);
+        }
+
         [Fact]
         public void GetPageCount_ShouldReturnAccurateCount()
         {
@@ -110,6 +150,58 @@ namespace PaperSwitch.Tests
             Assert.Equal(90, rot1);
             Assert.Equal(180, rot2);
             Assert.Equal(270, rot3);
+        }
+
+        [Fact]
+        public void ExportArrangedPdf_EmptyOrMissingSources_ShouldNotCreateOutput()
+        {
+            string emptyOutput = Path.Combine(_testDir, "empty.pdf");
+            string missingOutput = Path.Combine(_testDir, "missing.pdf");
+
+            Assert.False(_pdfService.ExportArrangedPdf(Array.Empty<PaperItem>(), emptyOutput));
+            Assert.False(_pdfService.ExportArrangedPdf(new[]
+            {
+                new PaperItem { SourceFilePath = Path.Combine(_testDir, "not-found.pdf"), SourcePageIndex = 0 }
+            }, missingOutput));
+            Assert.False(File.Exists(emptyOutput));
+            Assert.False(File.Exists(missingOutput));
+        }
+
+        [Fact]
+        public void ExportArrangedPdf_UnwritableOutputPath_ShouldReturnFalse()
+        {
+            string source = CreateDummyPdf("source-for-blocked-output.pdf", 1);
+            string blockedDirectory = Path.Combine(_testDir, "blocked");
+            File.WriteAllText(blockedDirectory, "此路徑刻意建立為檔案");
+            string output = Path.Combine(blockedDirectory, "output.pdf");
+
+            bool ok = _pdfService.ExportArrangedPdf(new[]
+            {
+                new PaperItem { SourceFilePath = source, SourcePageIndex = 0 }
+            }, output);
+
+            Assert.False(ok);
+        }
+
+        [Fact]
+        public void ExportIndividualPdfs_ShouldPreserveOrderRotationAndPrefix()
+        {
+            string source = CreateDummyPdf("individual-source.pdf", 2);
+            string outputDir = Path.Combine(_testDir, "individual");
+            var items = new[]
+            {
+                new PaperItem { SourceFilePath = source, SourcePageIndex = 1, DisplayPageNumber = 2, Rotation = 90 },
+                new PaperItem { SourceFilePath = source, SourcePageIndex = 0, DisplayPageNumber = 1, Rotation = 180 }
+            };
+
+            var results = _pdfService.ExportIndividualPdfs(items, outputDir, "測試輸出.pdf");
+
+            Assert.Equal(2, results.Count);
+            Assert.EndsWith("測試輸出_001.pdf", results[0]);
+            Assert.EndsWith("測試輸出_002.pdf", results[1]);
+            Assert.All(results, path => Assert.Equal(1, _pdfService.GetPageCount(path)));
+            Assert.Equal(90, _pdfService.GetPageDimensions(results[0], 0).Rotate);
+            Assert.Equal(180, _pdfService.GetPageDimensions(results[1], 0).Rotate);
         }
     }
 }

@@ -88,20 +88,20 @@ namespace PaperSwitch.Services
         /// </summary>
         public bool ExportArrangedPdf(IEnumerable<PaperItem> items, string outputPath)
         {
-            var itemList = items.ToList();
-            if (itemList.Count == 0) return false;
-
-            var targetDir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-            {
-                Directory.CreateDirectory(targetDir);
-            }
-
-            using var outputDocument = new PdfDocument();
             var openedDocs = new Dictionary<string, PdfDocument>(StringComparer.OrdinalIgnoreCase);
 
             try
             {
+                var itemList = items.ToList();
+                if (itemList.Count == 0) return false;
+
+                var targetDir = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                {
+                    Directory.CreateDirectory(targetDir);
+                }
+
+                using var outputDocument = new PdfDocument();
                 foreach (var item in itemList)
                 {
                     if (!File.Exists(item.SourceFilePath)) continue;
@@ -218,35 +218,43 @@ namespace PaperSwitch.Services
         /// </summary>
         public bool MergePdfs(IEnumerable<string> pdfPaths, string outputPath)
         {
-            var pathList = pdfPaths.Where(File.Exists).ToList();
-            if (pathList.Count == 0) return false;
-
-            var targetDir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+            try
             {
-                Directory.CreateDirectory(targetDir);
-            }
+                var pathList = pdfPaths.Where(File.Exists).ToList();
+                if (pathList.Count == 0) return false;
 
-            using var outputDocument = new PdfDocument();
-            foreach (var path in pathList)
-            {
-                try
+                var targetDir = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
                 {
-                    using var inputDoc = PdfReader.Open(path, PdfDocumentOpenMode.Import);
-                    for (int i = 0; i < inputDoc.PageCount; i++)
+                    Directory.CreateDirectory(targetDir);
+                }
+
+                using var outputDocument = new PdfDocument();
+                foreach (var path in pathList)
+                {
+                    try
                     {
-                        outputDocument.AddPage(inputDoc.Pages[i]);
+                        using var inputDoc = PdfReader.Open(path, PdfDocumentOpenMode.Import);
+                        for (int i = 0; i < inputDoc.PageCount; i++)
+                        {
+                            outputDocument.AddPage(inputDoc.Pages[i]);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[PdfService] 合併時讀取 {path} 失敗: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[PdfService] 合併時讀取 {path} 失敗: {ex.Message}");
-                }
-            }
 
-            if (outputDocument.PageCount == 0) return false;
-            outputDocument.Save(outputPath);
-            return true;
+                if (outputDocument.PageCount == 0) return false;
+                outputDocument.Save(outputPath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PdfService] 合併 PDF 失敗: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
