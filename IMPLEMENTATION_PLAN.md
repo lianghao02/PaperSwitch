@@ -77,3 +77,11 @@
 
 - 需以 200～500 頁實際 PDF 量測延遲縮圖排程後的初始載入與捲動回應。
 - 自動更新需隨下一個 GitHub Release 一併發布；既有 v4.1.1 Release 不含此程式碼，無法回溯變成自動更新。
+
+## 2026-09-06 穩定化稽核
+
+- [x] 以 `origin/main` 的 `b169051` 建立 Build／Tests 基準：Release Build 0 警告、0 錯誤；30 項既有測試通過。
+- [x] 補齊 A4、直橫尺寸、巨大頁面、空／遺失來源、不可寫輸出及獨立多頁輸出回歸測試。
+- [x] 將啟動決策移至 `dotnet-src/scripts/run.ps1`，`RUN.bat` 保持純 ASCII 薄啟動器。
+- [x] 完成 `docs/MIGRATION_AUDIT.md`；確認 PDF 轉圖片與 LibreOffice 後援尚未等價遷移，因此保留舊版程式。
+- [x] 完成最終 clean／build／test、WPF 啟動 Smoke Test 與 Git Review；改善分支推送於本輪提交後執行。
