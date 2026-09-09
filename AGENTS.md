@@ -27,8 +27,25 @@
 
 ---
 
-## 3. 核心驗證方式
-- 修改 Core、COM 轉換或 ViewModel 後，必須執行單元測試：
+## 3. 雙 Agent 協作與 Worktree 規範
+- **分工定位**：
+  - **Codex** (`codex/dev`)：負責代碼審查、單元測試、回歸驗證與精準小修。
+  - **Antigravity** (`ag/dev`)：負責功能重構、跨檔案系統整合、核心演算法與發行前驗收。
+- **平行開發 Worktree**：
+  - 需要建立 Worktree 時，由工作區根目錄執行：
+    ```powershell
+    .\scripts\New-AgentWorktree.ps1 -Project 09_PaperSwitch -Agent both
+    ```
+- **邊界保護**：各 Agent 嚴禁更動對方的配置檔案（`.agents/` vs `.gemini/`），專案共通規則均維護於本檔。
+
+---
+
+## 4. 核心驗證方式
+- 修改代碼、Core、COM 轉換或 ViewModel 後，必須執行標準 QA 腳本進行完整建置與測試：
+  ```powershell
+  pwsh -File dotnet-src\scripts\qa.ps1
+  ```
+- 或直接執行單元測試：
   ```powershell
   $env:DOTNET_ROOT = "$env:LOCALAPPDATA\Microsoft\dotnet"
   $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
