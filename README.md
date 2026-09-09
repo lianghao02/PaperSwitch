@@ -16,8 +16,8 @@
 
 | 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
 | :--- | :--- | :--- |
-| 🌟 **免安裝獨立單檔版<br>（強烈推薦）** | **`PaperSwitch-v4.1.2-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
-| ⚡ **極致輕量版** | **`PaperSwitch-v4.1.2-FrameworkDependent.zip`** | 體積僅約 26MB；適合本機已安裝 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) 的使用者，解壓縮後執行 `PaperSwitch.exe`。 |
+| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.1.2-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
+| 🛡️ **SHA-256 校驗清單** | **`SHA256SUMS.txt`** | 提供發行成品 SHA-256 雜湊值供安全性核對。 |
 
 ### 💡 首次啟動與使用須知
 1. **Windows SmartScreen 提示**：
