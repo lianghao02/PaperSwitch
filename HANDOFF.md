@@ -4,9 +4,9 @@
 🟢 **已正式發布，進入 Stable／Maintenance 維護階段**
 
 ## 專案版本與發布資訊
-- **正式發布版本**：`v4.1.2` (Tag: `v4.1.2`)
+- **正式發布版本**：`v4.2.0` (Tag: `v4.2.0`)
 - **Default Branch**：`main`
-- **Release 狀態**：GitHub Release 正式發布完成，附帶 `PaperSwitch-v4.1.2-Standalone.exe` 與 `SHA256SUMS.txt`
+- **Release 狀態**：GitHub Release 正式發布完成，附帶 `PaperSwitch-v4.2.0-Standalone.exe` 與 `SHA256SUMS.txt`
 - **自動化測試**：41 / 41 測試項 100% 通過（0 略過、0 警告、0 錯誤）
 
 ## 已完成事項
@@ -16,7 +16,7 @@
 - 補強 A4、頁面尺寸、巨大頁面、異常輸出、獨立輸出、選取頁面匯出及 WPF XAML 啟動等回歸測試（測試數擴充至 41 項）。
 - `RUN.bat` 改為純 ASCII 薄啟動器，實際決策集中於 `dotnet-src/scripts/run.ps1`。
 - 新增 `docs/MIGRATION_AUDIT.md`，完成正式 .NET 功能與舊版 Python 之功能稽核。
-- 完成發布後文件校準：修正 `README.md` 下載清單對齊 GitHub Release 資產，更新 `CHANGELOG.md` 與專案版本。
+- 完成發布後文件校準：修正 `README.md` 下載清單對齊 GitHub Release 資產，更新 `CHANGELOG.md` 與專案版本為 `v4.2.0`。
 
 ## 刻意保留與架構約束（請勿隨意更動）
 - **保留 `legacy-python/`**：因舊版 PDF 批次轉圖片與 LibreOffice 後援尚未等價遷移，刻意保留備援，請勿隨意刪除。
@@ -26,7 +26,7 @@
 ## 驗證結果
 - **Release Build**：0 警告、0 錯誤。
 - **xUnit Tests**：41 / 41 通過。
-- **發行驗證**：`dist/PaperSwitch-v4.1.2-Standalone.exe` 檔案完整，SHA-256 校驗無誤，GitHub Releases 與 API 辨識正常。
+- **發行驗證**：`dist/PaperSwitch-v4.2.0-Standalone.exe` 檔案完整，SHA-256 校驗無誤，GitHub Releases 與 API 辨識正常。
 
 ## Git 狀態
 - **Branch**：`main`
