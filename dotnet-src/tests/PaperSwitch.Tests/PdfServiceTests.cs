@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using PaperSwitch.Models;
@@ -202,6 +202,34 @@ namespace PaperSwitch.Tests
             Assert.All(results, path => Assert.Equal(1, _pdfService.GetPageCount(path)));
             Assert.Equal(90, _pdfService.GetPageDimensions(results[0], 0).Rotate);
             Assert.Equal(180, _pdfService.GetPageDimensions(results[1], 0).Rotate);
+        }
+
+        [Fact]
+        public void ExportArrangedPdf_SelectedSubset_ExportsOnlySelectedPages()
+        {
+            string pdf = CreateDummyPdf("source_subset.pdf", 5);
+            string subsetOutput = Path.Combine(_testDir, "subset.pdf");
+
+            var allItems = Enumerable.Range(0, 5).Select(i => new PaperItem
+            {
+                SourceFilePath = pdf,
+                SourceFileName = "source_subset.pdf",
+                SourcePageIndex = i,
+                Rotation = i == 3 ? 90 : 0,
+                IsSelected = i is 1 or 3 // 選取第 2、4 頁 (索引 1, 3)
+            }).ToList();
+
+            var selectedItems = allItems.Where(item => item.IsSelected).ToList();
+            bool ok = _pdfService.ExportArrangedPdf(selectedItems, subsetOutput);
+
+            Assert.True(ok);
+            Assert.True(File.Exists(subsetOutput));
+            Assert.Equal(2, _pdfService.GetPageCount(subsetOutput));
+
+            var (_, _, rot0) = _pdfService.GetPageDimensions(subsetOutput, 0);
+            var (_, _, rot1) = _pdfService.GetPageDimensions(subsetOutput, 1);
+            Assert.Equal(0, rot0);
+            Assert.Equal(90, rot1);
         }
     }
 }

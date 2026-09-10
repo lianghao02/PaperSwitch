@@ -710,9 +710,9 @@ namespace PaperSwitch
         {
             if (e.Key == Key.Enter)
             {
-                if (ViewModel.ExportPdfCommand.CanExecute(null))
+                if (ViewModel.ExportAllPdfCommand.CanExecute(null))
                 {
-                    ViewModel.ExportPdfCommand.Execute(null);
+                    ViewModel.ExportAllPdfCommand.Execute(null);
                 }
                 e.Handled = true;
             }
@@ -721,11 +721,6 @@ namespace PaperSwitch
                 Keyboard.ClearFocus();
                 e.Handled = true;
             }
-        }
-
-        private void SplitMode_Click(object sender, RoutedEventArgs e)
-        {
-            ViewModel.Options.MergeIntoSinglePdf = false;
         }
 
         #endregion

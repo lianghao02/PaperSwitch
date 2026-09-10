@@ -223,5 +223,66 @@ namespace PaperSwitch.Tests
             Assert.Null(vm.SelectedPage);
             Assert.All(vm.Pages, page => Assert.False(page.IsSelected));
         }
+
+        [Fact]
+        public void MainViewModel_ExportSelectedPdfCommand_CanExecute_ReflectsSelection()
+        {
+            var vm = new MainViewModel();
+            var page1 = new PaperItem { DisplayPageNumber = 1, IsSelected = false };
+            var page2 = new PaperItem { DisplayPageNumber = 2, IsSelected = false };
+            vm.Pages.Add(page1);
+            vm.Pages.Add(page2);
+
+            Assert.False(vm.HasSelectedPages);
+            Assert.False(vm.ExportSelectedPdfCommand.CanExecute(null));
+
+            page2.IsSelected = true;
+            vm.NotifySelectionChanged();
+
+            Assert.True(vm.HasSelectedPages);
+            Assert.True(vm.ExportSelectedPdfCommand.CanExecute(null));
+
+            vm.DeselectAll();
+            Assert.False(vm.HasSelectedPages);
+            Assert.False(vm.ExportSelectedPdfCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public void MainViewModel_SelectedPages_PreservesCanvasOrderAndRotation()
+        {
+            var vm = new MainViewModel();
+            var pages = Enumerable.Range(1, 7).Select(num => new PaperItem
+            {
+                DisplayPageNumber = num,
+                Rotation = 0,
+                IsSelected = false
+            }).ToList();
+
+            foreach (var p in pages)
+            {
+                vm.Pages.Add(p);
+            }
+
+            // 選取第 2, 5, 7 頁
+            vm.Pages[1].IsSelected = true;
+            vm.Pages[4].IsSelected = true;
+            vm.Pages[6].IsSelected = true;
+            vm.Pages[4].Rotation = 90;
+            vm.NotifySelectionChanged();
+
+            var selected = vm.Pages.Where(p => p.IsSelected).ToList();
+            Assert.Equal(3, selected.Count);
+            Assert.Equal(new[] { 2, 5, 7 }, selected.Select(p => p.DisplayPageNumber));
+            Assert.Equal(90, selected[1].Rotation);
+
+            // 重新排列：將第 1 頁移至最後
+            var first = vm.Pages[0];
+            vm.Pages.RemoveAt(0);
+            vm.Pages.Add(first);
+
+            // 再次檢查選取頁面依目前畫布順序
+            var reorderedSelected = vm.Pages.Where(p => p.IsSelected).ToList();
+            Assert.Equal(new[] { 2, 5, 7 }, reorderedSelected.Select(p => p.DisplayPageNumber));
+        }
     }
 }

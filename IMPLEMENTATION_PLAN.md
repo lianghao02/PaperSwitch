@@ -83,3 +83,11 @@
 - [x] 完成 Release Build、38/38 單元測試通過、WPF 啟動 Smoke Test。
 - [x] 正式發布 GitHub Release `v4.1.2`（提供 `PaperSwitch-v4.1.2-Standalone.exe` 與 `SHA256SUMS.txt`）。
 - [x] 專案正式進入 Stable / Maintenance 維護階段。
+
+## 2026-09-10 新增「另存選取頁面」功能
+
+- [x] 於底部操作區新增「另存選取頁面」按鈕，與「匯出全部 PDF」及「拆分獨立存檔」共用檔名文字框。
+- [x] 實作 `ExportSelectedPdfCommand`，依目前畫布順序篩選 `IsSelected == true` 進行 100% 向量無損合成。
+- [x] 按鈕與命令啟用狀態精確綁定 `HasSelectedPages`（選取頁數 $\ge 1$ 啟用，$= 0$ 停用）。
+- [x] 補齊選取匯出之命令狀態、畫布保序與子集抽取等單元測試（測試數達 41 項，100% 通過）。
+- [x] 通過標準 QA Clean Build (0 警告、0 錯誤) 與 WPF Smoke 測試。

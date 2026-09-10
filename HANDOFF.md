@@ -7,12 +7,13 @@
 - **正式發布版本**：`v4.1.2` (Tag: `v4.1.2`)
 - **Default Branch**：`main`
 - **Release 狀態**：GitHub Release 正式發布完成，附帶 `PaperSwitch-v4.1.2-Standalone.exe` 與 `SHA256SUMS.txt`
-- **自動化測試**：38 / 38 測試項 100% 通過（0 略過、0 警告、0 錯誤）
+- **自動化測試**：41 / 41 測試項 100% 通過（0 略過、0 警告、0 錯誤）
 
 ## 已完成事項
 - 穩定化分支 `refactor/paperswitch-stabilization` 已安全合併至 `main`。
+- 新增「另存選取頁面」PDF 匯出功能，與「匯出全部 PDF」及「拆分獨立存檔」共用檔名文字框，未選取時按鈕自動停用。
 - 補強 PDF 輸出邊界防護（空來源防護、不可寫入路徑錯誤處理、異常尺寸安全保留）。
-- 補強 A4、頁面尺寸、巨大頁面、異常輸出、獨立輸出及 WPF XAML 啟動等回歸測試（測試數擴充至 38 項）。
+- 補強 A4、頁面尺寸、巨大頁面、異常輸出、獨立輸出、選取頁面匯出及 WPF XAML 啟動等回歸測試（測試數擴充至 41 項）。
 - `RUN.bat` 改為純 ASCII 薄啟動器，實際決策集中於 `dotnet-src/scripts/run.ps1`。
 - 新增 `docs/MIGRATION_AUDIT.md`，完成正式 .NET 功能與舊版 Python 之功能稽核。
 - 完成發布後文件校準：修正 `README.md` 下載清單對齊 GitHub Release 資產，更新 `CHANGELOG.md` 與專案版本。
@@ -24,7 +25,7 @@
 
 ## 驗證結果
 - **Release Build**：0 警告、0 錯誤。
-- **xUnit Tests**：38 / 38 通過。
+- **xUnit Tests**：41 / 41 通過。
 - **發行驗證**：`dist/PaperSwitch-v4.1.2-Standalone.exe` 檔案完整，SHA-256 校驗無誤，GitHub Releases 與 API 辨識正常。
 
 ## Git 狀態
