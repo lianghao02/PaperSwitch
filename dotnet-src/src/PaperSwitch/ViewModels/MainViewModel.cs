@@ -94,7 +94,9 @@ namespace PaperSwitch.ViewModels
                 OnPropertyChanged(nameof(HasPages));
                 OnPropertyChanged(nameof(HasSelectedPages));
                 OnPropertyChanged(nameof(SummaryText));
+                ExportAllPdfCommand.NotifyCanExecuteChanged();
                 ExportSelectedPdfCommand.NotifyCanExecuteChanged();
+                ExportSplitPdfCommand.NotifyCanExecuteChanged();
             };
 
             ConversionTasks.CollectionChanged += (s, e) => NotifyConversionQueueChanged();
@@ -106,6 +108,7 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(HasSelectedPages));
             OnPropertyChanged(nameof(SummaryText));
             ExportSelectedPdfCommand.NotifyCanExecuteChanged();
+            ExportSplitPdfCommand.NotifyCanExecuteChanged();
         }
 
         private void NotifyConversionQueueChanged()
@@ -961,32 +964,35 @@ namespace PaperSwitch.ViewModels
             }
         }
 
-        [RelayCommand]
+        /// <summary>
+        /// 取得有效匯出頁面清單：若有勾選/選取頁面則只處理選取頁面；若無選取則處理畫布全部頁面。
+        /// </summary>
+        public List<PaperItem> GetEffectiveExportPages()
+        {
+            var selected = Pages.Where(p => p.IsSelected).ToList();
+            return selected.Count > 0 ? selected : Pages.ToList();
+        }
+
+        [RelayCommand(CanExecute = nameof(HasPages))]
         public async Task ExportAllPdfAsync()
         {
             Options.MergeIntoSinglePdf = true;
             await ExportPdfAsync();
         }
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(HasPages))]
         public async Task ExportSplitPdfAsync()
         {
-            Options.MergeIntoSinglePdf = false;
-            await ExportPdfAsync();
-        }
-
-        [RelayCommand(CanExecute = nameof(HasSelectedPages))]
-        public async Task ExportSelectedPdfAsync()
-        {
-            var selectedPages = Pages.Where(p => p.IsSelected).ToList();
-            if (selectedPages.Count == 0)
+            var targetPages = GetEffectiveExportPages();
+            if (targetPages.Count == 0)
             {
+                MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             IsBusy = true;
             IsProgressIndeterminate = true;
-            StatusMessage = "正在進行選取頁面裝訂合成...";
+            StatusMessage = "正在進行單頁獨立切分導出...";
 
             try
             {
@@ -996,12 +1002,55 @@ namespace PaperSwitch.ViewModels
 
                 Directory.CreateDirectory(outputDir);
 
-                string defaultName = "PaperSwitch_選取頁面.pdf";
+                string safePrefix = string.IsNullOrWhiteSpace(Options.CustomFileName) ? string.Empty : SanitizeFileName(Options.CustomFileName, string.Empty);
+                var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix));
+                StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
+                OpenConvertedFolder();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"導出失敗: {ex.Message}";
+                MessageBox.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        [RelayCommand(CanExecute = nameof(HasPages))]
+        public async Task ExportSelectedPdfAsync()
+        {
+            var targetPages = GetEffectiveExportPages();
+            if (targetPages.Count == 0)
+            {
+                MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            bool hasSelection = HasSelectedPages;
+            IsBusy = true;
+            IsProgressIndeterminate = true;
+            StatusMessage = hasSelection
+                ? "正在進行選取頁面裝訂合成..."
+                : "正在進行畫布全部頁面裝訂合成...";
+
+            try
+            {
+                string outputDir = string.IsNullOrWhiteSpace(Options.OutputDirectory)
+                    ? AppPaths.ConvertedDirectory
+                    : Options.OutputDirectory;
+
+                Directory.CreateDirectory(outputDir);
+
+                string defaultName = hasSelection ? "PaperSwitch_選取頁面.pdf" : "PaperSwitch_裝訂成品.pdf";
                 string safeBaseName;
                 if (!string.IsNullOrWhiteSpace(Options.CustomFileName))
                 {
                     string stem = Path.GetFileNameWithoutExtension(Options.CustomFileName.Trim());
-                    safeBaseName = SanitizeFileName($"{stem}_選取頁面.pdf", defaultName);
+                    safeBaseName = hasSelection
+                        ? SanitizeFileName($"{stem}_選取頁面.pdf", defaultName)
+                        : SanitizeFileName($"{stem}.pdf", defaultName);
                 }
                 else
                 {
@@ -1018,15 +1067,17 @@ namespace PaperSwitch.ViewModels
                     counter++;
                 }
 
-                bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(selectedPages, outputPath));
+                bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(targetPages, outputPath));
                 if (ok)
                 {
-                    StatusMessage = $"裝訂完成！已匯出選取頁面至: {Path.GetFileName(outputPath)}";
+                    StatusMessage = hasSelection
+                        ? $"裝訂完成！已匯出選取頁面至: {Path.GetFileName(outputPath)}"
+                        : $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
                     OpenConvertedFolder();
                 }
                 else
                 {
-                    MessageBox.Show("導出選取頁面過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("導出 PDF 過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)

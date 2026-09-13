@@ -494,8 +494,8 @@
 
                     <!-- 三大匯出動作按鈕 -->
                     <Button Content="✨ 匯出全部 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Padding="14,8" Margin="0,0,6,0" ToolTip="將目前畫布全部頁面依現有順序合併為 1 個 PDF" />
-                    <Button Content="📑 另存選取頁面" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportSelectedPdfCommand}" IsEnabled="{Binding HasSelectedPages}" Padding="14,8" Margin="0,0,6,0" ToolTip="將目前已選取頁面依畫布順序合併為 1 個 PDF (無選取時停用)" />
-                    <Button Content="📄 拆分獨立存檔" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSplitPdfCommand}" Padding="14,8" ToolTip="將每頁各自輸出為獨立單頁 PDF" />
+                    <Button Content="📑 另存選取頁面" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportSelectedPdfCommand}" Padding="14,8" Margin="0,0,6,0" ToolTip="將選取頁面合併為 1 個 PDF (若無選取則處理全部頁面)" />
+                    <Button Content="📄 拆分選取頁面" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSplitPdfCommand}" Padding="14,8" ToolTip="將選取頁面各自拆分獨立存檔 (若無選取則處理全部頁面)" />
                 </StackPanel>
             </Grid>
         </Border>

@@ -225,30 +225,85 @@ namespace PaperSwitch.Tests
         }
 
         [Fact]
-        public void MainViewModel_ExportSelectedPdfCommand_CanExecute_ReflectsSelection()
+        public void MainViewModel_ExportCommands_CanExecute_ReflectsHasPages()
         {
             var vm = new MainViewModel();
+
+            // 空畫布時，全部匯出、另存選取與拆分選取皆不可執行
+            Assert.False(vm.HasPages);
+            Assert.False(vm.ExportAllPdfCommand.CanExecute(null));
+            Assert.False(vm.ExportSelectedPdfCommand.CanExecute(null));
+            Assert.False(vm.ExportSplitPdfCommand.CanExecute(null));
+
             var page1 = new PaperItem { DisplayPageNumber = 1, IsSelected = false };
             var page2 = new PaperItem { DisplayPageNumber = 2, IsSelected = false };
             vm.Pages.Add(page1);
             vm.Pages.Add(page2);
 
+            // 有頁面但無選取時：三顆按鈕皆可執行（預設處理全部頁面）
+            Assert.True(vm.HasPages);
             Assert.False(vm.HasSelectedPages);
-            Assert.False(vm.ExportSelectedPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportAllPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportSelectedPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportSplitPdfCommand.CanExecute(null));
 
+            // 有選取時：三顆按鈕亦皆可執行
             page2.IsSelected = true;
             vm.NotifySelectionChanged();
-
             Assert.True(vm.HasSelectedPages);
+            Assert.True(vm.ExportAllPdfCommand.CanExecute(null));
             Assert.True(vm.ExportSelectedPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportSplitPdfCommand.CanExecute(null));
 
+            // 清空所有選取：三顆按鈕仍維持可執行（只要 HasPages 為 True）
             vm.DeselectAll();
             Assert.False(vm.HasSelectedPages);
+            Assert.True(vm.ExportSelectedPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportSplitPdfCommand.CanExecute(null));
+
+            // 清空畫布：按鈕全部停用
+            vm.Pages.Clear();
+            Assert.False(vm.HasPages);
+            Assert.False(vm.ExportAllPdfCommand.CanExecute(null));
             Assert.False(vm.ExportSelectedPdfCommand.CanExecute(null));
+            Assert.False(vm.ExportSplitPdfCommand.CanExecute(null));
         }
 
         [Fact]
-        public void MainViewModel_SelectedPages_PreservesCanvasOrderAndRotation()
+        public void MainViewModel_GetEffectiveExportPages_NoSelection_ReturnsAllPagesInCanvasOrder()
+        {
+            var vm = new MainViewModel();
+            for (int i = 1; i <= 5; i++)
+            {
+                vm.Pages.Add(new PaperItem { DisplayPageNumber = i, IsSelected = false });
+            }
+
+            var effective = vm.GetEffectiveExportPages();
+            Assert.Equal(5, effective.Count);
+            Assert.Equal(new[] { 1, 2, 3, 4, 5 }, effective.Select(p => p.DisplayPageNumber));
+        }
+
+        [Fact]
+        public void MainViewModel_GetEffectiveExportPages_WithSelection_ReturnsOnlySelectedInCanvasOrder()
+        {
+            var vm = new MainViewModel();
+            for (int i = 1; i <= 5; i++)
+            {
+                vm.Pages.Add(new PaperItem { DisplayPageNumber = i, IsSelected = false });
+            }
+
+            // 選取第 2、5 頁
+            vm.Pages[1].IsSelected = true;
+            vm.Pages[4].IsSelected = true;
+            vm.NotifySelectionChanged();
+
+            var effective = vm.GetEffectiveExportPages();
+            Assert.Equal(2, effective.Count);
+            Assert.Equal(new[] { 2, 5 }, effective.Select(p => p.DisplayPageNumber));
+        }
+
+        [Fact]
+        public void MainViewModel_GetEffectiveExportPages_ReorderedAndRotated_PreservesCanvasState()
         {
             var vm = new MainViewModel();
             var pages = Enumerable.Range(1, 7).Select(num => new PaperItem
@@ -263,26 +318,27 @@ namespace PaperSwitch.Tests
                 vm.Pages.Add(p);
             }
 
-            // 選取第 2, 5, 7 頁
+            // 選取第 2, 5, 7 頁，並為第 5 頁旋轉 90 度
             vm.Pages[1].IsSelected = true;
             vm.Pages[4].IsSelected = true;
             vm.Pages[6].IsSelected = true;
             vm.Pages[4].Rotation = 90;
             vm.NotifySelectionChanged();
 
-            var selected = vm.Pages.Where(p => p.IsSelected).ToList();
-            Assert.Equal(3, selected.Count);
-            Assert.Equal(new[] { 2, 5, 7 }, selected.Select(p => p.DisplayPageNumber));
-            Assert.Equal(90, selected[1].Rotation);
+            var effective = vm.GetEffectiveExportPages();
+            Assert.Equal(3, effective.Count);
+            Assert.Equal(new[] { 2, 5, 7 }, effective.Select(p => p.DisplayPageNumber));
+            Assert.Equal(90, effective[1].Rotation);
 
-            // 重新排列：將第 1 頁移至最後
+            // 重新排列：將第 1 頁移至最後（索引 0 移到最後，原本選取的 2, 5, 7 順序仍維持）
             var first = vm.Pages[0];
             vm.Pages.RemoveAt(0);
             vm.Pages.Add(first);
 
-            // 再次檢查選取頁面依目前畫布順序
-            var reorderedSelected = vm.Pages.Where(p => p.IsSelected).ToList();
-            Assert.Equal(new[] { 2, 5, 7 }, reorderedSelected.Select(p => p.DisplayPageNumber));
+            var reorderedEffective = vm.GetEffectiveExportPages();
+            Assert.Equal(3, reorderedEffective.Count);
+            Assert.Equal(new[] { 2, 5, 7 }, reorderedEffective.Select(p => p.DisplayPageNumber));
+            Assert.Equal(90, reorderedEffective[1].Rotation);
         }
     }
 }

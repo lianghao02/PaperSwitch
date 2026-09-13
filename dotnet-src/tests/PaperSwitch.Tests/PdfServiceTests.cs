@@ -231,5 +231,33 @@ namespace PaperSwitch.Tests
             Assert.Equal(0, rot0);
             Assert.Equal(90, rot1);
         }
+
+        [Fact]
+        public void ExportIndividualPdfs_SelectedSubset_SplitsOnlySelectedPages()
+        {
+            string pdf = CreateDummyPdf("source_split_subset.pdf", 5);
+            string splitDir = Path.Combine(_testDir, "split_subset");
+
+            var allItems = Enumerable.Range(0, 5).Select(i => new PaperItem
+            {
+                SourceFilePath = pdf,
+                SourceFileName = "source_split_subset.pdf",
+                SourcePageIndex = i,
+                DisplayPageNumber = i + 1,
+                Rotation = i == 4 ? 180 : 0,
+                IsSelected = i is 1 or 4 // 選取第 2、5 頁
+            }).ToList();
+
+            var selectedItems = allItems.Where(item => item.IsSelected).ToList();
+            var results = _pdfService.ExportIndividualPdfs(selectedItems, splitDir, "選取拆分");
+
+            Assert.Equal(2, results.Count);
+            Assert.All(results, path => Assert.True(File.Exists(path)));
+            Assert.All(results, path => Assert.Equal(1, _pdfService.GetPageCount(path)));
+            Assert.EndsWith("選取拆分_001.pdf", results[0]);
+            Assert.EndsWith("選取拆分_002.pdf", results[1]);
+            Assert.Equal(0, _pdfService.GetPageDimensions(results[0], 0).Rotate);
+            Assert.Equal(180, _pdfService.GetPageDimensions(results[1], 0).Rotate);
+        }
     }
 }

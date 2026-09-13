@@ -93,3 +93,11 @@
 - [x] 通過標準 QA Clean Build (0 警告、0 錯誤) 與 WPF Smoke 測試。
 - [x] 正式發布 GitHub Release `v4.2.0`（提供 `PaperSwitch-v4.2.0-Standalone.exe` 與 `SHA256SUMS.txt`）。
 - [x] 專案恢復進入 Stable / Maintenance 維護階段。
+
+## 2026-09-13 統一選取頁面匯出與拆分範圍依據
+
+- [x] 統一以「選取頁面」作為匯出範圍判斷依據：有選取時只處理選取頁面，無選取時預設處理全部頁面。
+- [x] 按鈕文案統一：「拆分獨立存檔」改為「📄 拆分選取頁面」。
+- [x] 按鈕可用狀態調整：「另存選取頁面」與「拆分選取頁面」綁定 `HasPages`，只要畫布有頁面即可點擊，不再因無選取被 Disabled。
+- [x] 擴充單元測試：新增 `GetEffectiveExportPages` 各種選取/未選取/重排/旋轉情境測試，以及拆分選取頁面獨立 PDF 測試，測試數提升至 44/44 項 100% 通過。
+- [x] QA 完整驗證：Release Build 0 警告、0 錯誤，WPF Smoke 驗證通過。
