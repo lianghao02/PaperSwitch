@@ -1,4 +1,4 @@
-# 📑 PaperSwitch 紙張排版工坊 v4.2.0
+# 📑 PaperSwitch 紙張排版工坊 v4.2.1
 
 [![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
@@ -16,7 +16,7 @@
 
 | 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
 | :--- | :--- | :--- |
-| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.2.0-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
+| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.2.1-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
 | 🛡️ **SHA-256 校驗清單** | **`SHA256SUMS.txt`** | 提供發行成品 SHA-256 雜湊值供安全性核對。 |
 
 ### 💡 首次啟動與使用須知

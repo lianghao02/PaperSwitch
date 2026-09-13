@@ -1,12 +1,12 @@
 # HANDOFF
 
 ## 目前狀態
-🟢 **可交付（功能與測試皆通過，等待審查與提交）**
+🟢 **正式發布中（v4.2.1 發布打包與驗證中）**
 
 ## 專案版本與發布資訊
-- **專案版本**：`v4.2.0`
+- **正式發布版本**：`v4.2.1` (Tag: `v4.2.1`)
 - **Default Branch**：`main`
-- **Release 狀態**：維持既有 `v4.2.0`（本輪不建立新 Tag／Release）
+- **Release 狀態**：準備發布 `PaperSwitch-v4.2.1-Standalone.exe` 與 `SHA256SUMS.txt`
 - **自動化測試**：44 / 44 測試項 100% 通過（0 略過、0 警告、0 錯誤）
 
 ## 已完成事項
@@ -16,21 +16,19 @@
   - 「拆分選取頁面」：文案由「拆分獨立存檔」更名為「📄 拆分選取頁面」，有選取時僅將選取的頁面各自獨立拆分存檔；無選取時將畫布全部頁面各自獨立拆分存檔。
   - 「匯出全部 PDF」：永遠處理全部畫布頁面，行為維持不變。
   - 按鈕啟用邏輯調整：只要畫布有頁面（`HasPages`），三大按鈕皆可點擊使用；不再因無選取而 Disabled。
+- **優化底部操作列與按鈕視覺層級**：
+  - 底部操作列防撞排版：左側資訊欄加安全 Margin，精簡輔助按鈕為「`📁 輸出`」與「`🧹 清暫存`」，消除窄視窗文字重疊與破版。
+  - 視覺焦點清晰化：「✨ 匯出全部 PDF」為唯一 Primary 主動作，「另存選取頁面」與「拆分選取頁面」採用 Outline 手帳邊框次按鈕。
+  - 中央投遞區微調：邊框、圓角與文字排版更加舒適直覺。
 - **補強單元與回歸測試**：
-  - 新增 `MainViewModel_ExportCommands_CanExecute_ReflectsHasPages`。
-  - 新增 `MainViewModel_GetEffectiveExportPages_NoSelection_ReturnsAllPagesInCanvasOrder`。
-  - 新增 `MainViewModel_GetEffectiveExportPages_WithSelection_ReturnsOnlySelectedInCanvasOrder`。
-  - 新增 `MainViewModel_GetEffectiveExportPages_ReorderedAndRotated_PreservesCanvasState`。
-  - 新增 `ExportIndividualPdfs_SelectedSubset_SplitsOnlySelectedPages`。
-  - 單元測試數由 41 項擴充至 44 項，100% PASS。
-- **同步更新相關文件**：
-  - `README.md`、`CHANGELOG.md`、`IMPLEMENTATION_PLAN.md`。
+  - 擴充有效頁面篩選、拆分子集、畫布保序與命令執行狀態單元測試，測試數擴充至 44 項，100% PASS。
+- **同步更新相關文件與版本**：
+  - 專案版本全面升級為 `v4.2.1`（`version.txt`、`PaperSwitch.csproj`、`README.md`、`CHANGELOG.md`）。
 
 ## 刻意保留與架構約束（請勿隨意更動）
 - **保留三大按鈕佈局**：不新增第四顆按鈕，維持共用檔名／前綴文字框。
 - **維持 100% 向量無損合成**：以 PdfSharp 保留原始旋轉、向量字型與文字層。
 - **保留既有 COM 與執行緒架構**：維持 Office COM STA 執行緒隔離與 `SemaphoreSlim`。
-- **不主動建立 Tag 或 GitHub Release**：維持目前 `v4.2.0` 版本號。
 
 ## 驗證結果
 - **Release Build**：0 警告、0 錯誤。
@@ -39,10 +37,10 @@
 
 ## Git 狀態
 - **Branch**：`main`
-- **Working Tree**：Modified（待提交）
 
 ## 下一步
-1. 檢視 `git diff` 確認無多餘改動。
-2. 進行 Git commit：`fix: 統一選取頁面匯出與拆分範圍`。
-3. 推送至遠端 `origin/main`。
-4. 回報工作結果。
+1. 執行 QA 測試全量驗證。
+2. 建置 `PaperSwitch-v4.2.1-Standalone.exe`。
+3. 計算 SHA-256 產出 `SHA256SUMS.txt`。
+4. 提交版本變更、建立 Git Tag `v4.2.1` 並推送到遠端。
+5. 使用 `gh release create` 建立 GitHub Release `v4.2.1`。
