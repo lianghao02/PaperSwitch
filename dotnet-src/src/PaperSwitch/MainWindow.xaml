@@ -197,8 +197,8 @@
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                     Margin="40" Padding="48,36"
                     Background="{StaticResource BrushCardBg}"
-                    BorderBrush="{StaticResource BrushBorder}"
-                    BorderThickness="2"
+                    BorderBrush="{StaticResource BrushBorderDark}"
+                    BorderThickness="1.5"
                     CornerRadius="16"
                     Effect="{StaticResource CardShadow}"
                     x:Name="EmptyStateBorder"
@@ -214,13 +214,13 @@
                     </Style>
                 </Border.Style>
                 <StackPanel HorizontalAlignment="Center" MaxWidth="460">
-                    <Border Width="64" Height="64" CornerRadius="16" Background="{StaticResource BrushTerracottaLight}" HorizontalAlignment="Center" Margin="0,0,0,16">
-                        <TextBlock Text="📂" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Border Width="68" Height="68" CornerRadius="18" Background="{StaticResource BrushTerracottaLight}" HorizontalAlignment="Center" Margin="0,0,0,16">
+                        <TextBlock Text="📂" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Text="將文件或圖片拖曳至此開始排版" Style="{StaticResource TextH2}" HorizontalAlignment="Center" Margin="0,0,0,8" />
-                    <TextBlock Text="支援 PDF、Word (.docx/.doc)、Excel (.xlsx/.xls)、PPT (.pptx/.ppt) 與圖片 (.png/.jpg/.webp) 自動轉檔與極速縮圖預覽。"
-                               Style="{StaticResource TextCaption}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,20" />
-                    <Button Content="從電腦選取檔案" Style="{StaticResource BtnPrimaryCraft}" HorizontalAlignment="Center" Click="SelectFiles_Click" />
+                    <TextBlock Text="將文件或圖片拖曳至此開始排版" Style="{StaticResource TextH2}" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                    <TextBlock Text="支援 PDF · Word (.docx/.doc) · Excel (.xlsx/.xls) · PPT (.pptx/.ppt) · 圖片 (.png/.jpg/.webp) 自動無損轉換與預覽"
+                               Style="{StaticResource TextCaption}" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource BrushPencilGray}" Margin="0,0,0,22" />
+                    <Button Content="📂 從電腦選取檔案" Style="{StaticResource BtnPrimaryCraft}" HorizontalAlignment="Center" Padding="20,9" Click="SelectFiles_Click" />
                 </StackPanel>
             </Border>
 
@@ -464,8 +464,8 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- 左側：紙張張數統計與選取摘要 -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- 左側：紙張張數統計與選取摘要 (設置最小寬度防擠壓) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                     <Border Background="{StaticResource BrushTagBg}" CornerRadius="6" Padding="10,5" Margin="0,0,10,0">
                         <TextBlock Text="{Binding SummaryText}" Style="{StaticResource TextCaption}" FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}" />
                     </Border>
@@ -475,10 +475,11 @@
                                Foreground="{StaticResource BrushPencilLight}" VerticalAlignment="Center" />
                 </StackPanel>
 
-                <!-- 右側：所有輸出設定與導出動作改為橫向結構化排列。 -->
+                <!-- 右側：所有輸出設定與導出動作結構化排列 (主次分明、不擠壓) -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- 檔名輸入群組 -->
                     <TextBlock Text="檔名／前綴" Style="{StaticResource TextMeta}" Margin="0,0,6,0" VerticalAlignment="Center" />
-                    <TextBox Width="170" Height="34" Padding="10,4" VerticalContentAlignment="Center"
+                    <TextBox Width="150" Height="34" Padding="10,4" VerticalContentAlignment="Center"
                              Text="{Binding Options.CustomFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              KeyDown="ExportFileNameTextBox_KeyDown"
                              ToolTip="輸入匯出檔名或拆分前綴（例如：報告）。按 Enter 可直接匯出全部 PDF。" />
@@ -486,16 +487,19 @@
                     <!-- 縱向細分隔線 -->
                     <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="10,0" VerticalAlignment="Center" />
 
-                    <Button Content="📁 輸出資料夾" Style="{StaticResource BtnOutlineCraft}" Command="{Binding OpenConvertedFolderCommand}" Margin="0,0,6,0" ToolTip="開啟 converted/ 目錄" />
-                    <Button Content="🧹 清理暫存" Style="{StaticResource BtnOutlineCraft}" Click="ClearProcessingFolders_Click" Margin="0,0,10,0" ToolTip="清空 PaperSwitch 的成品與轉檔暫存資料夾" />
+                    <!-- 輔助動作群組 -->
+                    <Button Content="📁 輸出" Style="{StaticResource BtnOutlineCraft}" Command="{Binding OpenConvertedFolderCommand}" Padding="10,6" Margin="0,0,6,0" ToolTip="開啟 converted/ 成品目錄" />
+                    <Button Content="🧹 清暫存" Style="{StaticResource BtnOutlineCraft}" Click="ClearProcessingFolders_Click" Padding="10,6" Margin="0,0,8,0" ToolTip="清空 PaperSwitch 的成品與轉檔暫存資料夾" />
 
                     <!-- 縱向細分隔線 -->
-                    <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="4,0,12,0" VerticalAlignment="Center" />
 
-                    <!-- 三大匯出動作按鈕 -->
-                    <Button Content="✨ 匯出全部 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Padding="14,8" Margin="0,0,6,0" ToolTip="將目前畫布全部頁面依現有順序合併為 1 個 PDF" />
-                    <Button Content="📑 另存選取頁面" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportSelectedPdfCommand}" Padding="14,8" Margin="0,0,6,0" ToolTip="將選取頁面合併為 1 個 PDF (若無選取則處理全部頁面)" />
-                    <Button Content="📄 拆分選取頁面" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSplitPdfCommand}" Padding="14,8" ToolTip="將選取頁面各自拆分獨立存檔 (若無選取則處理全部頁面)" />
+                    <!-- 三大匯出動作按鈕 (主次層級清晰化) -->
+                    <!-- 唯一核心主動作 (Primary 陶土橘) -->
+                    <Button Content="✨ 匯出全部 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Padding="15,8" Margin="0,0,6,0" ToolTip="將目前畫布全部頁面依現有順序合併為 1 個 PDF" />
+                    <!-- 選取與拆分次動作 (Outline 手帳次要按鈕) -->
+                    <Button Content="📑 另存選取頁面" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSelectedPdfCommand}" Padding="13,8" Margin="0,0,6,0" ToolTip="將選取頁面合併為 1 個 PDF (若無選取則處理全部頁面)" />
+                    <Button Content="📄 拆分選取頁面" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSplitPdfCommand}" Padding="13,8" ToolTip="將選取頁面各自拆分獨立存檔 (若無選取則處理全部頁面)" />
                 </StackPanel>
             </Grid>
         </Border>
