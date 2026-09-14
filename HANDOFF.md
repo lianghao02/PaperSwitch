@@ -1,5 +1,14 @@
 # HANDOFF
 
+## 核心元資料 (Metadata)
+- **Repository**：lianghao02/PaperSwitch
+- **Branch**：main
+- **Commit SHA**：`644d6e9`
+- **Skill Version**：v1.0.0
+- **Task Type**：GOVERNANCE-CONVERGENCE
+
+> **目前實際 Git 狀態（2026-09-14）**：Working Tree 為 Clean；本文件後方的發布與測試證據仍有效。
+
 ## 目前狀態
 🟢 **已正式發布，進入 Stable／Maintenance 維護階段**
 
@@ -41,7 +50,7 @@
 
 ## Git 狀態
 - **Branch**：`main`
-- **Working Tree**：Modified（AGENTS.md 新增共用 Skill 動態解析 Discovery Rule）
+- **Working Tree**：Clean
 
 ## 下一步
 本專案已正式完成 `v4.2.1` 體驗修正版之發布，並完成 `lianghao-development` Pilot 引用驗證，恢復進入穩定維護階段（Stable / Maintenance）。後續若無新的 Bug 回報或業務需求，不進行非必要之程式碼異動。
