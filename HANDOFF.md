@@ -41,7 +41,7 @@
 
 ## Git 狀態
 - **Branch**：`main`
-- **Working Tree**：Clean（即將提交文件結案）
+- **Working Tree**：Modified（AGENTS.md 新增共用 Skill 動態解析 Discovery Rule）
 
 ## 下一步
-本專案已正式完成 `v4.2.1` 體驗修正版之發布，恢復進入穩定維護階段（Stable / Maintenance）。後續若無新的 Bug 回報或業務需求，不進行非必要之程式碼異動。
+本專案已正式完成 `v4.2.1` 體驗修正版之發布，並完成 `lianghao-development` Pilot 引用驗證，恢復進入穩定維護階段（Stable / Maintenance）。後續若無新的 Bug 回報或業務需求，不進行非必要之程式碼異動。
