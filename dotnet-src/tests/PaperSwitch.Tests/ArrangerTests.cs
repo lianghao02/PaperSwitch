@@ -240,26 +240,29 @@ namespace PaperSwitch.Tests
             vm.Pages.Add(page1);
             vm.Pages.Add(page2);
 
-            // 有頁面但無選取時：三顆按鈕皆可執行（預設處理全部頁面）
+            // 有頁面但無選取時：匯出按鈕皆可執行（預設處理全部頁面）
             Assert.True(vm.HasPages);
             Assert.False(vm.HasSelectedPages);
             Assert.True(vm.ExportAllPdfCommand.CanExecute(null));
             Assert.True(vm.ExportSelectedPdfCommand.CanExecute(null));
             Assert.True(vm.ExportSplitPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportImagesCommand.CanExecute(null));
 
-            // 有選取時：三顆按鈕亦皆可執行
+            // 有選取時：按鈕亦皆可執行
             page2.IsSelected = true;
             vm.NotifySelectionChanged();
             Assert.True(vm.HasSelectedPages);
             Assert.True(vm.ExportAllPdfCommand.CanExecute(null));
             Assert.True(vm.ExportSelectedPdfCommand.CanExecute(null));
             Assert.True(vm.ExportSplitPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportImagesCommand.CanExecute(null));
 
-            // 清空所有選取：三顆按鈕仍維持可執行（只要 HasPages 為 True）
+            // 清空所有選取：按鈕仍維持可執行（只要 HasPages 為 True）
             vm.DeselectAll();
             Assert.False(vm.HasSelectedPages);
             Assert.True(vm.ExportSelectedPdfCommand.CanExecute(null));
             Assert.True(vm.ExportSplitPdfCommand.CanExecute(null));
+            Assert.True(vm.ExportImagesCommand.CanExecute(null));
 
             // 清空畫布：按鈕全部停用
             vm.Pages.Clear();
@@ -267,6 +270,7 @@ namespace PaperSwitch.Tests
             Assert.False(vm.ExportAllPdfCommand.CanExecute(null));
             Assert.False(vm.ExportSelectedPdfCommand.CanExecute(null));
             Assert.False(vm.ExportSplitPdfCommand.CanExecute(null));
+            Assert.False(vm.ExportImagesCommand.CanExecute(null));
         }
 
         [Fact]

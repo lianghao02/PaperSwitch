@@ -1,6 +1,6 @@
 # 實作計畫
 
-> **目前狀態（2026-09-14）**：下列內容為已完成的歷史規劃與驗證紀錄；`v4.2.1` 已發布，專案目前沒有有效開發計畫，維持 Stable／Maintenance，僅在有已重現的 Bug 或新業務需求時另開規劃。
+> **目前狀態（2026-09-21）**：下列內容為已完成的歷史規劃與驗證紀錄；`v4.3.0` 已發布，專案目前沒有有效開發計畫，維持 Stable／Maintenance，僅在有已重現的 Bug 或新業務需求時另開規劃。
 
 ## 目標與驗收條件
 
@@ -96,7 +96,7 @@
 - [x] 正式發布 GitHub Release `v4.2.0`（提供 `PaperSwitch-v4.2.0-Standalone.exe` 與 `SHA256SUMS.txt`）。
 - [x] 專案恢復進入 Stable / Maintenance 維護階段。
 
-## 2026-09-13 統一選取頁面匯出與拆分範圍依據暨 v4.2.1 正式發布
+### 2026-09-13 統一選取頁面匯出與拆分範圍依據暨 v4.2.1 正式發布
 
 - [x] 統一以「選取頁面」作為匯出範圍判斷依據：有選取時只處理選取頁面，無選取時預設處理全部頁面。
 - [x] 按鈕文案統一：「拆分獨立存檔」改為「📄 拆分選取頁面」。
@@ -106,4 +106,14 @@
 - [x] 三大匯出按鈕視覺主次重構：「匯出全部」為唯一 Primary，「另存選取」與「拆分選取」改為 Outline 次按鈕。
 - [x] QA 完整驗證：Release Build 0 警告、0 錯誤，44/44 測試全數通過，WPF Smoke 驗證通過。
 - [x] 正式發布 GitHub Release `v4.2.1`（提供 `PaperSwitch-v4.2.1-Standalone.exe` 與 `SHA256SUMS.txt`）。
+- [x] 專案恢復進入 Stable / Maintenance 維護階段。
+
+## 2026-09-21 新增 PDF 轉圖片 (PNG) 暨底部操作列防擠壓體驗優化 (v4.3.0)
+
+- [x] 實作 Windows 原生 `ImageExportService`：基於 WinRT `Windows.Data.Pdf.PdfDocument` 進行 2400px 高品質抗鋸齒渲染，支援紙張旋轉角度與 WPF `PngBitmapEncoder` 無失真儲存。
+- [x] 整合 `ExportImagesCommand`，完全相容現行 `GetEffectiveExportPages` 決策邏輯（無選取處理全部、有選取處理選取頁、重排依畫布順序、已刪除頁面不輸出）。
+- [x] 安全防覆寫命名：支援自訂前綴與來源標記，遇同名檔案自動附加 `_1.png`、`_2.png`，零損壞來源資產。
+- [x] 徹底重構底部操作列排版防擠壓佈局：精簡左側冗餘資訊（省下 300px+），將「🧹 清除暫存」移至頂部工具列【群組 3：清理與維護】，精簡按鈕文案與 Padding，視窗化與 960px 寬度下文字框與按鈕清晰完整可點擊。
+- [x] 擴充單元測試：新增 `ImageExportTests.cs`（涵蓋命名生成、非法字元清理、同名防覆寫與選取行為），全套單元測試提升至 50 / 50 項 100% 通過。
+- [x] 正式發布 GitHub Release `v4.3.0`（提供 `PaperSwitch-v4.3.0-Standalone.exe` 與 `SHA256SUMS.txt`）。
 - [x] 專案恢復進入 Stable / Maintenance 維護階段。

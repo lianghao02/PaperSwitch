@@ -58,6 +58,7 @@ namespace PaperSwitch.ViewModels
         private readonly OfficeConverterService _officeService = OfficeConverterService.Instance;
         private readonly ImageConverterService _imageService = ImageConverterService.Instance;
         private readonly ThumbnailCacheService _thumbnailService = ThumbnailCacheService.Instance;
+        private readonly ImageExportService _imageExportService = ImageExportService.Instance;
         private readonly UpdateService _updateService = UpdateService.Instance;
         private readonly Stack<ArrangementSnapshot> _undoHistory = new();
         private readonly Stack<ArrangementSnapshot> _redoHistory = new();
@@ -97,6 +98,7 @@ namespace PaperSwitch.ViewModels
                 ExportAllPdfCommand.NotifyCanExecuteChanged();
                 ExportSelectedPdfCommand.NotifyCanExecuteChanged();
                 ExportSplitPdfCommand.NotifyCanExecuteChanged();
+                ExportImagesCommand.NotifyCanExecuteChanged();
             };
 
             ConversionTasks.CollectionChanged += (s, e) => NotifyConversionQueueChanged();
@@ -109,6 +111,7 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(SummaryText));
             ExportSelectedPdfCommand.NotifyCanExecuteChanged();
             ExportSplitPdfCommand.NotifyCanExecuteChanged();
+            ExportImagesCommand.NotifyCanExecuteChanged();
         }
 
         private void NotifyConversionQueueChanged()
@@ -1088,6 +1091,86 @@ namespace PaperSwitch.ViewModels
             finally
             {
                 IsBusy = false;
+            }
+        }
+
+        [RelayCommand(CanExecute = nameof(HasPages))]
+        public async Task ExportImagesAsync()
+        {
+            var targetPages = GetEffectiveExportPages();
+            if (targetPages.Count == 0)
+            {
+                MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            bool hasSelection = HasSelectedPages;
+            IsBusy = true;
+            IsProgressIndeterminate = false;
+            ProgressValue = 0;
+            StatusMessage = hasSelection
+                ? $"正在將選取的 {targetPages.Count} 頁轉換為圖片..."
+                : $"正在將畫布全部 {targetPages.Count} 頁轉換為圖片...";
+
+            try
+            {
+                string outputDir = string.IsNullOrWhiteSpace(Options.OutputDirectory)
+                    ? AppPaths.ConvertedDirectory
+                    : Options.OutputDirectory;
+
+                Directory.CreateDirectory(outputDir);
+
+                string? customPrefix = string.IsNullOrWhiteSpace(Options.CustomFileName)
+                    ? null
+                    : Options.CustomFileName.Trim();
+
+                var progressReporter = new Progress<(int Current, int Total, string FileName)>(p =>
+                {
+                    ProgressValue = (double)p.Current / p.Total * 100.0;
+                    StatusMessage = $"正在匯出圖片 ({p.Current} / {p.Total})：\n{p.FileName}";
+                });
+
+                var result = await Task.Run(() => _imageExportService.ExportPagesToPngAsync(
+                    targetPages,
+                    outputDir,
+                    customPrefix,
+                    progressReporter));
+
+                ProgressValue = 100;
+
+                if (result.ExportedCount > 0)
+                {
+                    StatusMessage = result.ErrorCount == 0
+                        ? $"圖片匯出完成！共輸出 {result.ExportedCount} 張 PNG"
+                        : $"圖片匯出完成！成功 {result.ExportedCount} 張，另有 {result.ErrorCount} 頁失敗";
+
+                    if (result.ErrorCount > 0)
+                    {
+                        var errorSummary = string.Join("\n", result.Errors.Take(3).Select(e => $"• {e.Page.SourceFileName} P.{e.Page.DisplayPageNumber}: {e.ErrorMessage}"));
+                        MessageBox.Show(
+                            $"已匯出 {result.ExportedCount} 張圖片，但有 {result.ErrorCount} 頁發生錯誤未能匯出：\n\n{errorSummary}\n\n其餘頁面已正常輸出。",
+                            "部分圖片匯出完成",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                    }
+
+                    OpenConvertedFolder();
+                }
+                else
+                {
+                    StatusMessage = "圖片匯出失敗，請確認來源 PDF 檔案可正常讀取。";
+                    MessageBox.Show("圖片匯出失敗，無法將指定頁面轉換為 PNG 圖片。", "匯出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"圖片匯出失敗: {ex.Message}";
+                MessageBox.Show($"圖片匯出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+                IsProgressIndeterminate = true;
             }
         }
 
