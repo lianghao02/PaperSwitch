@@ -3,14 +3,14 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
-- **Commit SHA**：da58faf
+- **Commit SHA**：d458feb
 - **Skill Version**：v1.0.0
 - **Task Type**：RELEASE
 
-> **目前實際 Git 狀態（2026-09-21）**：Working Tree 包含 PDF 轉圖片 (PNG) 功能的新增與測試檔案；全套 50 項測試與 Release QA 均 100% 通過。
+> **目前實際 Git 狀態**：Working Tree 為 Clean 狀態；全套 50 項測試與 Release QA 均 100% 通過。
 
 ## 目前狀態
-🟢 **v4.3.0 正式發布完成（所有功能、測試、發行檔案與文件皆已就緒）**
+🟢 **v4.3.0 正式發布完成（Stable / Maintenance 維護階段，所有功能、測試、發行檔案與文件皆已就緒）**
 
 ## 專案版本與發布資訊
 - **當前專案版本**：v4.3.0

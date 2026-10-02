@@ -1,9 +1,9 @@
 # Python → .NET 功能遷移稽核
 
-稽核基準：`b169051032f81ca633b1657279ca1ee7f6a8d8be`
-稽核日期：2026-09-06
+稽核基準：`d458feb`
+稽核日期：2026-09-21（更新於 v4.3.0 發布後）
 
-本文件只比對使用者可感知功能。正式維護入口是 `dotnet-src/`；`legacy-python/` 目前保留作歷史比對與尚未遷移能力的參考，不再作為預設啟動入口。
+本文件只比對使用者可感知功能。正式維護入口是 `dotnet-src/`；`legacy-python/` 已非正式執行入口，主要保留作歷史實作及尚未等價遷移之 LibreOffice fallback 參考。
 
 | 功能 | Python | .NET | 狀態 |
 |---|---|---|---|
@@ -16,7 +16,7 @@
 | 留白／空白頁 | 無獨立空白頁功能 | 可插入標準 A4 空白頁 | 完整 |
 | PDF 合併輸出 | 支援 | 支援依目前畫布順序向量合成 | 完整 |
 | PDF 拆分輸出 | 支援原始 PDF 拆頁 | 支援將畫布紙張逐頁獨立輸出 | 完整 |
-| PDF 轉圖片 | 可輸出高畫質 PNG | 僅提供畫面預覽，沒有批次圖片匯出 | 缺少 |
+| PDF 轉圖片 | 可輸出高畫質 PNG | Windows 內建 Windows.Data.Pdf 原生渲染 PNG（2400px 高品質、保留旋轉、支援無選取全出／有選取單出或多出、不修改來源 PDF） | 完整 |
 | 圖片轉 PDF | 支援 Pillow 轉換 | 支援 WPF 解碼後由 PdfSharp 建立 PDF | 完整 |
 | Word／Excel／PowerPoint | COM 優先，另有 LibreOffice 後援 | Windows Office COM；Excel 可見有效工作表分頁處理 | 部分 |
 | LibreOffice 後援 | 支援 | 未提供；正式規格要求安裝 Microsoft Office 桌面版 | 缺少 |
@@ -30,6 +30,6 @@
 
 ## 結論
 
-.NET 版已完整覆蓋 PaperSwitch 目前正式定位所需的匯入、視覺排版、旋轉、拆分、合併、批次狀態與 Office COM 流程，且增加復原／重做、空白頁及原生更新。
+.NET 版已完整覆蓋 PaperSwitch 目前正式定位所需的匯入、視覺排版、旋轉、拆分、合併、批次狀態、Office COM 流程與批次 PDF 轉圖片 (PNG)，且增加復原／重做、空白頁及原生更新。
 
-仍有兩項舊版能力未等價遷移：批次 PDF 轉圖片，以及 LibreOffice 後援。因此本輪保留 `legacy-python/`，不標示為可刪除或完全淘汰；是否遷移應由實際使用需求決定，不應為形式上的功能齊一而擴充正式版。
+目前主要剩餘功能差異僅剩 LibreOffice 後援。`legacy-python/` 已非正式執行入口，主要保留作歷史實作及尚未等價遷移之 LibreOffice fallback 參考，不納入主構建亦不急於刪除。是否需要遷移應由未來產品規格明確決定。
