@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # PaperSwitch 一鍵編譯發行腳本 (Build & Publish Script)
 # ============================================================
 param (
@@ -35,9 +35,7 @@ Write-Host "   組態:     $Configuration"
 Write-Host "   自包含:   $SelfContained"
 Write-Host "============================================================" -ForegroundColor Cyan
 
-if (Test-Path $PublishDir) {
-    Remove-Item -Path $PublishDir -Recurse -Force -ErrorAction SilentlyContinue
-}
+# 發布只更新建置成品，不先刪除整個資料夾或其中其他檔案。
 New-Item -ItemType Directory -Path $PublishDir -Force | Out-Null
 
 $PublishArgs = @(

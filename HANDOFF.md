@@ -3,6 +3,80 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
+- **Commit SHA**：a422e176f508d2d48139cca60934f0152d7e4cd2（本輪提交前基準；最新提交以 Git 記錄為準）
+- **Skill Version**：v1.0.0
+- **Task Type**：HANDOFF
+- **Local Path Hint**：09_PaperSwitch
+
+---
+
+## 目前狀態
+本機入口修復與標準 PDF 功能維持通過。Office IGEF 依辦公室文件加密環境限制追蹤：GoPatrol 服務及保護驅動正在執行；可讀 Office PDF 仍待管理端允許的流程驗收。未發現須修改產品演算法的缺陷。下方舊交接屬歷史，不代表目前 Git 或測試狀態。
+
+## 本輪目標
+釐清 Office IGEF 輸出的環境限制，校正 README 說明並留下允許流程的驗收條件；維持既有功能與文件保護。
+
+## 基準與已確認事實 (Baseline & Confirmed Facts)
+修復前 publish 只有 PDB 與 version.txt，沒有 EXE；現有 Release DLL 比真正來源新，但 bin／obj 生成的 .cs 被納入新舊判斷。Windows PowerShell 5.1 讀取未帶 BOM 的中文腳本另發生語法錯誤。修復前 README、HANDOFF、AGENTS 已有未提交修改，均承接保留；HEAD／分支不變。
+
+## 已完成 (Completed)
+2026-10-06 GitHub 同步交接：使用者已授權提交與推送前輪成果；本輪只提交已核對範圍。最新 Commit SHA、遠端同步與 CI 結果統一見控制中心 `docs/github-sync/RESULTS.md`，不將提交本身的 SHA 寫入同一份提交。 Office 輸出仍受 IGEF 文件加密環境限制；保留既有拒絕防護，不宣稱正常 Office 轉 PDF 已通過。
+
+2026-10-06 IGEF 診斷：確認正在執行的 GoPatrol 服務／驅動、Office 外掛註冊及有效 DLL 簽章。依辦公室文件加密限制追蹤，精確規則未確認。補充 PowerShell COM 對照逾時，未取得輸出，未列為成功；只回收本輪隱藏 Word，Office 殘留 0。README 更正 IGEF 非微軟一般暫存狀態及 5 秒拒絕／90 秒等待上限。詳見中央 docs/new-build-acceptance/IGEF-DIAGNOSIS.md。
+
+2026-10-06 代表性驗收：使用正式 Release DLL 轉換合成 RTF／CSV／PPTX，三份輸出均為 IGEF；正常 Office→PDF 未通過，不能標示完整驗收。既有拒絕機制、獨立標準 PDF 合併／旋轉／分頁通過，來源 SHA-256 一致，Office 殘留程序為 0；未變更產品 C# 或系統保護。詳見中央 docs/new-build-acceptance/RESULTS.md，依允許的 PDF 產出方式處理環境限制後再驗收。
+
+2026-10-05 本機入口修復：run.ps1 排除 bin／obj、逐一檢查有效成品、以 Release DLL 判斷新舊，支援未指定 RID 的 Release；run/build 腳本使用 UTF-8 BOM 相容 PowerShell 5.1。build.ps1 不再先刪除整個 publish 資料夾；已實際建置發布 EXE。新增隔離入口回歸測試，並校正 README 清理功能的實際行為。完整證據見中央 docs/paperswitch-launch-repair/RESULTS.md。
+
+2026-10-05 README 文件更新：補齊專案概念、開發原因、典型流程、已知 Bug／限制及回報方式，並依實際入口校正必要操作說明。本次沒有修改產品程式、環境或個人資料，未 Commit／Push；前輪成果與既有待辦繼承。文件檢核與逐案索引由控制中心 docs/readme-refresh/RESULTS.md 彙整，不代表本次重新驗收全部功能。
+
+清除清冊中 v4.0.0 至 v4.2.1 舊成品、舊 SHA、Debug 與測試傾印；保留現行 v4.3.0 EXE/SHA、release_notes 及 Release 建置成品，未改 C# 或啟動器。
+
+## 異動檔案 (Changed Files)
+本次：README.md、HANDOFF.md，中央診斷報告／結果報告／改善總表／交接；診斷產物在 Git 忽略的 artifacts。前輪 run/build/test-launcher 腳本及本機成品繼承，本次未變更產品程式或成品。
+
+## 刻意未修改 (Do Not Do / Deliberately Omitted)
+C#／XAML／專案檔、RUN.bat、全域環境與正式 v4.3.0 獨立發行 EXE／SHA／release_notes 未改；32 個保護檔案及既有 AGENTS 修改雜湊一致，46 個既有使用者資料檔案在 GUI 驗證前後一致。舊交接內容保留。
+
+## 尚未完成 (Remaining Work)
+- **P1 (阻斷/必須)**：無已確認的本機入口阻斷。
+- **P2 (重要/待外部流程)**：Office IGEF 依辦公室加密環境限制追蹤；GoPatrol 元件狀態已確認，精確管理規則未確認。以單位核准流程取得標準 PDF，之後再驗收三種 Office；目前不將其列為須改演算法的 Bug，也不標成正常轉檔通過。
+- **P3 (改善建議/暫緩)**：未因整理擴大重構；正式發布另依 release-gate 驗證。
+
+## 驗證結果 (Validation)
+### 已執行測試與結果
+本輪 IGEF 診斷：5 個保護檔案 SHA-256 一致、兩個 Repository HEAD／分支／索引不變；本輪文件差異及語言檢查通過。Office 殘留 0，DesktopFramesPlus 2.9.4.0 仍在執行。補充 PowerShell COM 對照逾時未通過，僅回收本輪 Word；另一次唯讀 Git 檢查停滯，回收後完成狀態／索引與文件範圍核對，不推定與保護元件有因果關係。未修改產品 C#，未重跑未受影響的核心測試。
+
+Windows PowerShell 5.1 與 PowerShell 7 隔離入口各 8 項通過（共 16 項，含中文／空白路徑）；實際建置發布成功；既有核心測試 50 通過、0 失敗、0 略過；兩種主機 ValidateOnly 通過；發布 EXE 主視窗成功啟動，驗證後僅關閉本輪建立的程序。資料與來源保護雜湊通過。Git 差異檢查結果見中央修復報告。
+### 尚未驗證項目
+未重新驗收全部原生功能或其他電腦/Windows 10 發布環境。
+### 已知風險 (Known Risks)
+入口新舊判斷依檔案時間，不等同內容雜湊或完整發布驗收；保留 Win10、Office 與其他電腦的驗證邊界。正式獨立版未重新打包。
+
+## Git 狀態
+- Commit：上述 SHA 為提交前基準；最新 SHA 見 `git log -1` 與中央同步報告。
+- Push：實際推送及遠端核對結果見中央 `docs/github-sync/RESULTS.md`。
+- Working Tree：最終狀態見中央同步報告；不含被忽略的環境、成品與使用者資料。
+- Branch：main。
+
+## 下一步建議動作 (Next Recommended Action)
+可用 RUN.bat 啟動本機開發成品；標準 PDF 功能沿用。Office 先採單位允許的 PDF 產出／讀取流程，再驗收可讀 3、阻斷 0、來源不變與 Office 殘留 0。本輪停止擴大診斷與修改；日後提交前另取得授權。
+
+## 發布狀態 (Release Status)
+本輪僅建置本機 framework-dependent 開發成品，未建立或上傳正式發布版；現行 v4.3.0 獨立成品保留。
+
+---
+
+## 承接的前輪交接（原文保留，屬歷史）
+
+
+> 2026-10-05 環境修復交接：本輪僅修正 AGENTS.md 的共用 Skill 正式來源為 configs/skills，程式碼與既有環境不變。Working Tree 為 Modified，未 Commit／Push；下列發布與功能紀錄為承接的前輪成果。
+
+# HANDOFF
+
+## 核心元資料 (Metadata)
+- **Repository**：lianghao02/PaperSwitch
+- **Branch**：main
 - **Commit SHA**：d458feb
 - **Skill Version**：v1.0.0
 - **Task Type**：RELEASE

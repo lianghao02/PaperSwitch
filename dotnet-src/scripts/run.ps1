@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$ValidateOnly
 )
 
@@ -10,27 +10,30 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $publishedExe = Join-Path $projectRoot "dist\publish\PaperSwitch.exe"
 $developmentExe = Join-Path $projectRoot "dotnet-src\src\PaperSwitch\bin\Release\net8.0-windows10.0.19041.0\win-x64\PaperSwitch.exe"
+$frameworkExe = Join-Path $projectRoot "dotnet-src\src\PaperSwitch\bin\Release\net8.0-windows10.0.19041.0\PaperSwitch.exe"
 $buildScript = Join-Path $PSScriptRoot "build.ps1"
 
 function Find-PaperSwitchExecutable {
-    $targetExe = $null
-    if (Test-Path -LiteralPath $publishedExe -PathType Leaf) {
-        $targetExe = $publishedExe
-    } elseif (Test-Path -LiteralPath $developmentExe -PathType Leaf) {
-        $targetExe = $developmentExe
-    }
+    $srcDir = Join-Path $projectRoot "dotnet-src\src\PaperSwitch"
+    # 排除編譯輸出，避免 obj 產生的程式碼造成每次啟動都重建。
+    $latestSrc = Get-ChildItem -LiteralPath $srcDir -Recurse -File -ErrorAction Stop |
+        Where-Object {
+            $relativePath = $_.FullName.Substring($srcDir.Length)
+            $relativePath -notmatch '[\\/](bin|obj)[\\/]' -and
+            ($_.Extension -in '.cs','.xaml','.csproj','.resx','.ico','.png' -or $_.Name -eq 'version.txt')
+        } |
+        Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
 
-    if ($targetExe) {
-        # 檢查原始碼目錄是否有新於執行檔的變更
-        $srcDir = Join-Path $projectRoot "dotnet-src\src\PaperSwitch"
-        $latestSrc = Get-ChildItem -Path $srcDir -Recurse -File -Include "*.cs","*.xaml","*.csproj" -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
-        if ($latestSrc -and $latestSrc.LastWriteTime -gt (Get-Item $targetExe).LastWriteTime) {
-            return $null # 標記為需要重新建置
+    foreach ($targetExe in @($publishedExe, $developmentExe, $frameworkExe)) {
+        if (-not (Test-Path -LiteralPath $targetExe -PathType Leaf)) { continue }
+        $buildTime = (Get-Item -LiteralPath $targetExe).LastWriteTimeUtc
+        # 開發輸出的 apphost 可能保留舊時間，以實際組件判斷來源是否已編譯。
+        if ($targetExe -ne $publishedExe) {
+            $assembly = Join-Path (Split-Path -Parent $targetExe) 'PaperSwitch.dll'
+            if (-not (Test-Path -LiteralPath $assembly -PathType Leaf)) { continue }
+            $buildTime = (Get-Item -LiteralPath $assembly).LastWriteTimeUtc
         }
-
-        return $targetExe
+        if (-not $latestSrc -or $latestSrc.LastWriteTimeUtc -le $buildTime) { return $targetExe }
     }
 
     return $null
@@ -52,11 +55,7 @@ if ($null -eq $executable) {
         throw "PaperSwitch 建置失敗，結束碼：$LASTEXITCODE"
     }
 
-    if (Test-Path -LiteralPath $publishedExe -PathType Leaf) {
-        $executable = $publishedExe
-    } elseif (Test-Path -LiteralPath $developmentExe -PathType Leaf) {
-        $executable = $developmentExe
-    }
+    $executable = Find-PaperSwitchExecutable
 }
 
 if ($null -eq $executable) {

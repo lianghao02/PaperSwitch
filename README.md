@@ -3,12 +3,19 @@
 [![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
 [![Theme](https://img.shields.io/badge/style-Warm_Cozy_Craft-E28445.svg)](README.md)
-[![Constitution](https://img.shields.io/badge/Constitution-v8.1-purple.svg)](https://github.com/lianghao02/home)
 
 > **手帳質感的 Windows 原生文件轉 PDF、批次合併與視覺化紙張排版工坊。**<br>
 > 全面重構自 Python 服務架構，升級為 C# 12 / .NET 8.0 LTS / WPF 原生應用程式，帶來秒開速度、確定性 Office COM 生命週期防禦與極致流暢的紙張排版體驗。
 
 ---
+
+## 專案概念與開發原因
+
+PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出的桌面工作流程。開發動機是混合文件通常需要在多種工具間反覆轉換，容易弄錯頁面順序、旋轉方向或選取範圍。
+
+採 .NET／WPF 與背景工作佇列處理，PDF 頁面處理與 Office 轉換分別使用適合的元件。保留 PDF 的向量內容不代表所有圖片或 Office 來源都能成為向量資料。
+
+**典型流程**：加入文件 → 預覽與調整頁面 → 選擇全部／部分頁面 → 匯出 → 檢查內容與頁數。
 
 ## 📥 快速下載與使用指南 (Quick Start)
 
@@ -16,7 +23,7 @@
 
 | 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
 | :--- | :--- | :--- |
-| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.3.0-Standalone.exe`** | **最簡單方便！** 內嵌完整 .NET 8 執行環境，**免安裝任何軟體**，下載後直接雙擊即可開啟工坊使用。 |
+| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.3.0-Standalone.exe`** | 內嵌完整 .NET 8 執行環境，可直接開啟工坊；Office 文件轉換仍需本機安裝 Microsoft Office。 |
 | 🛡️ **SHA-256 校驗清單** | **`SHA256SUMS.txt`** | 提供發行成品 SHA-256 雜湊值供安全性核對。 |
 
 ### 💡 首次啟動與使用須知
@@ -82,8 +89,8 @@
 - **專屬 STA 執行緒隔離**：Word、Excel、PowerPoint 轉檔均運行於獨立 STA 執行緒與全域 Semaphore 佇列。
 - **確定性資源銷毀與 Null 守衛**：建立 COM 時即時進行安全 Null 檢查，退出時透過 `Marshal.FinalReleaseComObject` 與垃圾回收徹底銷毀，無任何背景殘留進程。
 - **Excel 自動分頁與全空白過濾**：自動識別多工作表並獨立匯出，智慧過濾無資料與無形狀之全空白分頁，並支援頁面寬度自動縮放。
-- **IGEF 中介狀態偵測**：自動偵測微軟 Office 暫存狀態，最長等待 90 秒；若受端點加密保護，保留暫存 PDF 並引導使用者依規定解密後重新匯入，絕不嘗試繞過保護。
-- **儲存與暫存健康管理**：產出匯出 PDF 存放於 `%LOCALAPPDATA%\PaperSwitch\converted`，Office 暫存存放於 `%LOCALAPPDATA%\PaperSwitch\temp_converted`，並具備 7 天過期暫存自動清理機制。
+- **IGEF／非標準 PDF 偵測**：IGEF 不應視為微軟 Office 的一般暫存格式。預設 PDF 就緒等待上限為 90 秒，持續偵測到 IGEF 約 5 秒即拒絕載入；保留暫存輸出，提示使用者依單位規定取得可讀的標準 PDF 後重新匯入。
+- **儲存與暫存健康管理**：產出匯出 PDF 存放於 `%LOCALAPPDATA%\PaperSwitch\converted`，Office 暫存存放於 `%LOCALAPPDATA%\PaperSwitch\temp_converted`。頂部「清除暫存」按鈕經確認後會清除這兩個資料夾的內容；需要保存的匯出成品請先另行保存。啟動時不會自動清除，原始匯入文件不受此按鈕影響。
 
 ---
 
@@ -114,6 +121,8 @@
 │   │   └── PaperSwitch.Tests/ (xUnit 單元測試)
 │   └── scripts/
 │       ├── build.ps1 (一鍵發行腳本)
+│       ├── run.ps1 (啟動與成品新舊檢查)
+│       ├── test-launcher.ps1 (隔離入口回歸測試)
 │       └── qa.ps1 (自動化建置與測試檢核)
 ├── legacy-python/ (原 Python 舊架構備援封存)
 ├── dist/
@@ -128,7 +137,15 @@
 ## 🚀 本地開發與建置
 
 ### 1. 直接啟動開發版本
-雙擊專案根目錄的 **[`RUN.bat`](RUN.bat)**。BAT 僅選擇 PowerShell 主機並呼叫 `dotnet-src/scripts/run.ps1`；若尚未編譯，PowerShell 啟動器會執行建置，再啟動 `dist\publish\PaperSwitch.exe`。路徑可包含空白或中文。
+雙擊專案根目錄的 **[`RUN.bat`](RUN.bat)**。BAT 僅選擇 PowerShell 主機並呼叫 `dotnet-src/scripts/run.ps1`。啟動器依序尋找有效的 `dist\publish`、`win-x64` Release、未指定 RID 的 Release 成品；若全部缺失或落後於真正的來源檔案，才執行建置。`bin`／`obj` 的生成檔案不會觸發重建，Release 成品以 `PaperSwitch.dll` 判斷新舊。支援 Windows PowerShell 5.1 與 PowerShell 7，路徑可包含空白或中文。
+
+只檢查入口而不啟動／建置：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\dotnet-src\scripts\run.ps1 -ValidateOnly
+```
+
+成功時輸出可啟動的 EXE 路徑；需要建置時會回報錯誤。開發成品需要 .NET 8 Desktop Runtime，建置需要 .NET 8 SDK；免安裝獨立版另依上方下載說明。
 
 ### 2. 手動建置與發行
 ```powershell
@@ -142,4 +159,25 @@ powershell -ExecutionPolicy Bypass -File .\dotnet-src\scripts\build.ps1 -SelfCon
 ### 3. 執行品質檢驗 (QA)
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\dotnet-src\scripts\qa.ps1
+
+# 隔離入口測試：假成品只作時間檢查，不會啟動，也不會修改正式資料。
+powershell -NoProfile -ExecutionPolicy Bypass -File .\dotnet-src\scripts\test-launcher.ps1 -PowerShellHost powershell.exe
+pwsh -NoProfile -File .\dotnet-src\scripts\test-launcher.ps1 -PowerShellHost pwsh.exe
 ```
+
+## 已知 Bug、限制與疑難排解
+
+以下區分已確認問題、功能限制及待驗證項目；歷史修正不代表舊發行包已自動更新，也不代表本次文件更新重新完成所有功能測試。
+
+| 狀態 | 情境 | 處理方式 |
+|---|---|---|
+| 已修復（本機啟動，2026-10-05） | 原先 publish 缺 EXE，且 bin／obj 生成檔案造成錯誤重建判定；Windows PowerShell 5.1 另有中文字元編碼問題。 | 已修正入口判斷及腳本編碼，補齊本機發布 EXE；兩種 PowerShell 入口檢查與主視窗啟動通過。正式獨立發行包維持原版。 |
+| 環境限制 | Office 轉換依賴本機 Office 與 COM 元件。 | 獨立版包含 .NET Runtime，不代表隨附 Microsoft Office；PDF／影像與 Office 轉換要分別驗證。 |
+| 辦公室加密環境限制（2026-10-06） | 本機 Word／Excel／PowerPoint 合成輸出均為 IGEF；GoPatrol 服務及保護驅動正在執行。 | 依單位核准流程取得可讀的標準 PDF 再匯入；如需直接轉 Office，由管理端確認允許的工具讀取流程。既有拒絕防護與標準 PDF 功能通過，正常 Office 轉檔仍待驗收；精確加密規則尚未確認。見 [診斷與處理方式](../00_Dev-Control-Center/docs/new-build-acceptance/IGEF-DIAGNOSIS.md)。 |
+| 操作限制 | 選取頁面與全部頁面的處理範圍不同。 | 匯出前確認選取數、頁面順序及旋轉，勿只依賴縮圖判斷成品。 |
+
+旋轉重複套用、文字輸入時 Delete／Backspace 被攔截等歷史修正見 [CHANGELOG.md](CHANGELOG.md)。本機入口修復與驗證範圍見 [修復報告](../00_Dev-Control-Center/docs/paperswitch-launch-repair/RESULTS.md)及 [HANDOFF.md](HANDOFF.md)；本輪未重新驗收所有 Office 轉換或其他電腦的操作流程。
+
+### 問題回報
+
+請提供使用版本／啟動方式、作業系統與相關環境、重現步驟、預期及實際結果，以及去識別的錯誤訊息或最小樣本。先保留現場與來源資料；不要附真實案件、完整帳號、密碼、Token 或 API Key。版本修正以對應原始碼與發行包為準。
