@@ -125,17 +125,17 @@
         <!-- 中央主畫布 (Center Arranger Canvas) -->
         <!-- ============================================================ -->
         <Grid Grid.Row="1" Background="{StaticResource BrushPaperBg}" x:Name="ArrangerCanvas">
-            <!-- 輕量轉檔任務列：只提供每檔狀態與必要復原動作，不改成儀表板。 -->
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Width="408" MaxHeight="310" Margin="0,16,20,0"
+            <!-- 輕量轉檔任務列：自適應寬度膠囊，有工作時展開，平時不遮擋畫布。 -->
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" MaxWidth="408" MaxHeight="310" Margin="0,16,20,0"
                     Background="#FCFAF6" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
-                    CornerRadius="10" Padding="10" Effect="{StaticResource CardShadow}" Panel.ZIndex="30"
+                    CornerRadius="10" Padding="8,6" Effect="{StaticResource CardShadow}" Panel.ZIndex="30"
                     Visibility="{Binding HasConversionTasks, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Expander IsExpanded="True">
+                <Expander IsExpanded="{Binding IsConversionQueueExpanded, Mode=TwoWay}">
                     <Expander.Header>
-                        <DockPanel Width="370">
-                            <TextBlock Text="轉檔任務" Style="{StaticResource TextBody}" FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}" />
+                        <DockPanel LastChildFill="True">
+                            <TextBlock Text="轉檔任務" Style="{StaticResource TextBody}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="{Binding ConversionQueueSummary}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilGray}"
-                                       HorizontalAlignment="Right" />
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" />
                         </DockPanel>
                     </Expander.Header>
                     <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
@@ -255,7 +255,8 @@
 
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type models:PaperItem}">
-                            <Border Width="{Binding DataContext.ZoomLevel, RelativeSource={RelativeSource AncestorType=Window}}"
+                            <Border x:Name="CardBorder"
+                                    Width="{Binding DataContext.ZoomLevel, RelativeSource={RelativeSource AncestorType=Window}}"
                                     Background="{StaticResource BrushCardBg}"
                                     CornerRadius="10"
                                     Cursor="Hand"
@@ -351,6 +352,20 @@
                                                     <RotateTransform Angle="{Binding Rotation}" />
                                                 </Image.LayoutTransform>
                                             </Image>
+
+                                            <!-- 懸停快速操作微型工具列 (借鑑 PDF24 / Google Photos) -->
+                                            <Border x:Name="HoverActionBar" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                    Margin="0,0,4,4" Background="#E8FFFFFF" BorderBrush="{StaticResource BrushBorder}"
+                                                    BorderThickness="1" CornerRadius="5" Padding="2,1" Visibility="Collapsed" Panel.ZIndex="15">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="↷" Click="CardRotate_Click" Style="{StaticResource BtnOutlineCraft}"
+                                                            Padding="4,1" Margin="1,0" FontSize="11" ToolTip="順轉 90°" />
+                                                    <Button Content="🔍" Click="CardLightbox_Click" Style="{StaticResource BtnOutlineCraft}"
+                                                            Padding="4,1" Margin="1,0" FontSize="11" ToolTip="大圖檢視" />
+                                                    <Button Content="🗑️" Click="CardDelete_Click" Style="{StaticResource BtnDangerCraft}"
+                                                            Padding="4,1" Margin="1,0" FontSize="11" ToolTip="刪除此頁" />
+                                                </StackPanel>
+                                            </Border>
                                         </Grid>
                                     </Border>
 
@@ -400,9 +415,14 @@
                                             </Style>
                                         </Border.Style>
                                     </Border>
-
                                 </Grid>
                             </Border>
+
+                            <DataTemplate.Triggers>
+                                <Trigger SourceName="CardBorder" Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="HoverActionBar" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -476,10 +496,10 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <!-- 檔名輸入群組 -->
                     <TextBlock Text="檔名" Style="{StaticResource TextMeta}" Margin="0,0,6,0" VerticalAlignment="Center" />
-                    <TextBox Width="120" Height="32" Padding="8,4" VerticalContentAlignment="Center"
+                    <TextBox Width="190" Height="32" Padding="8,4" VerticalContentAlignment="Center"
                              Text="{Binding Options.CustomFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              KeyDown="ExportFileNameTextBox_KeyDown"
-                             ToolTip="輸入匯出檔名或拆分前綴（例如：報告）。按 Enter 可直接匯出全部 PDF。" />
+                             ToolTip="輸入匯出檔名或拆分前綴（例如：報告_v2）。按 Enter 可直接匯出全部 PDF。" />
 
                     <!-- 輔助動作 -->
                     <Button Content="📁 輸出" Style="{StaticResource BtnOutlineCraft}" Command="{Binding OpenConvertedFolderCommand}" Padding="9,5" Margin="8,0,0,0" ToolTip="開啟 converted/ 成品目錄" />
@@ -487,13 +507,13 @@
                     <!-- 縱向細分隔線 -->
                     <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="10,0" VerticalAlignment="Center" />
 
-                    <!-- 匯出動作按鈕 (主次層級清晰化) -->
+                    <!-- 匯出動作按鈕 (主次層級清晰化與動態範圍提示) -->
                     <!-- 唯一核心主動作 (Primary 陶土橘) -->
-                    <Button Content="✨ 匯出全部 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Padding="13,6" Margin="0,0,5,0" ToolTip="將目前畫布全部頁面依現有順序合併為 1 個 PDF" />
+                    <Button Content="{Binding ExportAllPdfButtonText, FallbackValue='✨ 匯出全部 PDF'}" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Padding="13,6" Margin="0,0,5,0" ToolTip="將目前畫布全部頁面依現有順序合併為 1 個 PDF" />
                     <!-- 選取、拆分與圖片次動作 (Outline 手帳次要按鈕) -->
-                    <Button Content="📑 另存選取" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSelectedPdfCommand}" Padding="11,6" Margin="0,0,5,0" ToolTip="將選取頁面合併為 1 個 PDF (若無選取則處理全部頁面)" />
-                    <Button Content="📄 拆分選取" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSplitPdfCommand}" Padding="11,6" Margin="0,0,5,0" ToolTip="將選取頁面各自拆分獨立存檔 (若無選取則處理全部頁面)" />
-                    <Button Content="🖼️ 匯出圖片" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportImagesCommand}" Padding="11,6" ToolTip="將選取頁面匯出為 PNG 圖片 (若無選取則處理全部頁面)" />
+                    <Button Content="{Binding ExportSelectedPdfButtonText, FallbackValue='📑 另存選取'}" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSelectedPdfCommand}" Padding="11,6" Margin="0,0,5,0" ToolTip="將選取頁面合併為 1 個 PDF (若無選取則處理全部頁面)" />
+                    <Button Content="{Binding ExportSplitPdfButtonText, FallbackValue='📄 拆分選取'}" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportSplitPdfCommand}" Padding="11,6" Margin="0,0,5,0" ToolTip="將選取頁面各自拆分獨立存檔 (若無選取則處理全部頁面)" />
+                    <Button Content="{Binding ExportImagesButtonText, FallbackValue='🖼️ 匯出圖片'}" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ExportImagesCommand}" Padding="11,6" ToolTip="將選取頁面匯出為 PNG 圖片 (若無選取則處理全部頁面)" />
                 </StackPanel>
             </Grid>
         </Border>

@@ -81,6 +81,25 @@ namespace PaperSwitch.ViewModels
                 ? $"{FailedConversionTaskCount} 個檔案需要處理"
                 : "本輪轉檔已完成";
 
+        [ObservableProperty]
+        private bool _isConversionQueueExpanded;
+
+        public string ExportAllPdfButtonText => TotalPageCount > 0
+            ? $"✨ 匯出全部 PDF ({TotalPageCount} 頁)"
+            : "✨ 匯出全部 PDF";
+
+        public string ExportSelectedPdfButtonText => SelectedPageCount > 0
+            ? $"📑 另存選取 ({SelectedPageCount} 頁)"
+            : (TotalPageCount > 0 ? $"📑 另存選取 (全部 {TotalPageCount} 頁)" : "📑 另存選取");
+
+        public string ExportSplitPdfButtonText => SelectedPageCount > 0
+            ? $"📄 拆分選取 ({SelectedPageCount} 頁)"
+            : (TotalPageCount > 0 ? $"📄 拆分選取 (全部 {TotalPageCount} 頁)" : "📄 拆分選取");
+
+        public string ExportImagesButtonText => SelectedPageCount > 0
+            ? $"🖼️ 匯出圖片 ({SelectedPageCount} 頁)"
+            : (TotalPageCount > 0 ? $"🖼️ 匯出圖片 (全部 {TotalPageCount} 頁)" : "🖼️ 匯出圖片");
+
         public string SummaryText => $"已裝載 {TotalPageCount} 頁紙張" + (SelectedPageCount > 0 ? $" (已選取 {SelectedPageCount} 頁)" : string.Empty);
 
         public MainViewModel()
@@ -95,6 +114,7 @@ namespace PaperSwitch.ViewModels
                 OnPropertyChanged(nameof(HasPages));
                 OnPropertyChanged(nameof(HasSelectedPages));
                 OnPropertyChanged(nameof(SummaryText));
+                NotifyDynamicExportButtonTexts();
                 ExportAllPdfCommand.NotifyCanExecuteChanged();
                 ExportSelectedPdfCommand.NotifyCanExecuteChanged();
                 ExportSplitPdfCommand.NotifyCanExecuteChanged();
@@ -109,9 +129,18 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(SelectedPageCount));
             OnPropertyChanged(nameof(HasSelectedPages));
             OnPropertyChanged(nameof(SummaryText));
+            NotifyDynamicExportButtonTexts();
             ExportSelectedPdfCommand.NotifyCanExecuteChanged();
             ExportSplitPdfCommand.NotifyCanExecuteChanged();
             ExportImagesCommand.NotifyCanExecuteChanged();
+        }
+
+        private void NotifyDynamicExportButtonTexts()
+        {
+            OnPropertyChanged(nameof(ExportAllPdfButtonText));
+            OnPropertyChanged(nameof(ExportSelectedPdfButtonText));
+            OnPropertyChanged(nameof(ExportSplitPdfButtonText));
+            OnPropertyChanged(nameof(ExportImagesButtonText));
         }
 
         private void NotifyConversionQueueChanged()
@@ -120,6 +149,10 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(FailedConversionTaskCount));
             OnPropertyChanged(nameof(ActiveConversionTaskCount));
             OnPropertyChanged(nameof(ConversionQueueSummary));
+            if (ActiveConversionTaskCount > 0 || FailedConversionTaskCount > 0)
+            {
+                IsConversionQueueExpanded = true;
+            }
         }
 
         partial void OnDraggedPageCountChanged(int value)

@@ -344,5 +344,54 @@ namespace PaperSwitch.Tests
             Assert.Equal(new[] { 2, 5, 7 }, reorderedEffective.Select(p => p.DisplayPageNumber));
             Assert.Equal(90, reorderedEffective[1].Rotation);
         }
+
+        [Fact]
+        public void MainViewModel_DynamicExportButtonTexts_ShouldReflectPageCountAndSelection()
+        {
+            var vm = new MainViewModel();
+
+            // 0 頁
+            Assert.Equal("✨ 匯出全部 PDF", vm.ExportAllPdfButtonText);
+            Assert.Equal("📑 另存選取", vm.ExportSelectedPdfButtonText);
+            Assert.Equal("📄 拆分選取", vm.ExportSplitPdfButtonText);
+            Assert.Equal("🖼️ 匯出圖片", vm.ExportImagesButtonText);
+
+            // 加入 3 頁，無選取
+            vm.Pages.Add(new PaperItem { DisplayPageNumber = 1 });
+            vm.Pages.Add(new PaperItem { DisplayPageNumber = 2 });
+            vm.Pages.Add(new PaperItem { DisplayPageNumber = 3 });
+
+            Assert.Equal("✨ 匯出全部 PDF (3 頁)", vm.ExportAllPdfButtonText);
+            Assert.Equal("📑 另存選取 (全部 3 頁)", vm.ExportSelectedPdfButtonText);
+            Assert.Equal("📄 拆分選取 (全部 3 頁)", vm.ExportSplitPdfButtonText);
+            Assert.Equal("🖼️ 匯出圖片 (全部 3 頁)", vm.ExportImagesButtonText);
+
+            // 選取 2 頁
+            vm.Pages[0].IsSelected = true;
+            vm.Pages[2].IsSelected = true;
+            vm.NotifySelectionChanged();
+
+            Assert.Equal("✨ 匯出全部 PDF (3 頁)", vm.ExportAllPdfButtonText);
+            Assert.Equal("📑 另存選取 (2 頁)", vm.ExportSelectedPdfButtonText);
+            Assert.Equal("📄 拆分選取 (2 頁)", vm.ExportSplitPdfButtonText);
+            Assert.Equal("🖼️ 匯出圖片 (2 頁)", vm.ExportImagesButtonText);
+        }
+
+        [Fact]
+        public void MainViewModel_ConversionQueueExpansion_ShouldAutoExpandOnActiveOrFailed()
+        {
+            var vm = new MainViewModel();
+            Assert.False(vm.IsConversionQueueExpanded);
+
+            // 加入等待中任務
+            var task = new ConversionTaskItem("C:\\test.docx");
+            vm.ConversionTasks.Add(task);
+
+            Assert.True(vm.IsConversionQueueExpanded);
+
+            // 使用者手動收合
+            vm.IsConversionQueueExpanded = false;
+            Assert.False(vm.IsConversionQueueExpanded);
+        }
     }
 }

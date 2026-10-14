@@ -614,19 +614,47 @@ namespace PaperSwitch
 
         private void CardRotate_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is PaperItem item)
+            if (sender is FrameworkElement { DataContext: PaperItem item })
             {
-                item.RotateClockwise();
+                if (!item.IsSelected)
+                {
+                    foreach (var p in ViewModel.Pages) p.IsSelected = (p == item);
+                    item.IsSelected = true;
+                    ViewModel.SelectedPage = item;
+                    ViewModel.NotifySelectionChanged();
+                }
+                ViewModel.RotateSelected(90);
             }
+            e.Handled = true;
+        }
+
+        private void CardLightbox_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: PaperItem item })
+            {
+                var lightbox = new LightboxWindow(item, ViewModel.Pages)
+                {
+                    Owner = this
+                };
+                lightbox.ShowDialog();
+            }
+            e.Handled = true;
         }
 
         private void CardDelete_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is PaperItem item)
+            if (sender is FrameworkElement { DataContext: PaperItem item })
             {
-                ViewModel.Pages.Remove(item);
-                ViewModel.NotifySelectionChanged();
+                if (!item.IsSelected)
+                {
+                    foreach (var p in ViewModel.Pages) p.IsSelected = (p == item);
+                    item.IsSelected = true;
+                    ViewModel.SelectedPage = item;
+                    ViewModel.NotifySelectionChanged();
+                }
+                ViewModel.DeleteSelected();
             }
+            e.Handled = true;
         }
 
         private void BatchRotateCW_Click(object sender, RoutedEventArgs e)

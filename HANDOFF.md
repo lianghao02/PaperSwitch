@@ -3,18 +3,46 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
-- **Commit SHA**：a422e176f508d2d48139cca60934f0152d7e4cd2（本輪提交前基準；最新提交以 Git 記錄為準）
+- **Commit SHA**：e2f49bf5d706e2329881858a8a476840618ce531（本輪提交前基準；最新提交以 Git 記錄為準）
 - **Skill Version**：v1.0.0
-- **Task Type**：HANDOFF
+- **Task Type**：IMPROVE
 - **Local Path Hint**：09_PaperSwitch
 
 ---
 
-## 目前狀態
-本機入口修復與標準 PDF 功能維持通過。Office IGEF 依辦公室文件加密環境限制追蹤：GoPatrol 服務及保護驅動正在執行；可讀 Office PDF 仍待管理端允許的流程驗收。未發現須修改產品演算法的缺陷。下方舊交接屬歷史，不代表目前 Git 或測試狀態。
+## 2026-10-14 UI／UX 介面精緻化與發布交接 (v4.3.1)
 
-## 本輪目標
-釐清 Office IGEF 輸出的環境限制，校正 README 說明並留下允許流程的驗收條件；維持既有功能與文件保護。
+### 目前狀態
+UI／UX 評估提議之 4 項核心修訂均已實作完成，經全量單元測試（52 / 52 項通過）與正式發布建置（Release 0 警告、0 錯誤），獨立發布檔 `dist\publish\PaperSwitch.exe` 就緒。
+
+### 本輪目標
+依照全域憲法與 `agent-execution.md` 第 3 節真實案例規範，落實：
+1. 轉檔任務面板非侵入式狀態膠囊（消除右上角卡片遮擋）。
+2. 底部匯出列長檔名輸入框拓寬（120px ➜ 190px）與動態張數指示。
+3. 卡片懸停微互動（滑鼠懸停原地浮現順轉、預覽、刪除微型工具）。
+4. 子視窗樣式主題統一化（`RenameDialog` 消除硬編碼色碼）。
+
+### 異動檔案 (Changed Files)
+- `dotnet-src/src/PaperSwitch/MainWindow.xaml`
+- `dotnet-src/src/PaperSwitch/MainWindow.xaml.cs`
+- `dotnet-src/src/PaperSwitch/ViewModels/MainViewModel.cs`
+- `dotnet-src/src/PaperSwitch/RenameDialog.xaml`
+- `dotnet-src/src/PaperSwitch/PaperSwitch.csproj`
+- `dotnet-src/src/PaperSwitch/version.txt`
+- `version.txt`
+- `README.md`
+- `CHANGELOG.md`
+- `dotnet-src/tests/PaperSwitch.Tests/ArrangerTests.cs`
+- `HANDOFF.md`
+
+### 驗證結果 (Validation)
+- 單元測試：`dotnet test` 52 項全數通過（新增動態按鈕文字與轉檔展開狀態 2 項測試）。
+- QA 腳本：`qa.ps1` 執行 Release 清理、建置與全量測試通過。
+- 發布建置：`build.ps1` 產出 `dist\publish\PaperSwitch.exe`（26.56 MB），`run.ps1 -ValidateOnly` 通過。
+
+---
+
+## 歷史狀態紀錄 (Historical Baseline)
 
 ## 基準與已確認事實 (Baseline & Confirmed Facts)
 修復前 publish 只有 PDB 與 version.txt，沒有 EXE；現有 Release DLL 比真正來源新，但 bin／obj 生成的 .cs 被納入新舊判斷。Windows PowerShell 5.1 讀取未帶 BOM 的中文腳本另發生語法錯誤。修復前 README、HANDOFF、AGENTS 已有未提交修改，均承接保留；HEAD／分支不變。
