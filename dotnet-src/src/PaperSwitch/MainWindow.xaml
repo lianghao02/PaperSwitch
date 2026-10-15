@@ -232,7 +232,7 @@
                                 <Label Content="輸出檔名" Target="{Binding ElementName=ExportFileName}" Padding="0,0,0,4" />
                                 <TextBox x:Name="ExportFileName" MinHeight="34" Padding="8,5" VerticalContentAlignment="Center"
                                          Text="{Binding Options.CustomFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         KeyDown="ExportFileNameTextBox_KeyDown" ToolTip="輸入檔名或拆分前綴，按 Enter 匯出全部 PDF" />
+                                         KeyDown="ExportFileNameTextBox_KeyDown" ToolTip="手動輸入名稱優先；留空時，合併採第一份來源名稱，選取匯出採日期時間，拆分與圖片採各頁來源名稱。按 Enter 全合併匯出。" />
                                 <CheckBox Content="加上後綴" IsChecked="{Binding Options.IncludeFileNameDescription, Mode=TwoWay}"
                                           Margin="2,10,0,10" ToolTip="加上選取頁面或來源頁碼；多檔流水號與同名防覆寫仍會保留" />
                                 <Button x:Name="OpenOutputButton" Content="開啟輸出資料夾" Style="{StaticResource SidebarButton}" Command="{Binding OpenConvertedFolderCommand}" ToolTip="開啟成品資料夾" />

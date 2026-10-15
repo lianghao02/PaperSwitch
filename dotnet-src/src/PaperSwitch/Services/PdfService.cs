@@ -156,6 +156,7 @@ namespace PaperSwitch.Services
             }
 
             var openedDocs = new Dictionary<string, PdfDocument>(StringComparer.OrdinalIgnoreCase);
+            DateTime exportTime = DateTime.Now;
 
 
             try
@@ -178,8 +179,8 @@ namespace PaperSwitch.Services
                         var newPage = singleDoc.AddPage(srcPage);
                         newPage.Rotate = (srcPage.Rotate + item.Rotation) % 360;
 
-                        string fileName = ExportFileNaming.Page(item.SourceFileName, item.DisplayPageNumber, index,
-                            fileNamePrefix, ".pdf", includeDescription);
+                        string fileName = ExportFileNaming.Page(ExportFileNaming.SourceName(item), item.DisplayPageNumber, index,
+                            fileNamePrefix, ".pdf", includeDescription, exportTime);
                         string targetPath = ImageExportService.GetUniqueFilePath(outputDir, fileName);
                         singleDoc.Save(targetPath);
                         results.Add(targetPath);

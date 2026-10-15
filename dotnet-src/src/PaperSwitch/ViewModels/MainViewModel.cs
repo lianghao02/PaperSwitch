@@ -114,10 +114,10 @@ namespace PaperSwitch.ViewModels
             get
             {
                 var first = GetEffectiveExportPages().FirstOrDefault();
-                string source = first?.SourceFileName ?? "PaperSwitch.pdf";
+                string source = first == null ? string.Empty : ExportFileNaming.SourceName(first);
                 int page = first?.DisplayPageNumber ?? 1;
                 bool description = Options.IncludeFileNameDescription;
-                return $"全部：{ExportFileNaming.Merged(Options.CustomFileName, false, description)}\n" +
+                return $"全部：{ExportFileNaming.Merged(Options.CustomFileName, false, description, ExportFileNaming.FirstSourceName(Pages))}\n" +
                     $"另存：{ExportFileNaming.Merged(Options.CustomFileName, HasSelectedPages, description)}\n" +
                     $"拆分：{ExportFileNaming.Page(source, page, 1, Options.CustomFileName, ".pdf", description)}\n" +
                     $"圖片：{ExportFileNaming.Page(source, page, 1, Options.CustomFileName, ".png", description)}";
@@ -407,6 +407,7 @@ namespace PaperSwitch.ViewModels
             {
                 SourceFilePath = blankPath,
                 SourceFileName = "空白頁.pdf",
+                IsGeneratedBlank = true,
                 SourcePageIndex = 0,
                 DisplayPageNumber = 1,
                 TotalPagesInSource = 1,
@@ -850,7 +851,7 @@ namespace PaperSwitch.ViewModels
                     return;
                 }
 
-                string fileName = Path.GetFileName(pdfPath);
+                string fileName = task.FileName;
                 for (int pageIndex = 0; pageIndex < totalPages; pageIndex++)
                 {
                     var (width, height, _) = _pdfService.GetPageDimensions(pdfPath, pageIndex);
@@ -1005,17 +1006,8 @@ namespace PaperSwitch.ViewModels
 
                 if (Options.MergeIntoSinglePdf)
                 {
-                    string safeBaseName = ExportFileNaming.Merged(Options.CustomFileName, false, Options.IncludeFileNameDescription);
-                    string finalName = safeBaseName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? safeBaseName : safeBaseName + ".pdf";
-
-                    string outputPath = Path.Combine(outputDir, finalName);
-                    int counter = 1;
-                    while (File.Exists(outputPath))
-                    {
-                        outputPath = Path.Combine(outputDir, $"{Path.GetFileNameWithoutExtension(finalName)}_{counter}.pdf");
-                        counter++;
-                    }
-
+                    string outputPath = ExportFileNaming.MergedOutputPath(outputDir, Options.CustomFileName, false,
+                        Options.IncludeFileNameDescription, ExportFileNaming.FirstSourceName(Pages), DateTime.Now);
                     bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(Pages, outputPath));
                     if (ok)
                     {
@@ -1127,18 +1119,8 @@ namespace PaperSwitch.ViewModels
 
                 Directory.CreateDirectory(outputDir);
 
-                string safeBaseName = ExportFileNaming.Merged(Options.CustomFileName, hasSelection, Options.IncludeFileNameDescription);
-
-                string finalName = safeBaseName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? safeBaseName : safeBaseName + ".pdf";
-
-                string outputPath = Path.Combine(outputDir, finalName);
-                int counter = 1;
-                while (File.Exists(outputPath))
-                {
-                    outputPath = Path.Combine(outputDir, $"{Path.GetFileNameWithoutExtension(finalName)}_{counter}.pdf");
-                    counter++;
-                }
-
+                string outputPath = ExportFileNaming.MergedOutputPath(outputDir, Options.CustomFileName, true,
+                    Options.IncludeFileNameDescription, null, DateTime.Now);
                 bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(targetPages, outputPath));
                 if (ok)
                 {

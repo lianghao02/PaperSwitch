@@ -32,9 +32,9 @@ namespace PaperSwitch.Services
             string sourceFileName,
             int sourcePageNumber,
             int canvasIndex,
-            string? customPrefix = null, bool includeDescription = false)
+            string? customPrefix = null, bool includeDescription = false, DateTime? exportTime = null)
         {
-            return ExportFileNaming.Page(sourceFileName, sourcePageNumber, canvasIndex, customPrefix, ".png", includeDescription);
+            return ExportFileNaming.Page(sourceFileName, sourcePageNumber, canvasIndex, customPrefix, ".png", includeDescription, exportTime);
         }
         /// <summary>
         /// 取得防覆寫的唯一輸出完整路徑
@@ -143,6 +143,7 @@ namespace PaperSwitch.Services
 
             Directory.CreateDirectory(outputDirectory);
 
+            DateTime exportTime = DateTime.Now;
             int total = pageList.Count;
             for (int i = 0; i < total; i++)
             {
@@ -150,7 +151,7 @@ namespace PaperSwitch.Services
 
                 var item = pageList[i];
                 int canvasIndex = i + 1;
-                string desiredName = BuildPngFileName(item.SourceFileName, item.DisplayPageNumber, canvasIndex, customPrefix, includeDescription);
+                string desiredName = BuildPngFileName(ExportFileNaming.SourceName(item), item.DisplayPageNumber, canvasIndex, customPrefix, includeDescription, exportTime);
                 progress?.Report((canvasIndex, total, desiredName));
 
                 try

@@ -14,6 +14,8 @@ namespace PaperSwitch.Models
     {
         public string Id { get; } = Guid.NewGuid().ToString("N");
 
+        public bool IsGeneratedBlank { get; init; }
+
         [ObservableProperty]
         private string _sourceFilePath = string.Empty;
 
