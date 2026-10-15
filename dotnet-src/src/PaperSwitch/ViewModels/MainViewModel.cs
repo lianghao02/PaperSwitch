@@ -102,8 +102,46 @@ namespace PaperSwitch.ViewModels
 
         public string SummaryText => $"已裝載 {TotalPageCount} 頁紙張" + (SelectedPageCount > 0 ? $" (已選取 {SelectedPageCount} 頁)" : string.Empty);
 
-        public MainViewModel()
+        private readonly ExportPreferencesStore _exportPreferences;
+
+        public string ExportFileNamePreview
         {
+            get
+            {
+                var first = GetEffectiveExportPages().FirstOrDefault();
+                string source = first?.SourceFileName ?? "PaperSwitch.pdf";
+                int page = first?.DisplayPageNumber ?? 1;
+                bool description = Options.IncludeFileNameDescription;
+                return $"全部：{ExportFileNaming.Merged(Options.CustomFileName, false, description)}\n" +
+                    $"另存：{ExportFileNaming.Merged(Options.CustomFileName, HasSelectedPages, description)}\n" +
+                    $"拆分：{ExportFileNaming.Page(source, page, 1, Options.CustomFileName, ".pdf", description)}\n" +
+                    $"圖片：{ExportFileNaming.Page(source, page, 1, Options.CustomFileName, ".png", description)}";
+            }
+        }
+
+        private void ExportOptionsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ExportOptions.CustomFileName) or nameof(ExportOptions.IncludeFileNameDescription))
+                OnPropertyChanged(nameof(ExportFileNamePreview));
+            if (e.PropertyName == nameof(ExportOptions.IncludeFileNameDescription) && !_exportPreferences.Save(Options.IncludeFileNameDescription))
+                StatusMessage = "命名設定無法儲存，下次啟動將使用原設定；本次匯出仍可使用目前選項。";
+        }
+
+        partial void OnOptionsChanged(ExportOptions? oldValue, ExportOptions newValue)
+        {
+            if (oldValue != null) oldValue.PropertyChanged -= ExportOptionsChanged;
+            newValue.PropertyChanged += ExportOptionsChanged;
+            OnPropertyChanged(nameof(ExportFileNamePreview));
+        }
+
+        public MainViewModel() : this(new ExportPreferencesStore()) { }
+
+        public MainViewModel(ExportPreferencesStore exportPreferences)
+        {
+            _exportPreferences = exportPreferences;
+            Options.IncludeFileNameDescription = _exportPreferences.Load();
+            Options.PropertyChanged += ExportOptionsChanged;
+
             // 使用者成品與發行檔分離，建置清理 dist 時不會遺失轉檔資料。
             Options.OutputDirectory = AppPaths.ConvertedDirectory;
 
@@ -137,6 +175,7 @@ namespace PaperSwitch.ViewModels
 
         private void NotifyDynamicExportButtonTexts()
         {
+            OnPropertyChanged(nameof(ExportFileNamePreview));
             OnPropertyChanged(nameof(ExportAllPdfButtonText));
             OnPropertyChanged(nameof(ExportSelectedPdfButtonText));
             OnPropertyChanged(nameof(ExportSplitPdfButtonText));
@@ -199,6 +238,7 @@ namespace PaperSwitch.ViewModels
 
         private void NotifyHistoryChanged()
         {
+            OnPropertyChanged(nameof(ExportFileNamePreview));
             OnPropertyChanged(nameof(CanUndo));
             OnPropertyChanged(nameof(CanRedo));
         }
@@ -959,7 +999,7 @@ namespace PaperSwitch.ViewModels
 
                 if (Options.MergeIntoSinglePdf)
                 {
-                    string safeBaseName = SanitizeFileName(Options.CustomFileName, "PaperSwitch_裝訂成品.pdf");
+                    string safeBaseName = ExportFileNaming.Merged(Options.CustomFileName, false, Options.IncludeFileNameDescription);
                     string finalName = safeBaseName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? safeBaseName : safeBaseName + ".pdf";
 
                     string outputPath = Path.Combine(outputDir, finalName);
@@ -983,8 +1023,8 @@ namespace PaperSwitch.ViewModels
                 }
                 else
                 {
-                    string safePrefix = string.IsNullOrWhiteSpace(Options.CustomFileName) ? string.Empty : SanitizeFileName(Options.CustomFileName, string.Empty);
-                    var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix));
+                    string safePrefix = Options.CustomFileName;
+                    var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix, Options.IncludeFileNameDescription));
                     StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
                     OpenConvertedFolder();
                 }
@@ -1038,8 +1078,8 @@ namespace PaperSwitch.ViewModels
 
                 Directory.CreateDirectory(outputDir);
 
-                string safePrefix = string.IsNullOrWhiteSpace(Options.CustomFileName) ? string.Empty : SanitizeFileName(Options.CustomFileName, string.Empty);
-                var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix));
+                string safePrefix = Options.CustomFileName;
+                var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix, Options.IncludeFileNameDescription));
                 StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
                 OpenConvertedFolder();
             }
@@ -1079,19 +1119,7 @@ namespace PaperSwitch.ViewModels
 
                 Directory.CreateDirectory(outputDir);
 
-                string defaultName = hasSelection ? "PaperSwitch_選取頁面.pdf" : "PaperSwitch_裝訂成品.pdf";
-                string safeBaseName;
-                if (!string.IsNullOrWhiteSpace(Options.CustomFileName))
-                {
-                    string stem = Path.GetFileNameWithoutExtension(Options.CustomFileName.Trim());
-                    safeBaseName = hasSelection
-                        ? SanitizeFileName($"{stem}_選取頁面.pdf", defaultName)
-                        : SanitizeFileName($"{stem}.pdf", defaultName);
-                }
-                else
-                {
-                    safeBaseName = defaultName;
-                }
+                string safeBaseName = ExportFileNaming.Merged(Options.CustomFileName, hasSelection, Options.IncludeFileNameDescription);
 
                 string finalName = safeBaseName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? safeBaseName : safeBaseName + ".pdf";
 
@@ -1167,7 +1195,7 @@ namespace PaperSwitch.ViewModels
                     targetPages,
                     outputDir,
                     customPrefix,
-                    progressReporter));
+                    progressReporter, includeDescription: Options.IncludeFileNameDescription));
 
                 ProgressValue = 100;
 

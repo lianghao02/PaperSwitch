@@ -13,7 +13,7 @@ namespace PaperSwitch.Tests
         public void BuildPngFileName_WithoutCustomPrefix_GeneratesSourceAndCanvasOrder()
         {
             string fileName = ImageExportService.BuildPngFileName("Document.pdf", 3, 1, null);
-            Assert.Equal("Document_頁3_001.png", fileName);
+            Assert.Equal("Document_001.png", fileName);
         }
 
         [Fact]
@@ -30,7 +30,7 @@ namespace PaperSwitch.Tests
             Assert.Equal("前綴____A_005.png", fileNameWithPrefix);
 
             string fileNameWithoutPrefix = ImageExportService.BuildPngFileName("Doc/?:*Test.pdf", 2, 3, null);
-            Assert.Equal("Doc____Test_頁2_003.png", fileNameWithoutPrefix);
+            Assert.Equal("Doc____Test_003.png", fileNameWithoutPrefix);
         }
 
         [Fact]

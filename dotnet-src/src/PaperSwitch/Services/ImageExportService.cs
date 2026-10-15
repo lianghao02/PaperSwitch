@@ -32,20 +32,10 @@ namespace PaperSwitch.Services
             string sourceFileName,
             int sourcePageNumber,
             int canvasIndex,
-            string? customPrefix = null)
+            string? customPrefix = null, bool includeDescription = false)
         {
-            if (!string.IsNullOrWhiteSpace(customPrefix))
-            {
-                string cleanPrefix = SanitizeFileName(customPrefix.Trim());
-                return $"{cleanPrefix}_{canvasIndex:D3}.png";
-            }
-
-            string cleanSource = SanitizeFileName(sourceFileName);
-            string stem = Path.GetFileNameWithoutExtension(cleanSource);
-            string cleanStem = SanitizeFileName(stem);
-            return $"{cleanStem}_頁{sourcePageNumber}_{canvasIndex:D3}.png";
+            return ExportFileNaming.Page(sourceFileName, sourcePageNumber, canvasIndex, customPrefix, ".png", includeDescription);
         }
-
         /// <summary>
         /// 取得防覆寫的唯一輸出完整路徑
         /// </summary>
@@ -140,7 +130,7 @@ namespace PaperSwitch.Services
             string outputDirectory,
             string? customPrefix = null,
             IProgress<(int Current, int Total, string FileName)>? progress = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default, bool includeDescription = false)
         {
             var pageList = pages.ToList();
             var exportedFiles = new List<string>();
@@ -160,7 +150,7 @@ namespace PaperSwitch.Services
 
                 var item = pageList[i];
                 int canvasIndex = i + 1;
-                string desiredName = BuildPngFileName(item.SourceFileName, item.DisplayPageNumber, canvasIndex, customPrefix);
+                string desiredName = BuildPngFileName(item.SourceFileName, item.DisplayPageNumber, canvasIndex, customPrefix, includeDescription);
                 progress?.Report((canvasIndex, total, desiredName));
 
                 try

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -144,7 +144,7 @@ namespace PaperSwitch.Services
         /// <summary>
         /// 將多頁項目個別獨立匯出為單一頁面 PDF 檔案
         /// </summary>
-        public List<string> ExportIndividualPdfs(IEnumerable<PaperItem> items, string outputDir, string? fileNamePrefix = null)
+        public List<string> ExportIndividualPdfs(IEnumerable<PaperItem> items, string outputDir, string? fileNamePrefix = null, bool includeDescription = false)
         {
             var results = new List<string>();
             var itemList = items.ToList();
@@ -156,7 +156,7 @@ namespace PaperSwitch.Services
             }
 
             var openedDocs = new Dictionary<string, PdfDocument>(StringComparer.OrdinalIgnoreCase);
-            string requestedStem = Path.GetFileNameWithoutExtension(fileNamePrefix?.Trim() ?? string.Empty);
+
 
             try
             {
@@ -178,24 +178,9 @@ namespace PaperSwitch.Services
                         var newPage = singleDoc.AddPage(srcPage);
                         newPage.Rotate = (srcPage.Rotate + item.Rotation) % 360;
 
-                        var stem = string.IsNullOrWhiteSpace(requestedStem)
-                            ? Path.GetFileNameWithoutExtension(item.SourceFileName)
-                            : requestedStem;
-                        var fileName = string.IsNullOrWhiteSpace(requestedStem)
-                            ? $"{stem}_頁{item.DisplayPageNumber}_{index:D3}.pdf"
-                            : $"{stem}_{index:D3}.pdf";
-                        var targetPath = Path.Combine(outputDir, fileName);
-
-                        int counter = 1;
-                        while (File.Exists(targetPath))
-                        {
-                            string uniqueFileName = string.IsNullOrWhiteSpace(requestedStem)
-                                ? $"{stem}_頁{item.DisplayPageNumber}_{index:D3}_{counter}.pdf"
-                                : $"{stem}_{index:D3}_{counter}.pdf";
-                            targetPath = Path.Combine(outputDir, uniqueFileName);
-                            counter++;
-                        }
-
+                        string fileName = ExportFileNaming.Page(item.SourceFileName, item.DisplayPageNumber, index,
+                            fileNamePrefix, ".pdf", includeDescription);
+                        string targetPath = ImageExportService.GetUniqueFilePath(outputDir, fileName);
                         singleDoc.Save(targetPath);
                         results.Add(targetPath);
                         index++;

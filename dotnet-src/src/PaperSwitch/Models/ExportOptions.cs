@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace PaperSwitch.Models
 {
@@ -21,5 +21,8 @@ namespace PaperSwitch.Models
 
         [ObservableProperty]
         private bool _excelFitToPage = true;
+
+        [ObservableProperty]
+        private bool _includeFileNameDescription;
     }
 }
