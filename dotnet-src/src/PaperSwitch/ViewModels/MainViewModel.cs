@@ -84,6 +84,11 @@ namespace PaperSwitch.ViewModels
         [ObservableProperty]
         private bool _isConversionQueueExpanded;
 
+        public bool CanExportSplitPdf => HasPages && !HasSelectedPages;
+        public bool CanExportSelectedPdf => HasSelectedPages;
+        public string ImageExportScopeText => HasSelectedPages
+            ? $"將選取的 {SelectedPageCount} 頁轉成 PNG 圖片"
+            : $"將畫布全部 {TotalPageCount} 頁轉成 PNG 圖片";
         public string ExportAllPdfButtonText => TotalPageCount > 0
             ? $"✨ 匯出全部 PDF ({TotalPageCount} 頁)"
             : "✨ 匯出全部 PDF";
@@ -176,6 +181,7 @@ namespace PaperSwitch.ViewModels
         private void NotifyDynamicExportButtonTexts()
         {
             OnPropertyChanged(nameof(ExportFileNamePreview));
+            OnPropertyChanged(nameof(ImageExportScopeText));
             OnPropertyChanged(nameof(ExportAllPdfButtonText));
             OnPropertyChanged(nameof(ExportSelectedPdfButtonText));
             OnPropertyChanged(nameof(ExportSplitPdfButtonText));
@@ -1056,10 +1062,11 @@ namespace PaperSwitch.ViewModels
             await ExportPdfAsync();
         }
 
-        [RelayCommand(CanExecute = nameof(HasPages))]
+        [RelayCommand(CanExecute = nameof(CanExportSplitPdf))]
         public async Task ExportSplitPdfAsync()
         {
-            var targetPages = GetEffectiveExportPages();
+            if (!CanExportSplitPdf) return;
+            var targetPages = Pages.ToList();
             if (targetPages.Count == 0)
             {
                 MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1094,9 +1101,10 @@ namespace PaperSwitch.ViewModels
             }
         }
 
-        [RelayCommand(CanExecute = nameof(HasPages))]
+        [RelayCommand(CanExecute = nameof(CanExportSelectedPdf))]
         public async Task ExportSelectedPdfAsync()
         {
+            if (!CanExportSelectedPdf) return;
             var targetPages = GetEffectiveExportPages();
             if (targetPages.Count == 0)
             {
