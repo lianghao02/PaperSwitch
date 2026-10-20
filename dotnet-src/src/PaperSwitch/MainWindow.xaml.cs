@@ -677,7 +677,7 @@ namespace PaperSwitch
 
             if (selectedPages.Count == 0)
             {
-                MessageBox.Show("請先選取要重新命名的紙張。", "重新命名", MessageBoxButton.OK, MessageBoxImage.Information);
+                GameDialog.Show("請先選取要重新命名的紙張。", "重新命名", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -690,7 +690,7 @@ namespace PaperSwitch
 
             if (!ViewModel.TryRenameSelectedPages(dialog.ProposedName, out string message))
             {
-                MessageBox.Show(message, "重新命名", MessageBoxButton.OK, MessageBoxImage.Warning);
+                GameDialog.Show(message, "重新命名", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -698,7 +698,7 @@ namespace PaperSwitch
         {
             string converted = AppPaths.ConvertedDirectory;
             string temporary = AppPaths.TemporaryConversionDirectory;
-            var confirmation = MessageBox.Show(
+            var confirmation = GameDialog.Show(
                 "此動作會永久刪除 PaperSwitch 已產生的成品與轉檔暫存檔。\n\n" +
                 $"成品：{converted}\n" +
                 $"暫存：{temporary}\n\n" +
@@ -718,19 +718,19 @@ namespace PaperSwitch
                 if (result.FailedPaths.Count == 0)
                 {
                     ViewModel.StatusMessage = $"已清理 {result.DeletedFileCount} 個成品與暫存檔";
-                    MessageBox.Show($"已清理 {result.DeletedFileCount} 個檔案。\n\n畫布中的紙張不會受影響；若其來源是已清理的暫存檔，請重新匯入後再導出。",
+                    GameDialog.Show($"已清理 {result.DeletedFileCount} 個檔案。\n\n畫布中的紙張不會受影響；若其來源是已清理的暫存檔，請重新匯入後再導出。",
                         "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
                     ViewModel.StatusMessage = $"已清理 {result.DeletedFileCount} 個檔案，另有 {result.FailedPaths.Count} 個項目未能刪除";
-                    MessageBox.Show($"已清理 {result.DeletedFileCount} 個檔案，但有 {result.FailedPaths.Count} 個項目正在被使用或沒有權限刪除。\n\n請關閉使用中的 PDF 或 Office 後再試一次。",
+                    GameDialog.Show($"已清理 {result.DeletedFileCount} 個檔案，但有 {result.FailedPaths.Count} 個項目正在被使用或沒有權限刪除。\n\n請關閉使用中的 PDF 或 Office 後再試一次。",
                         "部分清理完成", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"清理資料夾時發生錯誤：{ex.Message}", "清理失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+                GameDialog.Show($"清理資料夾時發生錯誤：{ex.Message}", "清理失敗", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

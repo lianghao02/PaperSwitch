@@ -90,17 +90,25 @@
                         <StackPanel Margin="0,0,6,0">
                             <TextBlock Text="排版工具" Style="{StaticResource GameHeading}" FontSize="18" Margin="4,2,0,8" />
                             <StackPanel x:Name="LayoutTools">
+                                <TextBlock Text="選取" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
                                 <UniformGrid Columns="2">
                                     <Button art:WorkshopArt.Icon="11" Content="全選" Style="{StaticResource SidebarButton}" Command="{Binding SelectAllCommand}" ToolTip="全選（Ctrl＋A）" />
                                     <Button art:WorkshopArt.Icon="11" Content="反選" Style="{StaticResource SidebarButton}" Command="{Binding InvertSelectionCommand}" ToolTip="反向選取紙張" />
+                                </UniformGrid>
+                                <TextBlock Text="旋轉與移動" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
+                                <UniformGrid Columns="2">
                                     <Button art:WorkshopArt.Icon="4" Content="逆轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCCW_Click" ToolTip="逆時針旋轉（Shift＋R）" />
                                     <Button art:WorkshopArt.Icon="5" Content="順轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCW_Click" ToolTip="順時針旋轉（R）" />
                                     <Button art:WorkshopArt.Icon="12" Content="前移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedLeftCommand}" ToolTip="向前移動（Ctrl＋←）" />
                                     <Button art:WorkshopArt.Icon="13" Content="後移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedRightCommand}" ToolTip="向後移動（Ctrl＋→）" />
+                                </UniformGrid>
+                                <TextBlock Text="頁面" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
+                                <UniformGrid Columns="2">
                                     <Button art:WorkshopArt.Icon="6" Content="重新命名" Style="{StaticResource SidebarButton}" Click="RenameSelected_Click" ToolTip="重新命名（F2）" />
                                     <Button art:WorkshopArt.Icon="7" Content="＋ 空白頁" Style="{StaticResource SidebarButton}" Command="{Binding InsertBlankPageCommand}" ToolTip="在選取頁後插入空白頁" />
                                 </UniformGrid>
                                 <Border Height="1.5" Background="{StaticResource BrushBorderDark}" Opacity="0.3" Margin="4,10" />
+                                <TextBlock Text="移除（可用 Ctrl＋Z 復原）" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
                                 <UniformGrid Columns="2">
                                     <Button art:WorkshopArt.Icon="9" Content="刪除選取" Style="{StaticResource SidebarDangerButton}" Command="{Binding DeleteSelectedCommand}" ToolTip="移除選取頁面（Delete），可復原" />
                                     <Button art:WorkshopArt.Icon="9" Content="清空畫布" Style="{StaticResource SidebarDangerButton}" Command="{Binding ClearAllCommand}" ToolTip="清空目前畫布，可復原" />
@@ -176,11 +184,12 @@
                                 </Expander>
                             </Border>
 
-                            <TextBlock Text="工坊管理" Style="{StaticResource GameHeading}" FontSize="15" Margin="4,18,0,6" />
-                            <UniformGrid Columns="2">
-                                <Button art:WorkshopArt.Icon="9" Content="清除暫存" Style="{StaticResource SidebarDangerButton}" Click="ClearProcessingFolders_Click" ToolTip="清除成品與轉檔暫存，執行前顯示確認內容" />
-                                <Button art:WorkshopArt.Icon="10" Content="檢查更新" Style="{StaticResource SidebarButton}" Command="{Binding CheckUpdateCommand}" ToolTip="{Binding CheckUpdateButtonText}" />
-                            </UniformGrid>
+                            <Expander Header="更多（維護與更新）" IsExpanded="False" Margin="2,16,2,0" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}">
+                                <UniformGrid Columns="2" Margin="0,8,0,0">
+                                    <Button art:WorkshopArt.Icon="9" Content="清除暫存" Style="{StaticResource SidebarDangerButton}" Click="ClearProcessingFolders_Click" ToolTip="清除成品與轉檔暫存，執行前顯示確認內容" />
+                                    <Button art:WorkshopArt.Icon="10" Content="檢查更新" Style="{StaticResource SidebarButton}" Command="{Binding CheckUpdateCommand}" ToolTip="{Binding CheckUpdateButtonText}" />
+                                </UniformGrid>
+                            </Expander>
                             <Border Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="2,16,2,6">
                                 <StackPanel>
                                     <TextBlock Text="工坊小提示" Style="{StaticResource GameHeading}" FontSize="14" />
@@ -212,9 +221,9 @@
                                     <TextBlock Text="{Binding SummaryText}" Foreground="{StaticResource BrushBannerSubText}" FontSize="12.5" FontWeight="SemiBold" Margin="0,3,0,0" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="縮圖" Foreground="{StaticResource BrushBannerSubText}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="縮圖大小" Foreground="{StaticResource BrushBannerSubText}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <Slider Minimum="90" Maximum="480" Value="{Binding ZoomLevel, Mode=TwoWay}" Style="{StaticResource CozySlider}" Width="104" VerticalAlignment="Center" AutomationProperties.Name="縮圖大小" ToolTip="Ctrl＋滾輪也可縮放" />
-                                    <TextBlock Text="{Binding ZoomLevel, StringFormat='{}{0:F0}'}" Foreground="{StaticResource BrushBannerText}" FontSize="12.5" FontWeight="Bold" Width="30" TextAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                    
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -284,7 +293,6 @@
                                             <DataTemplate DataType="{x:Type models:PaperItem}">
                                                 <Border x:Name="CardBorder"
                                                         Width="{Binding DataContext.ZoomLevel, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                        Background="{StaticResource BrushCardBg}"
                                                         CornerRadius="10"
                                                         Cursor="Hand"
                                                         AllowDrop="True"
@@ -298,13 +306,15 @@
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Margin" Value="5,4" />
+                                                            <Setter Property="Background" Value="{StaticResource BrushCardBg}" />
                                                             <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                             <Setter Property="Effect" Value="{StaticResource CardShadow}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                                     <Setter Property="BorderBrush" Value="{StaticResource BrushForestMoss}" />
-                                                                    <Setter Property="BorderThickness" Value="2.5" />
+                                                                    <Setter Property="BorderThickness" Value="4" />
+                                                                    <Setter Property="Background" Value="#E4F2E9" />
                                                                     <Setter Property="Effect" Value="{StaticResource SelectedCardShadow}" />
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding IsBeingDragged}" Value="True">
@@ -509,10 +519,10 @@
                         </Grid>
                         <WrapPanel Grid.Row="1" Margin="0,6,0,0" HorizontalAlignment="Right">
                             <Button art:WorkshopArt.Icon="8" x:Name="OpenOutputButton" Content="開啟輸出資料夾" Style="{StaticResource SidebarToolButton}" Command="{Binding OpenConvertedFolderCommand}" Margin="3,2" />
-                            <Button art:WorkshopArt.Icon="1" x:Name="ExportAllButton" Content="全合併匯出" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="合併畫布全部頁面，不受選取範圍影響" />
-                            <Button art:WorkshopArt.Icon="2" x:Name="ExportSplitButton" Content="全拆匯出" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="取消選取後，將全部頁面各自匯出為 PDF" />
-                            <Button art:WorkshopArt.Icon="1" x:Name="ExportSelectedButton" Content="選取匯出" Style="{StaticResource BtnSecondaryCraft}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="將選取頁面合併為一份 PDF" />
-                            <Button art:WorkshopArt.Icon="3" x:Name="ExportImagesButton" Content="轉成圖片匯出" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
+                            <Button art:WorkshopArt.Icon="1" x:Name="ExportAllButton" Content="全部合併成 1 份 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="把畫布上的全部頁面合併成一份 PDF（不受選取影響）" />
+                            <Button art:WorkshopArt.Icon="2" x:Name="ExportSplitButton" Content="每頁各存 1 個 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="把每一頁各存成一個 PDF。需先取消選取頁面。" />
+                            <Button art:WorkshopArt.Icon="1" x:Name="ExportSelectedButton" Content="選取頁合併成 1 份 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="只把已選取的頁面合併成一份 PDF。需先選取頁面。" />
+                            <Button art:WorkshopArt.Icon="3" x:Name="ExportImagesButton" Content="轉成 PNG 圖片" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
                         </WrapPanel>
                     </Grid>
                 </Border>

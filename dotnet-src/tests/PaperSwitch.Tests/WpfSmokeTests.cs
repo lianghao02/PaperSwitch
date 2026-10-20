@@ -55,7 +55,7 @@ namespace PaperSwitch.Tests
             Assert.Contains("PaperSwitch", windowTitle);
         }
 
-        private static void RenderWindowToPng(MainWindow window, string filePath, int width = 1200, int height = 750)
+        private static void RenderWindowToPng(Window window, string filePath, int width = 1200, int height = 750)
         {
             window.Width = width;
             window.Height = height;
@@ -79,6 +79,40 @@ namespace PaperSwitch.Tests
             encoder.Frames.Add(BitmapFrame.Create(rtb));
             using var fs = File.Create(filePath);
             encoder.Save(fs);
+        }
+
+        [Fact]
+        public void GameDialog_RenderSnapshot_ShouldSaveImage()
+        {
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    EnsureApplication();
+                    var ctor = typeof(GameDialog).GetConstructor(
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                        null, new[] { typeof(string), typeof(string), typeof(MessageBoxImage) }, null)!;
+                    var dlg = (GameDialog)ctor.Invoke(new object[]
+                    {
+                        "已合併成 1 份 PDF：\n開會通知.pdf\n\n存放位置：\nC:\\Users\\測試\\PaperSwitch\\Converted",
+                        "匯出完成", MessageBoxImage.Information
+                    });
+                    var add = typeof(GameDialog).GetMethod("AddButton", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+                    add.Invoke(dlg, new object[] { "完成", MessageBoxResult.OK, false, false, true });
+                    add.Invoke(dlg, new object[] { "開啟輸出資料夾", MessageBoxResult.Yes, true, true, false });
+                    string outDir = Environment.GetEnvironmentVariable("PAPERSWITCH_SNAPSHOT_DIR") is { Length: > 0 } customDir
+                        ? customDir
+                        : Path.Combine(Path.GetTempPath(), "PaperSwitch-ui-snapshots");
+                    Directory.CreateDirectory(outDir);
+                    RenderWindowToPng(dlg, Path.Combine(outDir, "rendered_dialog.png"), 460, 300);
+                }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            if (failure != null) throw failure;
         }
 
         [Fact]

@@ -399,7 +399,7 @@ namespace PaperSwitch.ViewModels
             string blankPath = Path.Combine(AppPaths.TemporaryConversionDirectory, $"blank_{Guid.NewGuid():N}.pdf");
             if (!_pdfService.CreateBlankA4Pdf(blankPath))
             {
-                MessageBox.Show("建立空白頁失敗，請確認暫存資料夾是否可寫入。", "插入空白頁", MessageBoxButton.OK, MessageBoxImage.Error);
+                GameDialog.Show("建立空白頁失敗，請確認暫存資料夾是否可寫入。", "插入空白頁", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -988,7 +988,7 @@ namespace PaperSwitch.ViewModels
         {
             if (Pages.Count == 0)
             {
-                MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
+                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1012,11 +1012,11 @@ namespace PaperSwitch.ViewModels
                     if (ok)
                     {
                         StatusMessage = $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
-                        OpenConvertedFolder();
+                        GameDialog.ShowExportDone($"已合併成 1 份 PDF：\n{Path.GetFileName(outputPath)}", outputDir);
                     }
                     else
                     {
-                        MessageBox.Show("導出 PDF 過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+                        GameDialog.Show("導出 PDF 過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
                 else
@@ -1024,13 +1024,13 @@ namespace PaperSwitch.ViewModels
                     string safePrefix = Options.CustomFileName;
                     var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix, Options.IncludeFileNameDescription));
                     StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
-                    OpenConvertedFolder();
+                    GameDialog.ShowExportDone($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
                 }
             }
             catch (Exception ex)
             {
                 StatusMessage = $"導出失敗: {ex.Message}";
-                MessageBox.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                GameDialog.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -1061,7 +1061,7 @@ namespace PaperSwitch.ViewModels
             var targetPages = Pages.ToList();
             if (targetPages.Count == 0)
             {
-                MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
+                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1080,12 +1080,12 @@ namespace PaperSwitch.ViewModels
                 string safePrefix = Options.CustomFileName;
                 var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix, Options.IncludeFileNameDescription));
                 StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
-                OpenConvertedFolder();
+                GameDialog.ShowExportDone($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
             }
             catch (Exception ex)
             {
                 StatusMessage = $"導出失敗: {ex.Message}";
-                MessageBox.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                GameDialog.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -1100,7 +1100,7 @@ namespace PaperSwitch.ViewModels
             var targetPages = GetEffectiveExportPages();
             if (targetPages.Count == 0)
             {
-                MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
+                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1127,17 +1127,19 @@ namespace PaperSwitch.ViewModels
                     StatusMessage = hasSelection
                         ? $"裝訂完成！已匯出選取頁面至: {Path.GetFileName(outputPath)}"
                         : $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
-                    OpenConvertedFolder();
+                    GameDialog.ShowExportDone(
+                        $"已將{(hasSelection ? "選取的 " + targetPages.Count + " 頁" : "全部 " + targetPages.Count + " 頁")}合併成 1 份 PDF：\n{Path.GetFileName(outputPath)}",
+                        outputDir);
                 }
                 else
                 {
-                    MessageBox.Show("導出 PDF 過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+                    GameDialog.Show("導出 PDF 過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
                 StatusMessage = $"導出失敗: {ex.Message}";
-                MessageBox.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                GameDialog.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -1151,7 +1153,7 @@ namespace PaperSwitch.ViewModels
             var targetPages = GetEffectiveExportPages();
             if (targetPages.Count == 0)
             {
-                MessageBox.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
+                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1198,25 +1200,27 @@ namespace PaperSwitch.ViewModels
                     if (result.ErrorCount > 0)
                     {
                         var errorSummary = string.Join("\n", result.Errors.Take(3).Select(e => $"• {e.Page.SourceFileName} P.{e.Page.DisplayPageNumber}: {e.ErrorMessage}"));
-                        MessageBox.Show(
+                        GameDialog.Show(
                             $"已匯出 {result.ExportedCount} 張圖片，但有 {result.ErrorCount} 頁發生錯誤未能匯出：\n\n{errorSummary}\n\n其餘頁面已正常輸出。",
                             "部分圖片匯出完成",
                             MessageBoxButton.OK,
                             MessageBoxImage.Warning);
                     }
-
-                    OpenConvertedFolder();
+                    else
+                    {
+                        GameDialog.ShowExportDone($"已匯出 {result.ExportedCount} 張 PNG 圖片。", outputDir);
+                    }
                 }
                 else
                 {
                     StatusMessage = "圖片匯出失敗，請確認來源 PDF 檔案可正常讀取。";
-                    MessageBox.Show("圖片匯出失敗，無法將指定頁面轉換為 PNG 圖片。", "匯出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+                    GameDialog.Show("圖片匯出失敗，無法將指定頁面轉換為 PNG 圖片。", "匯出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
                 StatusMessage = $"圖片匯出失敗: {ex.Message}";
-                MessageBox.Show($"圖片匯出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                GameDialog.Show($"圖片匯出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -1256,7 +1260,7 @@ namespace PaperSwitch.ViewModels
 
                 if (!result.Success)
                 {
-                    MessageBox.Show(
+                    GameDialog.Show(
                         $"檢查更新失敗：\n{result.ErrorMessage}\n\n請確認電腦網路連線是否通暢，或稍後再試。",
                         "檢查更新",
                         MessageBoxButton.OK,
@@ -1266,7 +1270,7 @@ namespace PaperSwitch.ViewModels
 
                 if (!result.HasUpdate)
                 {
-                    MessageBox.Show(
+                    GameDialog.Show(
                         $"🎉 目前已是最新版本 ({result.CurrentVersion})，無需更新！",
                         "檢查更新",
                         MessageBoxButton.OK,
@@ -1279,7 +1283,7 @@ namespace PaperSwitch.ViewModels
                                   "選擇「是」會下載新版、驗證 SHA-256，並在本程式關閉後自動替換與重新啟動。\n" +
                                   "若驗證資料或寫入權限不足，則會保留目前版本並提供手動下載備援。\n\n是否立即更新？";
 
-                    var dialogResult = MessageBox.Show(
+                    var dialogResult = GameDialog.Show(
                         message,
                         $"🎉 發現新版本 {result.LatestVersion}",
                         MessageBoxButton.YesNo,
@@ -1291,7 +1295,7 @@ namespace PaperSwitch.ViewModels
                         var applyResult = await _updateService.DownloadAndApplyAsync(result);
                         if (applyResult.ShouldExitApplication)
                         {
-                            MessageBox.Show(
+                            GameDialog.Show(
                                 applyResult.Message,
                                 "正在套用更新",
                                 MessageBoxButton.OK,
@@ -1300,7 +1304,7 @@ namespace PaperSwitch.ViewModels
                             return;
                         }
 
-                        var fallback = MessageBox.Show(
+                        var fallback = GameDialog.Show(
                             $"{applyResult.Message}\n\n是否改為開啟 Release 頁面手動下載？",
                             "無法自動更新",
                             MessageBoxButton.YesNo,
@@ -1318,7 +1322,7 @@ namespace PaperSwitch.ViewModels
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                GameDialog.Show(
                     $"檢查更新過程發生異常：\n{ex.Message}",
                     "檢查更新",
                     MessageBoxButton.OK,
