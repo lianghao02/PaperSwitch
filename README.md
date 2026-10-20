@@ -2,9 +2,9 @@
 
 [![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
-[![Theme](https://img.shields.io/badge/style-Warm_Cozy_Craft-E28445.svg)](README.md)
+[![Theme](https://img.shields.io/badge/style-2D_Workshop-34745F.svg)](README.md)
 
-> **手帳質感的 Windows 原生文件轉 PDF、批次合併與視覺化紙張排版工坊。**<br>
+> **2D 文具工坊風格的 Windows 原生文件轉 PDF、批次合併與視覺化紙張排版工具。**<br>
 > 全面重構自 Python 服務架構，升級為 C# 12 / .NET 8.0 LTS / WPF 原生應用程式，帶來秒開速度、確定性 Office COM 生命週期防禦與極致流暢的紙張排版體驗。
 
 ---
@@ -46,8 +46,9 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 
 ## 操作介面
 
-左側圓角操作面板集中加入檔案、排版工具、縮圖大小、轉檔任務與成果匯出；排版工具以每列兩個按鈕完整展開，文字維持單行，匯出區的五個按鈕直接顯示。右側畫布使用完整可用高度，上下不再配置工具列。左上角按鈕可收合或展開側欄，小視窗下可捲動側欄取得所有功能。雙擊紙張仍使用既有大圖檢視。
+目前本機原始碼已實作 2D Q 版文具工坊介面，遊戲風格與商業工具感並重；本次介面修改尚未發布至 GitHub Release，公開 v4.4.2 附件仍為原介面。
 
+上方放置加入檔案與復原／重做；左側工具盒保留雙欄排版按鈕、轉檔任務與工坊管理，可獨立捲動或收合。中央工作桌保留文件縮圖、選取狀態與縮圖大小滑桿。成果匯出固定於視窗底部，檔名、後綴設定及五個操作按鈕保持可見，按鈕空間不足時自動換行。雙擊紙張仍使用既有大圖檢視。
 ### 匯出檔名
 
 「加上後綴」預設關閉，並記住上次設定。以「報告」為例，關閉時另存為 `報告.pdf`，拆分為 `報告_001.pdf`，圖片為 `報告_001.png`；開啟時選取合併為 `報告_選取頁面.pdf`，拆分與圖片會加上來源頁碼，例如 `報告_頁3_001.pdf`。匯出全部 PDF 不添加用途文字。
@@ -76,7 +77,7 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
    - **旋轉頁面**：選取卡片後按鍵盤 `R`（順時針 90°）或 `Shift + R`（逆時針 90°）。
    - **大圖檢視 (Lightbox)**：雙擊任意卡片開啟高解析燈箱，支援滾輪平滑縮放（35% ~ 400%）與鍵盤翻頁。
    - **序號重新命名**：選取單頁或多頁卡片後按 `F2`，輸入基礎名稱即可批次自動流水編號。
-3. **裝訂與匯出 PDF／圖片**：左側成果匯出區依序顯示輸出檔名、「加上後綴」勾選框及五個按鈕，不再收合：
+3. **裝訂與匯出 PDF／圖片**：底部固定成果匯出區依序顯示輸出檔名、「加上後綴」勾選框及五個按鈕，不再收合：
    - **開啟輸出資料夾**：開啟成品資料夾。
    - **全合併匯出**：將全部頁面依畫布順序合併成一份 PDF，不受選取範圍影響。
    - **全拆匯出**：僅未選取縮圖時可用，將全部頁面各自輸出為獨立 PDF；有選取時停用。
@@ -88,10 +89,12 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 
 ## 🌟 核心特色與技術亮點
 
-### 1. 🌾 溫暖手作插畫手帳風格 (Warm Cozy Craft Style)
-- **水彩紙質感視覺**：厚磅水彩紙米白底（`#F7F4ED`）、陶土暖橘（`#D97736`）、森林苔綠（`#5B8266`）與墨黑（`#2D2825`），長時間辦公閱讀舒適不刺眼。
-- **細緻手作陰影與圓角**：柔和立體卡片、手繪風標籤、流暢動畫與溫暖的懸停特效。
-
+### 1. 2D Q 版文具工坊
+- **靜態遊戲美術**：木框羊皮紙、皮革縫線、黃銅包邊與 16 種手繪文具操作圖示；文字獨立呈現，原有操作配置保持不變。
+- **內嵌素材與縮放**：原創圖集由內建 imagegen 製作，使用九宮格延伸材質並共用快取，不需要網路。素材與生成規格見 [工坊素材](dotnet-src/src/PaperSwitch/Assets/Workshop/README.md)。
+- **遊戲按鍵與標題**：紙質／木質／苔綠按鍵與系統楷體標題，保留鍵盤焦點、可讀停用文字與原有功能名稱。
+- **清楚的文件工作桌**：奶油紙色、焦糖框線、薄荷綠選取標記與杏桃橘主要操作；文件縮圖維持原始內容。
+- **固定匯出與狀態列**：工具盒捲動時仍可操作成果匯出；停用按鈕保留可讀文字與原因提示。
 ### 2. 🗂️ 沉浸式「紙張排版工坊 (Page Arranger)」
 - **混合格式拖入即轉**：支援 PDF、Word (`.docx`/`.doc`)、Excel (`.xlsx`/`.xls`)、PPT (`.pptx`/`.ppt`) 與圖片（`.png`/`.jpg`/`.webp`/`.bmp`）自由拖曳匯入，自動背景排程轉檔。
 - **100% 向量無損合成**：採用 `PdfSharp` 向量矩陣旋轉與抽取，完全保留原始向量字型與文字層，零模糊、零檔案肥大。
@@ -146,7 +149,7 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 │   │       │   ├── ImageConverterService.cs
 │   │       │   ├── StorageMaintenanceService.cs
 │   │       │   └── AppPaths.cs
-│   │       ├── Styles/ (WarmCozyTheme.xaml, Colors.xaml)
+│   │       ├── Styles/ (GameWorkshop.xaml, WarmCozyTheme.xaml, Colors.xaml)
 │   │       └── PaperSwitch.csproj
 │   ├── tests/
 │   │   └── PaperSwitch.Tests/ (xUnit 單元測試)

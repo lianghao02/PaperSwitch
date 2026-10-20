@@ -1,0 +1,464 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:art="clr-namespace:PaperSwitch.Controls">
+
+    <!-- 2D Q 版工坊字型堆疊：親和、圓潤、飽滿、高辨識 -->
+    <FontFamily x:Key="GameFontFamily">Microsoft JhengHei UI, Microsoft JhengHei, Segoe UI</FontFamily>
+    <FontFamily x:Key="WorkshopHeadingFont">Microsoft JhengHei UI, Yu Gothic UI, Meiryo UI, Segoe UI</FontFamily>
+    
+    <SolidColorBrush x:Key="BrushDanger" Color="#781C10" />
+    <SolidColorBrush x:Key="BrushDangerLight" Color="#FDF2EE" />
+    <SolidColorBrush x:Key="BrushDangerBorder" Color="#B84838" />
+
+    <!-- 2D Q 版工坊標題 (飽滿微立體) -->
+    <Style x:Key="GameHeading" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource WorkshopHeadingFont}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="21" />
+        <Setter Property="Foreground" Value="{StaticResource BrushCharcoal}" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#FCECD9" BlurRadius="0" Direction="270" ShadowDepth="1" Opacity="0.9" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 深色標題專用高對比標題樣式 (墨綠底配象牙白) -->
+    <Style x:Key="BannerHeading" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource WorkshopHeadingFont}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="Foreground" Value="{StaticResource BrushBannerText}" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#183B2B" BlurRadius="2" Direction="270" ShadowDepth="1" Opacity="0.75" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 2D Q 版立體厚底按鈕 (Chunky 2.5D Workshop Button) -->
+    <Style x:Key="GameButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource GameFontFamily}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource BrushCharcoal}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorderDark}" />
+        <Setter Property="Padding" Value="12,7" />
+        <Setter Property="MinHeight" Value="42" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent" Margin="0,0,0,1">
+                        <!-- 立體厚底底座 -->
+                        <Border x:Name="ShadowBase" Background="#5E3A20" CornerRadius="9" Margin="2,4,2,0" />
+                        <!-- 上層按鈕本體 -->
+                        <Border x:Name="Face" CornerRadius="8" Margin="0,0,0,3"
+                                Background="{StaticResource BrushCardBg}"
+                                BorderBrush="{StaticResource BrushBorderDark}"
+                                BorderThickness="1.5"
+                                Padding="{TemplateBinding Padding}">
+                            <DockPanel HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                                <art:WorkshopIcon x:Name="ActionIcon" Width="20" Height="20" Margin="-2,-2,6,-2" IsHitTestVisible="False"
+                                    IconIndex="{Binding Path=(art:WorkshopArt.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
+                                <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <Border x:Name="FocusRing" BorderBrush="{StaticResource BrushForestMoss}" BorderThickness="2" CornerRadius="11" Margin="-2,-2,-2,-1" Visibility="Collapsed" IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="art:WorkshopArt.Icon" Value="-1">
+                            <Setter TargetName="ActionIcon" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="{StaticResource BrushTerracottaLight}" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource BrushTerracottaHover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Face" Property="Margin" Value="0,2,0,1" />
+                            <Setter TargetName="Face" Property="Background" Value="{StaticResource BrushTagBg}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Face" Property="Background" Value="#EFEAE1" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="#C8BCAD" />
+                            <Setter TargetName="Face" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="ShadowBase" Property="Background" Value="#C2B4A3" />
+                            <Setter TargetName="ActionIcon" Property="Opacity" Value="0.4" />
+                            <Setter Property="Foreground" Value="#6B5D50" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 烤蜂蜜橘 主操作按鈕 (Primary Button，超高對比醒目主力) -->
+    <Style x:Key="BtnPrimaryCraft" TargetType="Button" BasedOn="{StaticResource GameButton}">
+        <Setter Property="Foreground" Value="{StaticResource BrushCharcoal}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="Padding" Value="18,8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent" Margin="0,0,0,1">
+                        <Border x:Name="ShadowBase" Background="#8C480B" CornerRadius="9" Margin="2,4,2,0" />
+                        <Border x:Name="Face" CornerRadius="8" Margin="0,0,0,3"
+                                Background="{StaticResource BrushTerracotta}"
+                                BorderBrush="{StaticResource BrushBorderDark}"
+                                BorderThickness="1.5"
+                                Padding="{TemplateBinding Padding}">
+                            <DockPanel HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                                <art:WorkshopIcon x:Name="ActionIcon" Width="20" Height="20" Margin="-2,-2,6,-2" IsHitTestVisible="False"
+                                    IconIndex="{Binding Path=(art:WorkshopArt.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
+                                <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <Border x:Name="FocusRing" BorderBrush="#8C480B" BorderThickness="2" CornerRadius="11" Margin="-2,-2,-2,-1" Visibility="Collapsed" IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="art:WorkshopArt.Icon" Value="-1">
+                            <Setter TargetName="ActionIcon" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="{StaticResource BrushTerracottaHover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Face" Property="Margin" Value="0,2,0,1" />
+                            <Setter TargetName="Face" Property="Background" Value="#D97E1B" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Face" Property="Background" Value="#EFEAE1" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="#C8BCAD" />
+                            <Setter TargetName="Face" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="ShadowBase" Property="Background" Value="#C2B4A3" />
+                            <Setter TargetName="ActionIcon" Property="Opacity" Value="0.4" />
+                            <Setter Property="Foreground" Value="#6B5D50" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 森林翡翠綠 次操作按鈕 (Secondary Button，選取匯出/加入檔案) -->
+    <Style x:Key="BtnSecondaryCraft" TargetType="Button" BasedOn="{StaticResource GameButton}">
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="FontSize" Value="14.5" />
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent" Margin="0,0,0,1">
+                        <Border x:Name="ShadowBase" Background="#184F38" CornerRadius="9" Margin="2,4,2,0" />
+                        <Border x:Name="Face" CornerRadius="8" Margin="0,0,0,3"
+                                Background="{StaticResource BrushForestMoss}"
+                                BorderBrush="{StaticResource BrushBorderDark}"
+                                BorderThickness="1.5"
+                                Padding="{TemplateBinding Padding}">
+                            <DockPanel HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                                <art:WorkshopIcon x:Name="ActionIcon" Width="20" Height="20" Margin="-2,-2,6,-2" IsHitTestVisible="False"
+                                    IconIndex="{Binding Path=(art:WorkshopArt.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
+                                <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center">
+                                    <ContentPresenter.Effect>
+                                        <DropShadowEffect Color="#184F38" BlurRadius="1" Direction="270" ShadowDepth="1" Opacity="0.6" />
+                                    </ContentPresenter.Effect>
+                                </ContentPresenter>
+                            </DockPanel>
+                        </Border>
+                        <Border x:Name="FocusRing" BorderBrush="{StaticResource BrushForestMoss}" BorderThickness="2" CornerRadius="11" Margin="-2,-2,-2,-1" Visibility="Collapsed" IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="art:WorkshopArt.Icon" Value="-1">
+                            <Setter TargetName="ActionIcon" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="{StaticResource BrushForestMossHover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Face" Property="Margin" Value="0,2,0,1" />
+                            <Setter TargetName="Face" Property="Background" Value="#174E39" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Face" Property="Background" Value="#EFEAE1" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="#C8BCAD" />
+                            <Setter TargetName="Face" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="ShadowBase" Property="Background" Value="#C2B4A3" />
+                            <Setter TargetName="ActionIcon" Property="Opacity" Value="0.4" />
+                            <Setter Property="Foreground" Value="#6B5D50" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="BtnOutlineCraft" TargetType="Button" BasedOn="{StaticResource GameButton}" />
+    
+    <Style x:Key="BtnDangerCraft" TargetType="Button" BasedOn="{StaticResource GameButton}">
+        <Setter Property="Foreground" Value="{StaticResource BrushDanger}" />
+    </Style>
+
+    <!-- 工坊微立體印章工具鍵 (Sidebar Tool Button)：高辨識、深可可勾邊、Q 版按壓感 -->
+    <Style x:Key="SidebarToolButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource GameFontFamily}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Foreground" Value="{StaticResource BrushCharcoal}" />
+        <Setter Property="Background" Value="{StaticResource BrushCardBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorderDark}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="Padding" Value="5,5" />
+        <Setter Property="MinHeight" Value="41" />
+        <Setter Property="Margin" Value="2,2" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Face" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <DockPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <art:WorkshopIcon x:Name="ActionIcon" Width="19" Height="19" Margin="-2,-1,5,-1" IsHitTestVisible="False"
+                                    IconIndex="{Binding Path=(art:WorkshopArt.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
+                                <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <Border x:Name="FocusRing" BorderBrush="{StaticResource BrushForestMoss}" BorderThickness="2" CornerRadius="10" Margin="-2" Visibility="Collapsed" IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="art:WorkshopArt.Icon" Value="-1">
+                            <Setter TargetName="ActionIcon" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="{StaticResource BrushTerracottaLight}" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource BrushTerracottaHover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="{StaticResource BrushTagBg}" />
+                            <Setter TargetName="Face" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="1.5" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Face" Property="Opacity" Value="0.55" />
+                            <Setter TargetName="Face" Property="Background" Value="#EFEAE1" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="#C8BCAD" />
+                            <Setter TargetName="ActionIcon" Property="Opacity" Value="0.4" />
+                            <Setter Property="Foreground" Value="#6B5D50" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 工坊圓角文字輸入框：與底圖圓角 100% 對齊，高對比手繪勾邊 -->
+    <Style x:Key="WorkshopTextBox" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource GameFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource BrushCharcoal}" />
+        <Setter Property="Background" Value="{StaticResource BrushCardBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorderDark}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8" SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrushTerracottaHover}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrushForestMoss}" />
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushPaperBg}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 危險動作警示鍵：粉橘底、赤陶紅線、深酒紅文字 -->
+    <Style x:Key="SidebarDangerButton" TargetType="Button" BasedOn="{StaticResource SidebarToolButton}">
+        <Setter Property="Background" Value="{StaticResource BrushDangerLight}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushDangerBorder}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushDanger}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Face" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <DockPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <art:WorkshopIcon x:Name="ActionIcon" Width="19" Height="19" Margin="-2,-1,5,-1" IsHitTestVisible="False"
+                                    IconIndex="{Binding Path=(art:WorkshopArt.Icon), RelativeSource={RelativeSource TemplatedParent}}" />
+                                <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <Border x:Name="FocusRing" BorderBrush="{StaticResource BrushDanger}" BorderThickness="2" CornerRadius="10" Margin="-2" Visibility="Collapsed" IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="art:WorkshopArt.Icon" Value="-1">
+                            <Setter TargetName="ActionIcon" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="#FADCD5" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource BrushDanger}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="#F5C4B9" />
+                            <Setter TargetName="Face" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="1.5" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Face" Property="Opacity" Value="0.55" />
+                            <Setter TargetName="Face" Property="Background" Value="#EFEAE1" />
+                            <Setter TargetName="Face" Property="BorderBrush" Value="#C8BCAD" />
+                            <Setter TargetName="ActionIcon" Property="Opacity" Value="0.4" />
+                            <Setter Property="Foreground" Value="#6B5D50" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 工坊捲軸：焦糖描邊的圓角木條，取代系統灰色捲軸 -->
+    <Style x:Key="WorkshopScrollPageButton" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="Transparent" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="WorkshopScrollThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Bar" Background="#C9A47E" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1.5" CornerRadius="5" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bar" Property="Background" Value="{StaticResource BrushTerracotta}" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Bar" Property="Background" Value="#D97E1B" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="11" />
+        <Setter Property="MinWidth" Value="11" />
+        <Setter Property="Margin" Value="3,0,0,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Border Background="#33C9A47E" CornerRadius="5">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource WorkshopScrollPageButton}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource WorkshopScrollPageButton}" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource WorkshopScrollThumb}" MinHeight="24" />
+                            </Track.Thumb>
+                        </Track>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Height" Value="11" />
+                <Setter Property="MinHeight" Value="11" />
+                <Setter Property="Margin" Value="0,3,0,0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Border Background="#33C9A47E" CornerRadius="5">
+                                <Track x:Name="PART_Track">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageLeftCommand" Style="{StaticResource WorkshopScrollPageButton}" />
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageRightCommand" Style="{StaticResource WorkshopScrollPageButton}" />
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource WorkshopScrollThumb}" MinWidth="24" />
+                                    </Track.Thumb>
+                                </Track>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+</ResourceDictionary>

@@ -11,7 +11,8 @@
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BrushPaperBg}"
         FontFamily="{StaticResource AppFontFamily}"
-        PreviewKeyDown="Window_PreviewKeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        Foreground="{StaticResource BrushCharcoal}">
 
     <Grid>
         <Grid.RowDefinitions>

@@ -3,71 +3,87 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
-- **Commit SHA**：4386f08a728cfa4e15b7d43845075dd389b9603b（發布前基準；本輪發行提交以 v4.4.2 標籤與 Git 實際狀態為準）
+- **Commit SHA**：970f0859cec7178b950791b2ecd3fac08ca3f509（本輪提交前基準；最新提交以 `git log -1` 為準）
 - **Skill Version**：v1.0.0
-- **Task Type**：RELEASE
+- **Task Type**：IMPROVE
 - **Local Path Hint**：09_PaperSwitch
 
+---
+
 ## 目前狀態
-v4.4.2 本機發布建置與檢核完成，已取得使用者提交、推送與 Release 授權；遠端結果以 Git、發行頁面及 Actions 為準。
+可交付（已在本機提交；未推送、未發布、未升版）
 
 ## 本輪目標
-全合併使用畫布第一個有效來源名稱；全拆／圖片各自使用來源名稱加流水號；選取匯出使用日期時間加流水號。手動名稱優先，沒有來源名稱時採日期時間備援。
+前一輪（Codex／Antigravity，已結束）的「2D Q 版文具工坊」介面改版尚未提交。本輪接手驗收，補齊缺漏、修正對比與 Bug 後提交。
 
 ## 基準與已確認事實 (Baseline & Confirmed Facts)
-開始時 main 與 origin/main 同步且工作目錄乾淨。先前空白合併固定命名為 PaperSwitch.pdf；轉檔頁面的 SourceFileName 來自暫存 PDF，可能帶入 GUID，已改為保留匯入任務的原始檔名。
+- 基準 HEAD 為 `970f085`，版本 v4.4.2，公開 Release 仍是舊介面。
+- 前一輪成果包含：
+  - 樣式：`Styles/GameWorkshop.xaml`、`Styles/Colors.xaml`、`Styles/WarmCozyTheme.xaml`
+  - 圖示：`Controls/WorkshopArt.cs`、`Assets/Workshop/`（內嵌圖集）
+  - 介面接線：`MainWindow.xaml`、`App.xaml`；`.csproj` 新增 `Assets\Workshop\*.png` 資源
+  - 文件：`AGENTS.md` 視覺規範、`README.md`
+- 本輪繼承上述成果，未推翻重做。
 
 ## 已完成 (Completed)
-- 全合併從畫布順序挑第一個有效來源；前方未命名空白頁略過，全部無來源時使用 yyyyMMdd_HHmm_001.pdf。
-- 選取匯出使用日期時間加流水號；同分鐘同名已存在時使用下一個可用編號，避免疊加 _001_1。
-- 全拆／圖片依各頁來源名稱與本次畫布／選取順序編號；空白頁使用每批固定時間備援。
-- 插入空白頁增加來源標記，真正名為空白頁.pdf 的匯入文件不會被誤判。頁面重新命名仍維持有效。
-- Office／圖片匯入後，顯示與匯出使用原始名稱，不使用轉檔暫存檔名；實際來源 PDF 路徑保留供渲染與合成。
-- 手動輸入名稱、後綴設定、匯出按鈕選取防護與既有防覆寫規則保留；未重新加入預覽介面。
-
-- 更新 v4.4.2 版本、README、CHANGELOG 與發布報告，產生單檔與 SHA-256 清單，完成兩個獨立中文空白路徑啟動檢查。
+- **修正按鈕文字顏色失效**：
+  - 原因：`WarmCozyTheme.xaml` 的隱含 `TextBlock` 樣式設了 `Foreground`，Application 層級的隱含樣式會穿透按鈕範本。
+  - 影響：綠色按鈕顯示深色字（約 3:1），危險按鈕的紅字與停用按鈕的灰字都沒有生效。
+  - 修正：移除該 `Foreground`，改在 `MainWindow`、`LightboxWindow`、`RenameDialog` 三個視窗設定 `Foreground`，讓預設文字色由視窗繼承。
+- **對比提升**：
+  - 森林綠 `#2E8B65` 改為 `#247253`：白字對比從 4.2 提升到 5.8:1；滑過 7.7:1、按下 9.6:1。
+  - 停用按鈕文字 `#8A7B6E` 改為 `#6B5D50`：對比從 3.4 提升到 5.3:1。
+- **新增 Q 版捲軸**：焦糖色圓角捲軸（`ScrollBar` 隱含樣式），取代側欄的系統灰色捲軸。
+- **測試可攜性**：`WpfSmokeTests` 原本寫死個人資料夾路徑，改輸出到暫存資料夾，也可用 `PAPERSWITCH_SNAPSHOT_DIR` 指定。
+- 更新 `CHANGELOG.md` 的未發布區塊。
 
 ## 異動檔案 (Changed Files)
-- dotnet-src/src/PaperSwitch/Services/ExportFileNaming.cs
-- dotnet-src/src/PaperSwitch/Services/PdfService.cs
-- dotnet-src/src/PaperSwitch/Services/ImageExportService.cs
-- dotnet-src/src/PaperSwitch/ViewModels/MainViewModel.cs
-- dotnet-src/src/PaperSwitch/Models/PaperItem.cs
-- dotnet-src/src/PaperSwitch/MainWindow.xaml（僅檔名輸入提示）
-- dotnet-src/tests/PaperSwitch.Tests/AutomaticExportNamingTests.cs（新增）
-- README.md
-- HANDOFF.md
-- CHANGELOG.md、version.txt、dotnet-src/src/PaperSwitch/version.txt、dotnet-src/src/PaperSwitch/PaperSwitch.csproj
-- docs/RELEASE-v4.4.2.md（新增）
+- **前一輪成果**（本輪一併提交）：
+  - `AGENTS.md`、`README.md`
+  - `App.xaml`、`MainWindow.xaml`、`PaperSwitch.csproj`
+  - `Styles/Colors.xaml`、`Styles/WarmCozyTheme.xaml`、`Styles/GameWorkshop.xaml`
+  - `Controls/WorkshopArt.cs`、`Assets/Workshop/`
+  - `WpfSmokeTests.cs`
+- **本輪修改**：
+  - `Styles/Colors.xaml`、`Styles/WarmCozyTheme.xaml`、`Styles/GameWorkshop.xaml`
+  - `MainWindow.xaml`、`LightboxWindow.xaml`、`RenameDialog.xaml`
+  - `WpfSmokeTests.cs`
+  - `CHANGELOG.md`、`HANDOFF.md`
 
 ## 刻意未修改 (Do Not Do / Deliberately Omitted)
-未更動 PDF 合成、Office COM 核心、原始使用者文件、版面配置或 CI；舊 Release 附件保留。手動重新命名仍受尊重，不為還原原名而覆蓋使用者命名。
+- Office COM 轉換、PdfSharp 合成、WinRT 縮圖、匯出命名規則都沒有改動。
+- 沒有升版，也沒有重建 `dist/`。
 
 ## 尚未完成 (Remaining Work)
-- **P1 (阻斷/必須)**：無已確認阻斷。
-- **P2 (重要/當次)**：無已重現待修正問題。
-- **P3 (改善建議/暫緩)**：實際 Office 原生轉換仍受既有 IGEF 環境限制；完整人工操作與不同 Windows 環境未重新驗收。
+- **P1 (阻斷/必須)**：無。
+- **P2 (重要/當次)**：無。
+- **P3 (改善建議/暫緩)**：
+  - 未以真實 Office 檔案走完整轉檔流程。
+  - 未測試實體高 DPI 環境。
 
 ## 驗證結果 (Validation)
 ### 已執行測試與結果
-- qa.ps1：Release 0 警告、0 錯誤，80／80 測試通過；最後調整後再次 dotnet test 通過。
-- 實際多來源 PDF 合併與拆分：順序與來源名稱正確，同名來源保持不變。
-- 實際 PNG 匯入、轉成 PDF 再匯出 PNG：使用原始圖片名稱、沒有暫存 GUID，原始圖片位元組一致。
-- 驗證選取時間命名、同分鐘接續編號、手動名稱優先、空白頁備援與每批固定時間。
-- v4.4.2 單檔版本 4.4.2.0、專案啟動入口與兩個獨立路徑啟動檢查通過；詳見 docs/RELEASE-v4.4.2.md。
+- `pwsh -File dotnet-src\scripts\qa.ps1`：81/81 通過，Release 建置 0 警告、0 錯誤。
+- 實際啟動程式截圖，視窗尺寸 1280×900 與 960×720（最小尺寸），確認：
+  - 綠色按鈕為白字。
+  - 危險按鈕為紅字。
+  - 停用按鈕為可讀的灰字。
+  - 捲軸已套用 Q 版樣式。
+  - 無文字截斷。
+- UI 快照測試已產生空狀態與有資料兩種畫面，並已檢視。
 ### 尚未驗證項目
-完整人工匯入／拖曳／匯出流程、Office COM 原生來源、不同 Windows 及實體高 DPI。
+- 真實 Office COM 轉檔與 PDF 匯出的端到端操作（核心邏輯未改，仍由既有 81 項測試涵蓋）。
 ### 已知風險 (Known Risks)
-來源名稱因本次修正改回原始匯入名稱；Excel 多工作表轉出的頁面會共用工作簿來源名稱，以序號區分。既有 Office IGEF 限制不變。
+- 其他未設定 `Foreground` 的視窗會改用系統預設黑字。目前 3 個視窗都已設定。
 
 ## Git 狀態
-- Commit：發行提交以 v4.4.2 標籤所指提交為準，避免將提交自己的 SHA 寫入同一提交。
-- Push：使用者已授權，結果以 origin/main 與 tag 為準。
-- Working Tree：交付前以 git status 核對，僅本輪確認範圍。
-- Branch：main。
+- Commit：見 `git log -1`
+- Push：否
+- Working Tree：Clean
+- Branch：main
 
 ## 下一步建議動作 (Next Recommended Action)
-由 GitHub Release 下載 v4.4.2，核對發行提交對應的 Actions，延續已通過的命名與介面成果。
+請使用者實際開啟確認觀感；確認後再決定是否升版並以 `dotnet-src/scripts/build.ps1` 重建發布檔。
 
 ## 發布狀態 (Release Status)
-本機成品可交付；遠端狀態以 https://github.com/lianghao02/PaperSwitch/releases/tag/v4.4.2 為準。不同實體環境與 Office IGEF 限制已揭露。
+待使用者確認（測試通過，尚未升版與打包）

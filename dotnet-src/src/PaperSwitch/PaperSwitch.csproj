@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <Resource Include="app_icon.ico" />
+    <Resource Include="Assets\Workshop\*.png" />
     <Resource Include="app_icon.png" />
     <Resource Include="version.txt" />
     <None Update="version.txt">

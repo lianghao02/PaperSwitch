@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="重新命名輸出檔案" Height="210" Width="440"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="{StaticResource BrushPaperBg}" FontFamily="{StaticResource AppFontFamily}">
+        Background="{StaticResource BrushPaperBg}" FontFamily="{StaticResource AppFontFamily}"
+        Foreground="{StaticResource BrushCharcoal}">
     <Grid Margin="26">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />

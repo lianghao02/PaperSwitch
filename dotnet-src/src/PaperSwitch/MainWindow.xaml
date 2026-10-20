@@ -4,536 +4,526 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:models="clr-namespace:PaperSwitch.Models"
+        xmlns:art="clr-namespace:PaperSwitch.Controls"
         xmlns:viewModels="clr-namespace:PaperSwitch.ViewModels"
         mc:Ignorable="d"
         Title="PaperSwitch 紙張排版工坊 — 文件轉 PDF 與視覺化裝訂"
-        Height="820" Width="1240"
-        MinHeight="650" MinWidth="960"
+        Height="900" Width="1280"
+        MinHeight="720" MinWidth="960"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BrushPaperBg}"
         Icon="{StaticResource PaperSwitchFileIcon}"
         FontFamily="{StaticResource AppFontFamily}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         AllowDrop="True"
         PreviewKeyDown="Window_PreviewKeyDown"
         PreviewMouseLeftButtonDown="Window_PreviewMouseLeftButtonDown"
         Drop="Window_Drop"
-        DragOver="Window_DragOver">
+        DragOver="Window_DragOver"
+        Foreground="{StaticResource BrushCharcoal}">
 
     <Window.Resources>
-        <!-- 左欄以平面按鈕降低框線與陰影干擾，與紙張卡片分出層次。 -->
-        <Style x:Key="SidebarButton" TargetType="Button">
-            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Foreground" Value="{StaticResource BrushCharcoal}" />
-            <Setter Property="Background" Value="{StaticResource BrushCardBg}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="8,6" />
-            <Setter Property="MinHeight" Value="36" />
-            <Setter Property="Margin" Value="2" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
-            <Setter Property="ContentTemplate">
-                <Setter.Value><DataTemplate><TextBlock Text="{Binding}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /></DataTemplate></Setter.Value>
-            </Setter>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="9" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource BrushTerracottaLight}" />
-                                <Setter Property="BorderBrush" Value="{StaticResource BrushTerracotta}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{StaticResource BrushTagBg}" /></Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource BrushCharcoal}" />
-                                <Setter Property="Background" Value="{StaticResource BrushTagBg}" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="{StaticResource BrushPencilGray}" />
-                                <Setter Property="Background" Value="{StaticResource BrushPaperBg}" />
-                                <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}" />
-                                <Setter Property="Cursor" Value="Arrow" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SidebarPrimaryButton" TargetType="Button" BasedOn="{StaticResource SidebarButton}">
-            <Setter Property="Background" Value="{StaticResource BrushTerracotta}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BrushTerracotta}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style x:Key="SidebarDangerButton" TargetType="Button" BasedOn="{StaticResource SidebarButton}">
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="#A02010" /><Setter Property="Background" Value="#FDF2F0" /><Setter Property="BorderBrush" Value="#C23B22" /></Trigger>
-                <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Foreground" Value="#A02010" /><Setter Property="BorderBrush" Value="#C23B22" /></Trigger>
-            </Style.Triggers>
-        </Style>
+        <Style x:Key="SidebarButton" TargetType="Button" BasedOn="{StaticResource SidebarToolButton}" />
+        <Style x:Key="SidebarDangerButton" TargetType="Button" BasedOn="{StaticResource SidebarDangerButton}" />
     </Window.Resources>
-    <Window.DataContext>
-        <viewModels:MainViewModel x:Name="ViewModel" />
-    </Window.DataContext>
+    <Window.DataContext><viewModels:MainViewModel x:Name="ViewModel" /></Window.DataContext>
 
-    <!-- 左右共用暖紙色與圓角語言；畫布保留完整可用高度。 -->
-    <Grid Margin="12" Background="{StaticResource BrushPaperBg}">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <Border Grid.Column="0" Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorder}"
-                BorderThickness="1" CornerRadius="22" Margin="0,0,12,0" Padding="10">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <ToggleButton x:Name="SidebarToggle" Content="☰" HorizontalAlignment="Left" Padding="8,5"
-                              ToolTip="收合或展開操作面板" AutomationProperties.Name="收合或展開操作面板">
-                    <ToggleButton.Template>
-                        <ControlTemplate TargetType="ToggleButton">
-                            <Border x:Name="ToggleSurface" Background="{StaticResource BrushPaperBg}" BorderBrush="{StaticResource BrushBorder}"
-                                    BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ToggleSurface" Property="Background" Value="{StaticResource BrushTerracottaLight}" /></Trigger>
-                                <Trigger Property="IsChecked" Value="True"><Setter TargetName="ToggleSurface" Property="Background" Value="{StaticResource BrushTerracottaLight}" /></Trigger>
-                                <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ToggleSurface" Property="BorderBrush" Value="{StaticResource BrushTerracotta}" /></Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </ToggleButton.Template>
-                </ToggleButton>
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                              x:Name="SidebarScrollViewer">
-                    <ScrollViewer.Style>
-                        <Style TargetType="ScrollViewer">
-                            <Setter Property="Width" Value="280" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsChecked, ElementName=SidebarToggle}" Value="True">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ScrollViewer.Style>
-                    <StackPanel Margin="2,8,8,4">
-                        <TextBlock Text="PaperSwitch" Style="{StaticResource TextH1}" FontSize="22" Foreground="{StaticResource BrushTerracotta}" />
-                        <TextBlock Text="{Binding AppVersionBadge}" Style="{StaticResource TextMeta}" Margin="0,0,0,12" />
-                        <Button Content="＋ 加入檔案" Style="{StaticResource SidebarPrimaryButton}" Click="SelectFiles_Click" Padding="10,9" ToolTip="支援 PDF、Office 文件與圖片" />
-                        <TextBlock Text="排版工具" Style="{StaticResource TextH3}" Margin="2,16,0,6" />
-                        <StackPanel x:Name="LayoutTools">
-                            <UniformGrid Columns="2">
-                                <Button Content="復原" Style="{StaticResource SidebarButton}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip="復原（Ctrl＋Z）" />
-                                <Button Content="重做" Style="{StaticResource SidebarButton}" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTip="重做（Ctrl＋Y）" />
-                            </UniformGrid>
-                            <UniformGrid Columns="2" Margin="0,6,0,0">
-                                <Button Content="全選" Style="{StaticResource SidebarButton}" Command="{Binding SelectAllCommand}" ToolTip="全選（Ctrl＋A）" />
-                                <Button Content="反選" Style="{StaticResource SidebarButton}" Command="{Binding InvertSelectionCommand}" ToolTip="反向選取紙張" />
-                                <Button Content="逆轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCCW_Click" ToolTip="逆時針旋轉（Shift＋R）" />
-                                <Button Content="順轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCW_Click" ToolTip="順時針旋轉（R）" />
-                                <Button Content="前移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedLeftCommand}" ToolTip="向前移動（Ctrl＋←）" />
-                                <Button Content="後移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedRightCommand}" ToolTip="向後移動（Ctrl＋→）" />
-                                <Button Content="重新命名" Style="{StaticResource SidebarButton}" Click="RenameSelected_Click" ToolTip="重新命名（F2）" />
-                                <Button Content="插入空白頁" Style="{StaticResource SidebarButton}" Command="{Binding InsertBlankPageCommand}" ToolTip="在選取頁後方插入 A4 空白頁" />
-                            </UniformGrid>
-                            <UniformGrid Columns="2" Margin="0,6,0,0">
-                                <Button Content="刪除選取" Style="{StaticResource SidebarDangerButton}" Command="{Binding DeleteSelectedCommand}" ToolTip="移除選取頁面（Delete），可復原" />
-                                <Button Content="清空畫布" Style="{StaticResource SidebarDangerButton}" Command="{Binding ClearAllCommand}" ToolTip="清空目前畫布，可復原" />
-                                <Button Content="清除暫存" Style="{StaticResource SidebarDangerButton}" Click="ClearProcessingFolders_Click" ToolTip="清除成品與轉檔暫存資料夾，執行前會顯示確認內容" />
-                                <Button Content="檢查更新" Style="{StaticResource SidebarButton}" Command="{Binding CheckUpdateCommand}" ToolTip="{Binding CheckUpdateButtonText}" />
-                            </UniformGrid>
-                        </StackPanel>
-                        <TextBlock Text="縮圖大小" Style="{StaticResource TextMeta}" Margin="2,12,0,4" />
-                        <Grid Margin="2,0">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <Slider Minimum="90" Maximum="480" Value="{Binding ZoomLevel, Mode=TwoWay}" Style="{StaticResource CozySlider}"
-                                    VerticalAlignment="Center" ToolTip="調整縮圖大小，也可按 Ctrl＋滾輪" AutomationProperties.Name="縮圖大小" />
-                            <TextBlock Grid.Column="1" Text="{Binding ZoomLevel, StringFormat='{}{0:F0}'}" Style="{StaticResource TextMeta}" Margin="8,0,0,0" />
-                        </Grid>
-                                    <Border HorizontalAlignment="Stretch" Margin="0,12,0,0"
-                    Background="{StaticResource BrushPaperBg}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
-                    CornerRadius="10" Padding="8,6" Panel.ZIndex="30"
-                    Visibility="{Binding HasConversionTasks, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Expander IsExpanded="{Binding IsConversionQueueExpanded, Mode=TwoWay}">
-                    <Expander.Header>
-                        <StackPanel>
-                            <TextBlock Text="轉檔任務" Style="{StaticResource TextBody}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{Binding ConversionQueueSummary}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilGray}"
-                                       HorizontalAlignment="Left" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Expander.Header>
-                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                        <ItemsControl ItemsSource="{Binding ConversionTasks}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:ConversionTaskItem}">
-                                    <Border Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
-                                            CornerRadius="7" Padding="9,7" Margin="0,0,0,6">
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="24" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <TextBlock Grid.Row="0" Grid.RowSpan="2" Text="{Binding StateIcon}" FontSize="16" VerticalAlignment="Top" />
-                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FileName}" Style="{StaticResource TextCaption}"
-                                                       FontWeight="SemiBold" Foreground="{StaticResource BrushCharcoal}"
-                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}" />
-                                            <Border Grid.Row="0" Grid.Column="2" Background="{StaticResource BrushTagBg}" CornerRadius="4" Padding="5,2" Margin="8,0,0,0">
-                                                <TextBlock Text="{Binding StateLabel}" Style="{StaticResource TextMeta}" FontWeight="SemiBold" Foreground="{StaticResource BrushPencilGray}" />
-                                            </Border>
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding StatusMessage}" Style="{StaticResource TextMeta}"
-                                                       Foreground="{StaticResource BrushPencilGray}" TextWrapping="Wrap" Margin="0,3,0,0" />
-
-                                            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,7,0,0"
-                                                        Visibility="{Binding CanRetry, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <Button Content="重新嘗試" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3" Margin="0,0,5,0"
-                                                        Command="{Binding DataContext.RetryConversionTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                        CommandParameter="{Binding}" />
-                                                <Button Content="跳過" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3" Margin="0,0,5,0"
-                                                        Command="{Binding DataContext.SkipConversionTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                        CommandParameter="{Binding}" />
-                                                <Button Content="開啟位置" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3"
-                                                        Command="{Binding DataContext.OpenConversionTaskLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                        CommandParameter="{Binding}" />
-                                            </StackPanel>
-                                            <Expander Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,7,0,0" Header="技術資訊"
-                                                      Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBox Text="{Binding TechnicalDetails}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
-                                                         FontFamily="Consolas" FontSize="10" Foreground="{StaticResource BrushPencilGray}"
-                                                         TextWrapping="Wrap" MaxHeight="90" VerticalScrollBarVisibility="Auto" />
-                                            </Expander>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Expander>
-            </Border>
-
-
-                        <Border Background="{StaticResource BrushPaperBg}" CornerRadius="14" Padding="12" Margin="0,16,0,0"
-                                BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="成果匯出" Style="{StaticResource TextH3}" />
-                                <TextBlock Text="{Binding SummaryText}" Style="{StaticResource TextMeta}" TextWrapping="Wrap" Margin="0,4,0,10" />
-                                <Label Content="輸出檔名" Target="{Binding ElementName=ExportFileName}" Padding="0,0,0,4" />
-                                <TextBox x:Name="ExportFileName" MinHeight="34" Padding="8,5" VerticalContentAlignment="Center"
-                                         Text="{Binding Options.CustomFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         KeyDown="ExportFileNameTextBox_KeyDown" ToolTip="手動輸入名稱優先；留空時，合併採第一份來源名稱，選取匯出採日期時間，拆分與圖片採各頁來源名稱。按 Enter 全合併匯出。" />
-                                <CheckBox Content="加上後綴" IsChecked="{Binding Options.IncludeFileNameDescription, Mode=TwoWay}"
-                                          Margin="2,10,0,10" ToolTip="加上選取頁面或來源頁碼；多檔流水號與同名防覆寫仍會保留" />
-                                <Button x:Name="OpenOutputButton" Content="開啟輸出資料夾" Style="{StaticResource SidebarButton}" Command="{Binding OpenConvertedFolderCommand}" ToolTip="開啟成品資料夾" />
-                                <Button x:Name="ExportAllButton" Content="全合併匯出" Style="{StaticResource SidebarPrimaryButton}" Command="{Binding ExportAllPdfCommand}" ToolTip="將畫布全部頁面合併為一份 PDF，不受選取範圍影響" />
-                                <Button x:Name="ExportSplitButton" Content="全拆匯出" Style="{StaticResource SidebarButton}" Command="{Binding ExportSplitPdfCommand}" ToolTip="未選取縮圖時可用；取消選取後，將全部頁面各自匯出為 PDF" />
-                                <Button x:Name="ExportSelectedButton" Content="選取匯出" Style="{StaticResource SidebarButton}" Command="{Binding ExportSelectedPdfCommand}" ToolTip="選取縮圖後可用；將選取頁面合併為一份 PDF" />
-                                <Button x:Name="ExportImagesButton" Content="轉成圖片匯出" Style="{StaticResource SidebarButton}" Command="{Binding ExportImagesCommand}" ToolTip="{Binding ImageExportScopeText}" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </Grid>
-        </Border>
-        <Border Grid.Column="1" CornerRadius="22" BorderThickness="1" BorderBrush="{StaticResource BrushBorder}"
-                Background="{StaticResource BrushPaperBg}" Padding="2">
-                    <Grid Background="Transparent" x:Name="ArrangerCanvas">
-            <!-- 輕量轉檔任務列：自適應寬度膠囊，有工作時展開，平時不遮擋畫布。 -->
-            <!-- 空白狀態提示 (Empty State Dropzone) -->
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Margin="20" Padding="24"
-                    Background="{StaticResource BrushCardBg}"
-                    BorderBrush="{StaticResource BrushBorderDark}"
-                    BorderThickness="1.5"
-                    CornerRadius="16"
-                    Effect="{StaticResource CardShadow}"
-                    x:Name="EmptyStateBorder"
-                    Panel.ZIndex="10">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasPages}" Value="False">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <StackPanel HorizontalAlignment="Center" MaxWidth="460">
-                    <Border Width="68" Height="68" CornerRadius="18" Background="{StaticResource BrushTerracottaLight}" HorizontalAlignment="Center" Margin="0,0,0,16">
-                        <TextBlock Text="📂" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock Text="將文件或圖片拖曳至此開始排版" Style="{StaticResource TextH2}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,10" />
-                    <TextBlock Text="支援 PDF · Word (.docx/.doc) · Excel (.xlsx/.xls) · PPT (.pptx/.ppt) · 圖片 (.png/.jpg/.webp) 自動無損轉換與預覽"
-                               Style="{StaticResource TextCaption}" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource BrushPencilGray}" Margin="0,0,0,22" />
-                    <Button Content="📂 從電腦選取檔案" Style="{StaticResource BtnPrimaryCraft}" HorizontalAlignment="Center" Padding="20,9" Click="SelectFiles_Click" />
+    <!-- 工坊外框與固定匯出區使用自適應列高；畫布沿用原有選取及拖曳行為。 -->
+    <Grid Margin="16,12,16,8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <!-- 頂部工坊招牌與全域快捷按鈕 -->
+        <Grid Margin="4,0,4,12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <art:WorkshopSurface Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="0" CornerRadius="12" Padding="9" Margin="0,0,12,0" Material="Honey" EdgeSize="16">
+                    <art:WorkshopIcon IconIndex="14" Width="42" Height="42" />
+                </art:WorkshopSurface>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="PaperSwitch 紙張排版工坊" Style="{StaticResource GameHeading}" FontSize="24" />
+                    <TextBlock Text="整理每一頁，裝訂成你要的樣子。" Style="{StaticResource TextMeta}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource BrushPencilGray}" Margin="0,4,0,0" />
                 </StackPanel>
-            </Border>
-
-            <!-- 卡片列表捲軸區 -->
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto"
-                          Background="Transparent"
-                          Padding="24"
-                          PreviewMouseWheel="ScrollViewer_PreviewMouseWheel"
-                          PreviewMouseLeftButtonDown="MainScrollViewer_PreviewMouseLeftButtonDown"
-                          PreviewMouseMove="MainScrollViewer_PreviewMouseMove"
-                          PreviewMouseLeftButtonUp="MainScrollViewer_PreviewMouseLeftButtonUp"
-                          x:Name="MainScrollViewer">
-                <ScrollViewer.Style>
-                    <Style TargetType="ScrollViewer">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <!-- 空白畫布時不覆蓋投遞卡，確保中央選檔按鈕可直接點擊。 -->
-                            <DataTrigger Binding="{Binding HasPages}" Value="False">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ScrollViewer.Style>
-                <ItemsControl ItemsSource="{Binding Pages}" x:Name="CardsItemsControl" HorizontalContentAlignment="Center">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type models:PaperItem}">
-                            <Border x:Name="CardBorder"
-                                    Width="{Binding DataContext.ZoomLevel, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    Background="{StaticResource BrushCardBg}"
-                                    CornerRadius="6"
-                                    Cursor="Hand"
-                                    AllowDrop="True"
-                                    MouseLeftButtonDown="Card_MouseLeftButtonDown"
-                                    MouseLeftButtonUp="Card_MouseLeftButtonUp"
-                                    MouseMove="Card_MouseMove"
-                                    DragOver="Card_DragOver"
-                                    DragLeave="Card_DragLeave"
-                                    Drop="Card_Drop">
-
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Margin" Value="10" />
-                                        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}" />
-                                        <Setter Property="BorderThickness" Value="2" />
-                                        <Setter Property="Effect" Value="{StaticResource CardShadow}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{StaticResource BrushTerracotta}" />
-                                                <Setter Property="Effect" Value="{StaticResource SelectedCardShadow}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsBeingDragged}" Value="True">
-                                                <Setter Property="Opacity" Value="0.58" />
-                                                <Setter Property="Effect" Value="{StaticResource CardHoverShadow}" />
-                                                <Setter Property="RenderTransform">
-                                                    <Setter.Value>
-                                                        <TranslateTransform Y="-10" />
-                                                    </Setter.Value>
-                                                </Setter>
-                                            </DataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsDropTarget}" Value="True" />
-                                                    <Condition Binding="{Binding IsDropAfter}" Value="False" />
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="BorderBrush" Value="{StaticResource BrushTerracotta}" />
-                                                <Setter Property="BorderThickness" Value="2" />
-                                                <Setter Property="Effect" Value="{StaticResource SelectedCardShadow}" />
-                                            </MultiDataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsDropTarget}" Value="True" />
-                                                    <Condition Binding="{Binding IsDropAfter}" Value="True" />
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="BorderBrush" Value="{StaticResource BrushTerracotta}" />
-                                                <Setter Property="BorderThickness" Value="2" />
-                                                <Setter Property="Effect" Value="{StaticResource SelectedCardShadow}" />
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-
-                                <Grid Margin="8">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" /> <!-- 卡片頂部標籤 -->
-                                        <RowDefinition Height="*" />    <!-- 縮圖主體 -->
-                                        <RowDefinition Height="Auto" /> <!-- 來源檔名 -->
-                                    </Grid.RowDefinitions>
-
-                                    <Border Grid.Row="1" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="18"
-                                            Background="{StaticResource BrushTerracottaLight}" BorderBrush="{StaticResource BrushTerracotta}" BorderThickness="1"
-                                            CornerRadius="5" Padding="5,2" Margin="4,6,0,0"
-                                            IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock Text="✓ 已選" FontSize="11" Foreground="{StaticResource BrushCharcoal}" />
-                                    </Border>
-                                    <!-- 頂部頁碼與旋轉角度標籤 -->
-                                    <Grid Grid.Row="0" Margin="0,0,0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <!-- 頁碼標籤 -->
-                                        <Border Grid.Column="0" HorizontalAlignment="Left" Background="{StaticResource BrushTagBg}" CornerRadius="4" Padding="6,2">
-                                            <TextBlock Text="{Binding PageDisplayInfo}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushCharcoal}" />
-                                        </Border>
-
-                                        <!-- 旋轉標記 -->
-                                        <Border Grid.Column="1" HorizontalAlignment="Right" Background="{StaticResource BrushTerracottaLight}" CornerRadius="4" Padding="5,2"
-                                                Visibility="{Binding HasManualRotation, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding RotationDisplay}" Style="{StaticResource TextMeta}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}" />
-                                        </Border>
-                                    </Grid>
-
-                                    <!-- 縮圖呈現與旋轉矩陣 (自動等比例高度貼合) -->
-                                    <Border Grid.Row="1" Background="{StaticResource BrushPaperBg}" CornerRadius="6" MinHeight="40" ClipToBounds="True" Margin="0,2,0,6">
-                                        <Grid>
-                                            <!-- 載入中動畫 -->
-                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="8"
-                                                        Visibility="{Binding IsLoadingThumbnail, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBlock Text="⏳" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,4" />
-                                                <TextBlock Text="載入中..." Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilLight}" HorizontalAlignment="Center" />
-                                            </StackPanel>
-
-                                            <!-- 實際縮圖影像 (支援旋轉) -->
-                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
-                                                <Image.LayoutTransform>
-                                                    <RotateTransform Angle="{Binding Rotation}" />
-                                                </Image.LayoutTransform>
-                                            </Image>
-
-                                            <!-- 懸停快速操作微型工具列 (借鑑 PDF24 / Google Photos) -->
-                                            <Border x:Name="HoverActionBar" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                    Margin="0,0,4,4" Background="#E8FFFFFF" BorderBrush="{StaticResource BrushBorder}"
-                                                    BorderThickness="1" CornerRadius="5" Padding="2,1" Visibility="Collapsed" Panel.ZIndex="15">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Button Content="↷" Click="CardRotate_Click" Style="{StaticResource BtnOutlineCraft}"
-                                                            Padding="4,1" Margin="1,0" FontSize="11" ToolTip="順轉 90°" />
-                                                    <Button Content="🔍" Click="CardLightbox_Click" Style="{StaticResource BtnOutlineCraft}"
-                                                            Padding="4,1" Margin="1,0" FontSize="11" ToolTip="大圖檢視" />
-                                                    <Button Content="🗑️" Click="CardDelete_Click" Style="{StaticResource BtnDangerCraft}"
-                                                            Padding="4,1" Margin="1,0" FontSize="11" ToolTip="刪除此頁" />
-                                                </StackPanel>
-                                            </Border>
-                                        </Grid>
-                                    </Border>
-
-                                    <TextBlock Grid.Row="2" Text="{Binding SourceFileName}" Style="{StaticResource TextMeta}"
-                                               Foreground="{StaticResource BrushPencilGray}" TextTrimming="CharacterEllipsis"
-                                               TextWrapping="NoWrap" ToolTip="{Binding SourceFileName}" Margin="2,0,2,0" />
-
-                                    <!-- 拖曳插入槽：隨目標左右半邊顯示於兩張紙中間。 -->
-                                    <Border x:Name="DropBeforeSlot" Grid.RowSpan="3" Width="30" HorizontalAlignment="Left" VerticalAlignment="Stretch"
-                                            Margin="-40,0,0,0" Background="#FFFDF9" BorderBrush="{StaticResource BrushTerracotta}"
-                                            BorderThickness="1.5" CornerRadius="7" Panel.ZIndex="10">
-                                        <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding IsDropTarget}" Value="True" />
-                                                            <Condition Binding="{Binding IsDropAfter}" Value="False" />
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                    </Border>
-
-                                    <Border x:Name="DropAfterSlot" Grid.RowSpan="3" Width="30" HorizontalAlignment="Right" VerticalAlignment="Stretch"
-                                            Margin="0,0,-40,0" Background="#FFFDF9" BorderBrush="{StaticResource BrushTerracotta}"
-                                            BorderThickness="1.5" CornerRadius="7" Panel.ZIndex="10">
-                                        <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding IsDropTarget}" Value="True" />
-                                                            <Condition Binding="{Binding IsDropAfter}" Value="True" />
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                    </Border>
-                                </Grid>
-                            </Border>
-
-                            <DataTemplate.Triggers>
-                                <Trigger SourceName="CardBorder" Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="HoverActionBar" Property="Visibility" Value="Visible" />
-                                </Trigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-
-            <!-- 空白畫布框選視覺，不攔截卡片互動。 -->
-            <Canvas IsHitTestVisible="False" x:Name="SelectionCanvas">
-                <Rectangle x:Name="SelectionRectangle" Visibility="Collapsed"
-                           Stroke="{StaticResource BrushTerracotta}" StrokeThickness="1.5"
-                           StrokeDashArray="3,2" Fill="#22D97736" />
-                <!-- 不參與版面配置的拖曳插入標記，避免 Margin 造成卡片重排抖動。 -->
-                <Border x:Name="DropInsertionSlot" Width="36" Visibility="Collapsed"
-                        Background="#FFFDF9" BorderBrush="{StaticResource BrushTerracotta}" BorderThickness="1.5"
-                        CornerRadius="7" Panel.ZIndex="20">
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="插入" Style="{StaticResource TextMeta}" FontSize="10" Foreground="{StaticResource BrushTerracotta}"
-                                   HorizontalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-            </Canvas>
-
-            <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,22,0,0"
-                    Background="#FDF8F2" BorderBrush="{StaticResource BrushTerracotta}" BorderThickness="1.5"
-                    CornerRadius="10" Padding="14,9" Effect="{StaticResource SelectedCardShadow}"
-                    Visibility="{Binding IsDraggingPages, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Text="{Binding DraggedPageCount, StringFormat=📄 正在打包移動 {0} 張}" FontWeight="SemiBold"
-                           Foreground="{StaticResource BrushCharcoal}" />
-            </Border>
-
-            <!-- 忙碌指示遮罩 (Busy Overlay) -->
-            <Border Background="#BFEFE9DF" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" IsHitTestVisible="True" x:Name="BusyOverlay" Panel.ZIndex="20">
-                <Border Background="{StaticResource BrushCardBg}" CornerRadius="12" Padding="28,20" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" Effect="{StaticResource CardHoverShadow}">
-                    <StackPanel HorizontalAlignment="Center" Width="360">
-                        <TextBlock Text="⚙️" FontSize="28" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,10" />
-                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource TextBody}" FontWeight="SemiBold"
-                                   TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,14" />
-                        <ProgressBar IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" Maximum="100"
-                                     Height="8" Background="{StaticResource BrushPaperBg}" Foreground="{StaticResource BrushTerracotta}" />
-                        <TextBlock Text="請勿關閉工坊；處理完成後會自動更新狀態。" Style="{StaticResource TextMeta}"
-                                   Foreground="{StaticResource BrushPencilGray}" TextAlignment="Center" Margin="0,12,0,0" />
-                    </StackPanel>
-                </Border>
-            </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button art:WorkshopArt.Icon="4" Content="復原" Style="{StaticResource GameButton}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip="復原（Ctrl＋Z）" Margin="0,0,8,0" />
+                <Button art:WorkshopArt.Icon="5" Content="重做" Style="{StaticResource GameButton}" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTip="重做（Ctrl＋Y）" Margin="0,0,12,0" />
+                <Button art:WorkshopArt.Icon="0" Content="＋ 加入檔案" Style="{StaticResource BtnSecondaryCraft}" Click="SelectFiles_Click" ToolTip="支援 PDF、Office 文件與圖片" Padding="18,10" />
+            </StackPanel>
         </Grid>
 
+        <!-- 主體工作區：左側工具盒貫穿置底，右側為工作桌與靠右成果匯出 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            
+            <!-- 左欄：工具盒 (高度貫穿到底) -->
+            <Border Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="14,12" Margin="0,0,14,0">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <ToggleButton x:Name="SidebarToggle" Content="☰ 工具盒" Padding="12,8" HorizontalAlignment="Left" FontWeight="Bold" FontFamily="{StaticResource GameFontFamily}" ToolTip="收合或展開操作面板" AutomationProperties.Name="收合或展開操作面板">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="ToggleSurface" Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="9" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ToggleSurface" Property="Background" Value="{StaticResource BrushTerracottaLight}" /></Trigger>
+                                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ToggleSurface" Property="BorderBrush" Value="{StaticResource BrushForestMoss}" /></Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+                    <ScrollViewer Grid.Row="1" x:Name="SidebarScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Setter Property="Width" Value="240" />
+                                <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource BrushTerracottaHover}" />
+                                                                </Trigger><DataTrigger Binding="{Binding IsChecked, ElementName=SidebarToggle}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                        <StackPanel Margin="0,0,6,0">
+                            <TextBlock Text="排版工具" Style="{StaticResource GameHeading}" FontSize="18" Margin="4,2,0,8" />
+                            <StackPanel x:Name="LayoutTools">
+                                <UniformGrid Columns="2">
+                                    <Button art:WorkshopArt.Icon="11" Content="全選" Style="{StaticResource SidebarButton}" Command="{Binding SelectAllCommand}" ToolTip="全選（Ctrl＋A）" />
+                                    <Button art:WorkshopArt.Icon="11" Content="反選" Style="{StaticResource SidebarButton}" Command="{Binding InvertSelectionCommand}" ToolTip="反向選取紙張" />
+                                    <Button art:WorkshopArt.Icon="4" Content="逆轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCCW_Click" ToolTip="逆時針旋轉（Shift＋R）" />
+                                    <Button art:WorkshopArt.Icon="5" Content="順轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCW_Click" ToolTip="順時針旋轉（R）" />
+                                    <Button art:WorkshopArt.Icon="12" Content="前移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedLeftCommand}" ToolTip="向前移動（Ctrl＋←）" />
+                                    <Button art:WorkshopArt.Icon="13" Content="後移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedRightCommand}" ToolTip="向後移動（Ctrl＋→）" />
+                                    <Button art:WorkshopArt.Icon="6" Content="重新命名" Style="{StaticResource SidebarButton}" Click="RenameSelected_Click" ToolTip="重新命名（F2）" />
+                                    <Button art:WorkshopArt.Icon="7" Content="＋ 空白頁" Style="{StaticResource SidebarButton}" Command="{Binding InsertBlankPageCommand}" ToolTip="在選取頁後插入空白頁" />
+                                </UniformGrid>
+                                <Border Height="1.5" Background="{StaticResource BrushBorderDark}" Opacity="0.3" Margin="4,10" />
+                                <UniformGrid Columns="2">
+                                    <Button art:WorkshopArt.Icon="9" Content="刪除選取" Style="{StaticResource SidebarDangerButton}" Command="{Binding DeleteSelectedCommand}" ToolTip="移除選取頁面（Delete），可復原" />
+                                    <Button art:WorkshopArt.Icon="9" Content="清空畫布" Style="{StaticResource SidebarDangerButton}" Command="{Binding ClearAllCommand}" ToolTip="清空目前畫布，可復原" />
+                                </UniformGrid>
+                            </StackPanel>
+                            
+                            <!-- 轉檔任務區 -->
+                            <Border HorizontalAlignment="Stretch" Margin="0,12,0,0"
+                                    Background="{StaticResource BrushPaperBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1.5"
+                                    CornerRadius="10" Padding="8,6" Panel.ZIndex="30"
+                                    Visibility="{Binding HasConversionTasks, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Expander IsExpanded="{Binding IsConversionQueueExpanded, Mode=TwoWay}">
+                                    <Expander.Header>
+                                        <StackPanel>
+                                            <TextBlock Text="轉檔任務" Style="{StaticResource TextBody}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBlock Text="{Binding ConversionQueueSummary}" Style="{StaticResource TextMeta}" FontWeight="SemiBold" Foreground="{StaticResource BrushPencilGray}"
+                                                       HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
+                                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                        <ItemsControl ItemsSource="{Binding ConversionTasks}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type models:ConversionTaskItem}">
+                                                    <Border Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1"
+                                                            CornerRadius="7" Padding="9,7" Margin="0,0,0,6">
+                                                        <Grid>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                            </Grid.RowDefinitions>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="24" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
 
-        </Border>
+                                                            <TextBlock Grid.Row="0" Grid.RowSpan="2" Text="{Binding StateIcon}" FontSize="16" VerticalAlignment="Top" />
+                                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FileName}" Style="{StaticResource TextCaption}"
+                                                                       FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}"
+                                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}" />
+                                                            <Border Grid.Row="0" Grid.Column="2" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1" CornerRadius="4" Padding="5,2" Margin="8,0,0,0">
+                                                                <TextBlock Text="{Binding StateLabel}" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" />
+                                                            </Border>
+                                                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding StatusMessage}" Style="{StaticResource TextMeta}"
+                                                                       Foreground="{StaticResource BrushPencilGray}" TextWrapping="Wrap" Margin="0,3,0,0" />
+
+                                                            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Vertical" Margin="0,7,0,0"
+                                                                        Visibility="{Binding CanRetry, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <Button Content="重新嘗試" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3" Margin="0,0,5,0"
+                                                                        Command="{Binding DataContext.RetryConversionTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                                <Button Content="跳過" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3" Margin="0,0,5,0"
+                                                                        Command="{Binding DataContext.SkipConversionTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                                <Button Content="開啟位置" Style="{StaticResource BtnOutlineCraft}" FontSize="11" Padding="8,3"
+                                                                        Command="{Binding DataContext.OpenConversionTaskLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                            </StackPanel>
+                                                            <Expander Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,7,0,0" Header="技術資訊"
+                                                                      Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <TextBox Text="{Binding TechnicalDetails}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                                                         FontFamily="Consolas" FontSize="10" Foreground="{StaticResource BrushPencilGray}"
+                                                                         TextWrapping="Wrap" MaxHeight="90" VerticalScrollBarVisibility="Auto" />
+                                                            </Expander>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Expander>
+                            </Border>
+
+                            <TextBlock Text="工坊管理" Style="{StaticResource GameHeading}" FontSize="15" Margin="4,18,0,6" />
+                            <UniformGrid Columns="2">
+                                <Button art:WorkshopArt.Icon="9" Content="清除暫存" Style="{StaticResource SidebarDangerButton}" Click="ClearProcessingFolders_Click" ToolTip="清除成品與轉檔暫存，執行前顯示確認內容" />
+                                <Button art:WorkshopArt.Icon="10" Content="檢查更新" Style="{StaticResource SidebarButton}" Command="{Binding CheckUpdateCommand}" ToolTip="{Binding CheckUpdateButtonText}" />
+                            </UniformGrid>
+                            <Border Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="2,16,2,6">
+                                <StackPanel>
+                                    <TextBlock Text="工坊小提示" Style="{StaticResource GameHeading}" FontSize="14" />
+                                    <TextBlock Text="拖曳紙張可調整順序&#10;雙擊縮圖可放大檢視&#10;Ctrl＋Z 可復原編排" Style="{StaticResource TextMeta}" FontWeight="SemiBold" Foreground="{StaticResource BrushPencilGray}" TextWrapping="Wrap" LineHeight="20" Margin="0,5,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- 右側區域：上方為紙張工作桌，下方為成果匯出 (靠右讓出位置給左側工具盒) -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 上方：紙張工作桌 -->
+                <Border Grid.Row="0" Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" ClipToBounds="True">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                        <!-- 墨綠色標題帶 (完美貼合外框圓角，告別直角溢出) -->
+                        <Border BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="0,0,0,2" Background="{StaticResource BrushBannerBg}" CornerRadius="12,12,0,0" Padding="16,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="紙張工作桌" Style="{StaticResource BannerHeading}" FontSize="18" />
+                                    <TextBlock Text="{Binding SummaryText}" Foreground="{StaticResource BrushBannerSubText}" FontSize="12.5" FontWeight="SemiBold" Margin="0,3,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="縮圖" Foreground="{StaticResource BrushBannerSubText}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Slider Minimum="90" Maximum="480" Value="{Binding ZoomLevel, Mode=TwoWay}" Style="{StaticResource CozySlider}" Width="104" VerticalAlignment="Center" AutomationProperties.Name="縮圖大小" ToolTip="Ctrl＋滾輪也可縮放" />
+                                    <TextBlock Text="{Binding ZoomLevel, StringFormat='{}{0:F0}'}" Foreground="{StaticResource BrushBannerText}" FontSize="12.5" FontWeight="Bold" Width="30" TextAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="1">
+                            <Grid Background="Transparent" x:Name="ArrangerCanvas">
+                                <!-- 空白狀態提示 (Dropzone) -->
+                                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Margin="20" Padding="28,24"
+                                        Background="{StaticResource BrushCardBg}"
+                                        BorderBrush="{StaticResource BrushBorderDark}"
+                                        BorderThickness="2"
+                                        CornerRadius="16"
+                                        Effect="{StaticResource CardShadow}"
+                                        x:Name="EmptyStateBorder"
+                                        Panel.ZIndex="10">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPages}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel HorizontalAlignment="Center" MaxWidth="460">
+                                        <Border Width="68" Height="68" CornerRadius="18" Background="{StaticResource BrushForestMossLight}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1.5" HorizontalAlignment="Center" Margin="0,0,0,16">
+                                            <art:WorkshopIcon IconIndex="14" Width="52" Height="52" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="把文件放上工作桌" Style="{StaticResource GameHeading}" FontSize="22" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,10" />
+                                        <TextBlock Text="拖入 PDF、Office 文件或圖片，即可排序、旋轉與匯出。"
+                                                   Style="{StaticResource TextCaption}" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource BrushPencilGray}" Margin="0,0,0,22" />
+                                        <Button art:WorkshopArt.Icon="0" Content="＋ 從電腦選取檔案" Style="{StaticResource BtnPrimaryCraft}" HorizontalAlignment="Center" Padding="22,10" Click="SelectFiles_Click" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 卡片列表捲軸區 -->
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto"
+                                              Background="Transparent"
+                                              Padding="24"
+                                              PreviewMouseWheel="ScrollViewer_PreviewMouseWheel"
+                                              PreviewMouseLeftButtonDown="MainScrollViewer_PreviewMouseLeftButtonDown"
+                                              PreviewMouseMove="MainScrollViewer_PreviewMouseMove"
+                                              PreviewMouseLeftButtonUp="MainScrollViewer_PreviewMouseLeftButtonUp"
+                                              x:Name="MainScrollViewer">
+                                    <ScrollViewer.Style>
+                                        <Style TargetType="ScrollViewer">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <!-- 空白畫布時不覆蓋投遞卡，確保中央選檔按鈕可直接點擊。 -->
+                                                <DataTrigger Binding="{Binding HasPages}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ScrollViewer.Style>
+                                    <ItemsControl ItemsSource="{Binding Pages}" x:Name="CardsItemsControl" HorizontalContentAlignment="Center">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type models:PaperItem}">
+                                                <Border x:Name="CardBorder"
+                                                        Width="{Binding DataContext.ZoomLevel, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        Background="{StaticResource BrushCardBg}"
+                                                        CornerRadius="10"
+                                                        Cursor="Hand"
+                                                        AllowDrop="True"
+                                                        MouseLeftButtonDown="Card_MouseLeftButtonDown"
+                                                        MouseLeftButtonUp="Card_MouseLeftButtonUp"
+                                                        MouseMove="Card_MouseMove"
+                                                        DragOver="Card_DragOver"
+                                                        DragLeave="Card_DragLeave"
+                                                        Drop="Card_Drop">
+
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Margin" Value="5,4" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                            <Setter Property="Effect" Value="{StaticResource CardShadow}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource BrushForestMoss}" />
+                                                                    <Setter Property="BorderThickness" Value="2.5" />
+                                                                    <Setter Property="Effect" Value="{StaticResource SelectedCardShadow}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsBeingDragged}" Value="True">
+                                                                    <Setter Property="Opacity" Value="0.58" />
+                                                                    <Setter Property="Effect" Value="{StaticResource CardHoverShadow}" />
+                                                                    <Setter Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                            <TranslateTransform Y="-10" />
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </DataTrigger>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsDropTarget}" Value="True" />
+                                                                        <Condition Binding="{Binding IsDropAfter}" Value="False" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource BrushForestMoss}" />
+                                                                    <Setter Property="BorderThickness" Value="2.5" />
+                                                                    <Setter Property="Effect" Value="{StaticResource SelectedCardShadow}" />
+                                                                </MultiDataTrigger>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsDropTarget}" Value="True" />
+                                                                        <Condition Binding="{Binding IsDropAfter}" Value="True" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource BrushForestMoss}" />
+                                                                    <Setter Property="BorderThickness" Value="2.5" />
+                                                                    <Setter Property="Effect" Value="{StaticResource SelectedCardShadow}" />
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+
+                                                    <Grid Margin="5,3,5,4">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" /> <!-- 卡片頂部標籤 -->
+                                                            <RowDefinition Height="*" />    <!-- 縮圖主體 -->
+                                                            <RowDefinition Height="Auto" /> <!-- 來源檔名 -->
+                                                        </Grid.RowDefinitions>
+
+                                                        <!-- 頁碼、選取與旋轉標籤：緊湊微型頂列，高度最小化，釋放縮圖展示空間 -->
+                                                        <WrapPanel Grid.Row="0" Margin="1,0,1,2" VerticalAlignment="Center">
+                                                            <Border Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1" CornerRadius="4" Padding="6,0" Height="18" Margin="0,0,3,1">
+                                                                <TextBlock Text="{Binding PageDisplayInfo}" Style="{StaticResource TextMeta}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <Border Background="{StaticResource BrushForestMossLight}" BorderBrush="{StaticResource BrushForestMoss}" BorderThickness="1.5"
+                                                                    CornerRadius="4" Padding="6,0" Height="18" Margin="0,0,3,1" IsHitTestVisible="False"
+                                                                    Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <TextBlock Text="✓ 已選" FontSize="10.5" FontWeight="Bold" Foreground="{StaticResource BrushForestMossHover}" VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <Border Background="{StaticResource BrushForestMossLight}" BorderBrush="{StaticResource BrushForestMoss}" BorderThickness="1" CornerRadius="4" Padding="6,0" Height="18" Margin="0,0,0,1"
+                                                                    Visibility="{Binding HasManualRotation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <TextBlock Text="{Binding RotationDisplay}" Style="{StaticResource TextMeta}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource BrushForestMossHover}" VerticalAlignment="Center" />
+                                                            </Border>
+                                                        </WrapPanel>
+                                                        
+                                                        <!-- 縮圖呈現與旋轉矩陣 (自動等比例高度貼合) -->
+                                                        <Border Grid.Row="1" Background="{StaticResource BrushPaperBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1" CornerRadius="8" MinHeight="40" ClipToBounds="True" Margin="0,1,0,2">
+                                                            <Grid>
+                                                                <!-- 載入中動畫 -->
+                                                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="8"
+                                                                            Visibility="{Binding IsLoadingThumbnail, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <TextBlock Text="⏳" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                                                    <TextBlock Text="載入中..." Style="{StaticResource TextMeta}" FontWeight="SemiBold" Foreground="{StaticResource BrushPencilLight}" HorizontalAlignment="Center" />
+                                                                </StackPanel>
+
+                                                                <!-- 實際縮圖影像 (支援旋轉) -->
+                                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                                                                    <Image.LayoutTransform>
+                                                                        <RotateTransform Angle="{Binding Rotation}" />
+                                                                    </Image.LayoutTransform>
+                                                                </Image>
+
+                                                                <!-- 懸停快速操作按鈕：僅保留刪除此頁，去除旋轉與放大以減少視覺干擾 -->
+                                                                <Border x:Name="HoverActionBar" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                                        Margin="0,0,4,4" Background="#E8FFFFFF" BorderBrush="{StaticResource BrushBorderDark}"
+                                                                        BorderThickness="1.5" CornerRadius="6" Padding="1" Visibility="Collapsed" Panel.ZIndex="15">
+                                                                    <Button art:WorkshopArt.Icon="9" Width="28" Height="28" MinHeight="28" AutomationProperties.Name="刪除此頁" Content="" Click="CardDelete_Click" Style="{StaticResource BtnDangerCraft}"
+                                                                            Padding="2" Margin="0" FontSize="11" ToolTip="刪除此頁" />
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <TextBlock Grid.Row="2" Text="{Binding SourceFileName}" Style="{StaticResource TextMeta}"
+                                                                   FontSize="11.5" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource BrushCharcoal}" TextTrimming="CharacterEllipsis"
+                                                                   TextWrapping="NoWrap" ToolTip="{Binding SourceFileName}" Margin="2,2,2,0" />
+
+                                                        <!-- 拖曳插入槽：隨目標左右半邊顯示於兩張紙中間。 -->
+                                                        <Border x:Name="DropBeforeSlot" Grid.RowSpan="3" Width="30" HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                                                                Margin="-40,0,0,0" Background="#FFFDF9" BorderBrush="{StaticResource BrushForestMoss}"
+                                                                BorderThickness="2" CornerRadius="7" Panel.ZIndex="10">
+                                                            <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushForestMoss}"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <MultiDataTrigger>
+                                                                            <MultiDataTrigger.Conditions>
+                                                                                <Condition Binding="{Binding IsDropTarget}" Value="True" />
+                                                                                <Condition Binding="{Binding IsDropAfter}" Value="False" />
+                                                                            </MultiDataTrigger.Conditions>
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </MultiDataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                        </Border>
+
+                                                        <Border x:Name="DropAfterSlot" Grid.RowSpan="3" Width="30" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                                                                Margin="0,0,-40,0" Background="#FFFDF9" BorderBrush="{StaticResource BrushForestMoss}"
+                                                                BorderThickness="2" CornerRadius="7" Panel.ZIndex="10">
+                                                            <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushForestMoss}"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <MultiDataTrigger>
+                                                                            <MultiDataTrigger.Conditions>
+                                                                                <Condition Binding="{Binding IsDropTarget}" Value="True" />
+                                                                                <Condition Binding="{Binding IsDropAfter}" Value="True" />
+                                                                            </MultiDataTrigger.Conditions>
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </MultiDataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+
+                                                <DataTemplate.Triggers>
+                                                    <Trigger SourceName="CardBorder" Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="HoverActionBar" Property="Visibility" Value="Visible" />
+                                                    </Trigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <!-- 空白畫布框選視覺，不攔截卡片互動。 -->
+                                <Canvas IsHitTestVisible="False" x:Name="SelectionCanvas">
+                                    <Rectangle x:Name="SelectionRectangle" Visibility="Collapsed"
+                                               Stroke="{StaticResource BrushForestMoss}" StrokeThickness="2"
+                                               StrokeDashArray="3,2" Fill="#222F826A" />
+                                    <!-- 不參與版面配置的拖曳插入標記，避免 Margin 造成卡片重排抖動。 -->
+                                    <Border x:Name="DropInsertionSlot" Width="36" Visibility="Collapsed"
+                                            Background="#FFFDF9" BorderBrush="{StaticResource BrushForestMoss}" BorderThickness="2"
+                                            CornerRadius="7" Panel.ZIndex="20">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="＋" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushForestMoss}"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock Text="插入" Style="{StaticResource TextMeta}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource BrushForestMoss}"
+                                                       HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Canvas>
+
+                                <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,22,0,0"
+                                        Background="#FDF8F2" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2"
+                                        CornerRadius="10" Padding="14,9" Effect="{StaticResource SelectedCardShadow}"
+                                        Visibility="{Binding IsDraggingPages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="{Binding DraggedPageCount, StringFormat=📄 正在打包移動 {0} 張}" FontWeight="Bold"
+                                               Foreground="{StaticResource BrushCharcoal}" />
+                                </Border>
+
+                                <!-- 忙碌指示遮罩 (Busy Overlay) -->
+                                <Border Background="#BFEFE9DF" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" IsHitTestVisible="True" x:Name="BusyOverlay" Panel.ZIndex="20">
+                                    <Border Background="{StaticResource BrushCardBg}" CornerRadius="12" Padding="28,20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" Effect="{StaticResource CardHoverShadow}">
+                                        <StackPanel HorizontalAlignment="Center" Width="360">
+                                            <TextBlock Text="⚙️" FontSize="28" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,10" />
+                                            <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource TextBody}" FontWeight="Bold"
+                                                       TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                            <ProgressBar IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" Maximum="100"
+                                                         Height="8" Background="{StaticResource BrushPaperBg}" Foreground="{StaticResource BrushForestMoss}" />
+                                            <TextBlock Text="請勿關閉工坊；處理完成後會自動更新狀態。" Style="{StaticResource TextMeta}"
+                                                       Foreground="{StaticResource BrushPencilGray}" FontWeight="SemiBold" TextAlignment="Center" Margin="0,12,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- 下方：成果匯出列 (靠右讓出位置給左側工具盒) -->
+                <Border Grid.Row="1" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="16,10" Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="成果匯出" Style="{StaticResource GameHeading}" FontSize="18" Margin="0,0,16,0" VerticalAlignment="Center" />
+                            <Label Grid.Column="1" Content="輸出檔名" Target="{Binding ElementName=ExportFileName}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBox Grid.Column="2" x:Name="ExportFileName" Style="{StaticResource WorkshopTextBox}"
+                                     Text="{Binding Options.CustomFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" KeyDown="ExportFileNameTextBox_KeyDown"
+                                     ToolTip="留空自動命名；手動輸入名稱優先。按 Enter 全合併匯出。" AutomationProperties.Name="輸出檔名" />
+                            <CheckBox Grid.Column="3" Content="加上後綴" Style="{StaticResource CozyCheckBox}" FontWeight="Bold" FontSize="13.5" IsChecked="{Binding Options.IncludeFileNameDescription, Mode=TwoWay}" Margin="14,0,0,0" VerticalAlignment="Center" ToolTip="加入來源頁碼；仍保留同名防覆寫" />
+                        </Grid>
+                        <WrapPanel Grid.Row="1" Margin="0,6,0,0" HorizontalAlignment="Right">
+                            <Button art:WorkshopArt.Icon="8" x:Name="OpenOutputButton" Content="開啟輸出資料夾" Style="{StaticResource SidebarToolButton}" Command="{Binding OpenConvertedFolderCommand}" Margin="3,2" />
+                            <Button art:WorkshopArt.Icon="1" x:Name="ExportAllButton" Content="全合併匯出" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="合併畫布全部頁面，不受選取範圍影響" />
+                            <Button art:WorkshopArt.Icon="2" x:Name="ExportSplitButton" Content="全拆匯出" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="取消選取後，將全部頁面各自匯出為 PDF" />
+                            <Button art:WorkshopArt.Icon="1" x:Name="ExportSelectedButton" Content="選取匯出" Style="{StaticResource BtnSecondaryCraft}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="將選取頁面合併為一份 PDF" />
+                            <Button art:WorkshopArt.Icon="3" x:Name="ExportImagesButton" Content="轉成圖片匯出" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
+                        </WrapPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+        
+        <!-- 最底端狀態列：深色文字高清晰 -->
+        <Grid Grid.Row="2" Margin="6,8,6,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushCharcoal}" FontWeight="SemiBold" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding AppVersionBadge, StringFormat='PaperSwitch {0}'}" Style="{StaticResource TextMeta}" Foreground="{StaticResource BrushPencilGray}" FontWeight="Bold" FontSize="12.5" Margin="16,0,0,0" />
+        </Grid>
     </Grid>
 </Window>
