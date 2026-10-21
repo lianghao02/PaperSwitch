@@ -3,7 +3,7 @@
 稽核基準：`d458feb`
 稽核日期：2026-09-21（更新於 v4.3.0 發布後）
 
-本文件只比對使用者可感知功能。正式維護入口是 `dotnet-src/`；`legacy-python/` 已非正式執行入口，主要保留作歷史實作及尚未等價遷移之 LibreOffice fallback 參考。
+本文件只比對使用者可感知功能。正式維護入口是 `dotnet-src/`；原 Python 舊版（`legacy-python/`）已於 2026-10-21 移除；需要時可由 Git 歷史取回（移除前最後提交 4b198a0）。LibreOffice 後援尚未遷移，若日後需要請依新的產品規格評估。
 
 | 功能 | Python | .NET | 狀態 |
 |---|---|---|---|
@@ -32,4 +32,4 @@
 
 .NET 版已完整覆蓋 PaperSwitch 目前正式定位所需的匯入、視覺排版、旋轉、拆分、合併、批次狀態、Office COM 流程與批次 PDF 轉圖片 (PNG)，且增加復原／重做、空白頁及原生更新。
 
-目前主要剩餘功能差異僅剩 LibreOffice 後援。`legacy-python/` 已非正式執行入口，主要保留作歷史實作及尚未等價遷移之 LibreOffice fallback 參考，不納入主構建亦不急於刪除。是否需要遷移應由未來產品規格明確決定。
+目前主要剩餘功能差異僅剩 LibreOffice 後援。原 Python 舊版（`legacy-python/`）已於 2026-10-21 移除；需要時可由 Git 歷史取回（移除前最後提交 4b198a0）。是否需要遷移 LibreOffice 後援應由未來產品規格明確決定。

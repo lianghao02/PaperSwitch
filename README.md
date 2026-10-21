@@ -160,7 +160,6 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 │       ├── run.ps1 (啟動與成品新舊檢查)
 │       ├── test-launcher.ps1 (隔離入口回歸測試)
 │       └── qa.ps1 (自動化建置與測試檢核)
-├── legacy-python/ (原 Python 舊架構備援封存)
 ├── dist/
 │   └── publish/ (編譯發行成品: PaperSwitch.exe)
 ├── RUN.bat (雙擊啟動 C# 原生應用程式)
