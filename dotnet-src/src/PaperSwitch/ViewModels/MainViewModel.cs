@@ -1106,7 +1106,7 @@ namespace PaperSwitch.ViewModels
                     if (ok)
                     {
                         StatusMessage = $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
-                        GameDialog.ShowExportDone($"已合併成 1 份 PDF：\n{Path.GetFileName(outputPath)}", outputDir);
+                        ShowExportDoneAndCleanup($"已合併成 1 份 PDF：\n{Path.GetFileName(outputPath)}", outputDir);
                     }
                     else
                     {
@@ -1118,7 +1118,7 @@ namespace PaperSwitch.ViewModels
                     string safePrefix = Options.CustomFileName;
                     var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix, Options.IncludeFileNameDescription));
                     StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
-                    GameDialog.ShowExportDone($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
+                    ShowExportDoneAndCleanup($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
                 }
             }
             catch (Exception ex)
@@ -1174,7 +1174,7 @@ namespace PaperSwitch.ViewModels
                 string safePrefix = Options.CustomFileName;
                 var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix, Options.IncludeFileNameDescription));
                 StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
-                GameDialog.ShowExportDone($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
+                ShowExportDoneAndCleanup($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
             }
             catch (Exception ex)
             {
@@ -1221,7 +1221,7 @@ namespace PaperSwitch.ViewModels
                     StatusMessage = hasSelection
                         ? $"裝訂完成！已匯出選取頁面至: {Path.GetFileName(outputPath)}"
                         : $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
-                    GameDialog.ShowExportDone(
+                    ShowExportDoneAndCleanup(
                         $"已將{(hasSelection ? "選取的 " + targetPages.Count + " 頁" : "全部 " + targetPages.Count + " 頁")}合併成 1 份 PDF：\n{Path.GetFileName(outputPath)}",
                         outputDir);
                 }
@@ -1302,7 +1302,7 @@ namespace PaperSwitch.ViewModels
                     }
                     else
                     {
-                        GameDialog.ShowExportDone($"已匯出 {result.ExportedCount} 張 PNG 圖片。", outputDir);
+                        ShowExportDoneAndCleanup($"已匯出 {result.ExportedCount} 張 PNG 圖片。", outputDir);
                     }
                 }
                 else
@@ -1320,6 +1320,25 @@ namespace PaperSwitch.ViewModels
             {
                 IsBusy = false;
                 IsProgressIndeterminate = true;
+            }
+        }
+
+        /// <summary>
+        /// 顯示匯出完成對話框，之後清除轉檔暫存資料夾裡不再使用的檔案
+        /// （畫布頁面與待解密的任務所用的 PDF 會保留）。
+        /// </summary>
+        private void ShowExportDoneAndCleanup(string summary, string folder)
+        {
+            GameDialog.ShowExportDone(summary, folder);
+            try
+            {
+                var keep = Pages.Select(p => p.SourceFilePath)
+                    .Concat(ConversionTasks.Where(t => t.State == ConversionTaskState.Failed).Select(t => t.ActionPath));
+                StorageMaintenanceService.ClearTemporaryExcept(keep);
+            }
+            catch (Exception)
+            {
+                // 清理失敗不影響匯出結果
             }
         }
 

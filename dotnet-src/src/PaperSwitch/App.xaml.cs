@@ -27,6 +27,12 @@ namespace PaperSwitch
             };
         }
 
+        protected override void OnExit(ExitEventArgs e)
+        {
+            StorageMaintenanceService.ClearTemporaryOnExit();
+            base.OnExit(e);
+        }
+
         private static void LogUnhandledException(Exception? ex, string source)
         {
             if (ex == null) return;
