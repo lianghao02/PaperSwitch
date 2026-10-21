@@ -16,6 +16,12 @@
 ## 本輪目標
 前一輪（Codex／Antigravity，已結束）的「2D Q 版文具工坊」介面改版尚未提交。本輪接手驗收，補齊缺漏、修正對比與 Bug 後提交。
 
+## 2026-10-21 發布 v4.5.0（Claude）
+- 依使用者指示（已自行使用一輪）：升版 4.4.2 → 4.5.0（`version.txt` 兩份、`PaperSwitch.csproj` 三個版本欄位）、更新 README／CHANGELOG、新增 `docs/RELEASE-v4.5.0.md`。
+- 驗證：`qa.ps1` 0 錯誤；84 項測試通過；`build.ps1 -SelfContained` 產出單檔，檔案版本 4.5.0.0，啟動取得主視窗。
+- 附件放在 `dist/release_assets/v4.5.0/`（EXE ＋ SHA256SUMS.txt；`dist/` 不入版控）。
+- 推送與 GitHub Release 的實際結果以 `git tag` 與 `gh release view v4.5.0` 為準。
+
 ## 2026-10-21 UI／UX 調整（Claude）
 - 新增 `GameDialog.xaml(.cs)`：`GameDialog.Show` 參數同 `MessageBox.Show`；`ShowExportDone` 為匯出完成對話框（含「開啟輸出資料夾」）。`App.xaml.cs` 的全域例外處理刻意保留系統 `MessageBox`（避免資源尚未載入時再出錯）。
 - `MainViewModel.cs`：匯出成功後不再自動呼叫 `OpenConvertedFolder()`，改顯示完成對話框；圖片匯出有失敗頁時只顯示原本的警告。
