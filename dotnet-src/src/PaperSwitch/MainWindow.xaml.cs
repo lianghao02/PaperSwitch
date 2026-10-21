@@ -471,6 +471,9 @@ namespace PaperSwitch
         {
             if (IsInsidePaperCard(e.OriginalSource as DependencyObject)) return;
 
+            // 點到捲軸（滑塊、軌道、箭頭）時交給捲軸處理，不能當成空白畫布開始框選，否則會搶走滑鼠而無法拖曳捲軸。
+            if (IsInsideScrollBar(e.OriginalSource as DependencyObject)) return;
+
             // 空白畫布是明確的取消選取動作，也同時移除可能殘留的拖曳插入橘框。
             ClearDropIndicator();
             _isBoxSelecting = true;
@@ -563,7 +566,7 @@ namespace PaperSwitch
             return false;
         }
 
-        private static bool IsInsideScrollBar(DependencyObject? source)
+        internal static bool IsInsideScrollBar(DependencyObject? source)
         {
             while (source != null)
             {
