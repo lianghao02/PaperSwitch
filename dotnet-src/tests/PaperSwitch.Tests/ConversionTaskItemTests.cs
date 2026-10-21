@@ -60,6 +60,18 @@ namespace PaperSwitch.Tests
         [Fact]
         public async Task AddFilesAsync_FailedPdf_ShouldNotBlockFollowingTask()
         {
+            // 先驗證「需要解密」旗標的顯示規則，再跑原本的佇列測試
+            var locked = new ConversionTaskItem(@"C:\測試\報告.docx");
+            locked.MarkFailed("被加密", null, @"C:\temp\報告.pdf", needsDecrypt: true);
+            Assert.True(locked.ShowDecryptGuide);
+            Assert.False(locked.CanRetryNormally);
+            Assert.Equal(@"C:\temp\報告.pdf", locked.ActionPath);
+            locked.MarkWaiting();
+            Assert.False(locked.ShowDecryptGuide);
+            locked.MarkFailed("一般失敗");
+            Assert.True(locked.CanRetryNormally);
+            Assert.False(locked.ShowDecryptGuide);
+
             string directory = Path.Combine(Path.GetTempPath(), $"paperswitch-queue-{Guid.NewGuid():N}");
             Directory.CreateDirectory(directory);
             string brokenPdf = Path.Combine(directory, "損毀.pdf");

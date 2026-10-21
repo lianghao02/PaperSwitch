@@ -73,6 +73,19 @@ namespace PaperSwitch
             return dlg._result == MessageBoxResult.None ? dlg._cancelResult : dlg._result;
         }
 
+        /// <summary>三個按鈕的選擇：主要＝Yes、次要＝No、取消＝Cancel。</summary>
+        public static MessageBoxResult ShowChoice(string message, string title,
+            string primaryText, string secondaryText, string cancelText)
+        {
+            var dlg = new GameDialog(message, title, MessageBoxImage.Information);
+            dlg.IconText.Text = "🔐";
+            dlg.AddButton(cancelText, MessageBoxResult.Cancel, false, false, true);
+            dlg.AddButton(secondaryText, MessageBoxResult.No, false, false, false);
+            dlg.AddButton(primaryText, MessageBoxResult.Yes, true, true, false);
+            dlg.ShowDialog();
+            return dlg._result == MessageBoxResult.None ? MessageBoxResult.Cancel : dlg._result;
+        }
+
         /// <summary>匯出完成：顯示成果摘要與輸出位置，可直接開啟資料夾。</summary>
         public static void ShowExportDone(string summary, string folder, string? note = null)
         {

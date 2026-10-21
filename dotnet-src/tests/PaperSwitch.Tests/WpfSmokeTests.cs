@@ -167,6 +167,13 @@ namespace PaperSwitch.Tests
                         vm.Pages.Add(item3);
 
                         RenderWindowToPng(window, Path.Combine(outDir, "rendered_populated.png"));
+
+                        // 3. 轉檔任務：被公司加密程序鎖住的失敗卡片
+                        var locked = new PaperSwitch.Models.ConversionTaskItem(@"C:\測試\551.docx");
+                        locked.MarkFailed("轉出的 PDF 被公司加密程序鎖住，需要先解密。原始檔案沒有被修改。", null, @"C:\測試\551.pdf", needsDecrypt: true);
+                        vm.ConversionTasks.Add(locked);
+                        vm.IsConversionQueueExpanded = true;
+                        RenderWindowToPng(window, Path.Combine(outDir, "rendered_locked_task.png"));
                     }
                 }
                 finally

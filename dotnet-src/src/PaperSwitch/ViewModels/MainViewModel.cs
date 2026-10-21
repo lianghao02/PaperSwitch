@@ -824,9 +824,10 @@ namespace PaperSwitch.ViewModels
                 }
 
                 task.MarkFailed(
-                    "Office 已產生暫存 PDF，但目前仍受加密或保護程序處理，請依規定解密後重新加入。原始檔案沒有被修改。",
+                    "轉出的 PDF 被公司加密程序鎖住，需要先解密。原始檔案沒有被修改。",
                     "Office 暫存 PDF 未在可等待期限內成為標準 %PDF 檔案。",
-                    pdfPath);
+                    pdfPath,
+                    needsDecrypt: true);
             }
         }
 
@@ -920,6 +921,99 @@ namespace PaperSwitch.ViewModels
 
             task.MarkWaiting();
             await ProcessConversionTasksAsync(new[] { task });
+        }
+
+        /// <summary>
+        /// 暫存 PDF 被公司加密程序鎖住時的處理說明：可反覆開啟資料夾，解密後按「繼續」。
+        /// </summary>
+        [RelayCommand]
+        public async Task ShowDecryptGuideAsync(ConversionTaskItem? task)
+        {
+            if (task is null || !task.ShowDecryptGuide || IsBusy) return;
+
+            while (true)
+            {
+                string fileName = Path.GetFileName(task.ActionPath ?? task.SourcePath);
+                var choice = GameDialog.ShowChoice(
+                    $"「{task.FileName}」已轉成 PDF，但被公司的加密程序鎖住，目前無法讀取。\n\n" +
+                    "請依序處理：\n" +
+                    "1. 按「開啟位置」，找到被選取的 PDF（" + fileName + "）。\n" +
+                    "2. 用公司規定的方式把它解密，檔名與位置請維持不變。\n" +
+                    "3. 回到這裡按「我已解密，繼續」。\n\n" +
+                    "原始 Office 檔案不會被修改。",
+                    "需要先解密",
+                    primaryText: "我已解密，繼續",
+                    secondaryText: "開啟位置",
+                    cancelText: "稍後再說");
+
+                if (choice == MessageBoxResult.No)
+                {
+                    OpenConversionTaskLocation(task);
+                    continue;
+                }
+
+                if (choice == MessageBoxResult.Yes)
+                {
+                    await ContinueAfterDecryptAsync(task);
+                    if (task.ShowDecryptGuide) continue;
+                }
+
+                return;
+            }
+        }
+
+        private async Task ContinueAfterDecryptAsync(ConversionTaskItem task)
+        {
+            string path = task.ActionPath ?? task.SourcePath;
+            if (!File.Exists(path))
+            {
+                GameDialog.Show("找不到這份 PDF，可能已被移動或清除。請按「重新嘗試」重新轉檔。", "找不到檔案", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_officeService.CheckPdfHeaderAndSize(path).State != "pdf")
+            {
+                GameDialog.Show("這份 PDF 還是加密狀態，無法讀取。\n請確認已解密，且檔名與位置沒有改變。", "還不能讀取", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            await _conversionBatchGate.WaitAsync();
+            try
+            {
+                IsBusy = true;
+                IsProgressIndeterminate = true;
+                task.MarkProcessing("讀取已解密的 PDF...");
+                StatusMessage = $"正在讀取已解密的 PDF：\n{task.FileName}";
+
+                var pdfsToLoad = new List<(string PdfPath, ConversionTaskItem Task)>();
+                RegisterPdfForLoading(task, path, pdfsToLoad);
+
+                var newItems = new List<PaperItem>();
+                foreach (var (pdf, owner) in pdfsToLoad)
+                {
+                    await LoadPdfPagesForTaskAsync(pdf, owner, newItems);
+                }
+
+                if (task.State == ConversionTaskState.Processing && task.PendingPdfCount == 0)
+                {
+                    task.MarkCompleted(task.CompletedPageCount);
+                }
+
+                _ = LoadThumbnailsAsync(newItems);
+                if (newItems.Count > 0) ClearHistory();
+                StatusMessage = $"已載入 {newItems.Count} 頁新紙張";
+            }
+            catch (Exception ex)
+            {
+                task.MarkFailed("讀取解密後的 PDF 時發生錯誤。原始檔案沒有被修改，請確認後重新嘗試。", ex.ToString());
+            }
+            finally
+            {
+                IsBusy = false;
+                NotifySelectionChanged();
+                NotifyConversionQueueChanged();
+                _conversionBatchGate.Release();
+            }
         }
 
         [RelayCommand]

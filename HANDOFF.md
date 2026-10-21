@@ -20,6 +20,7 @@
 - 新增 `GameDialog.xaml(.cs)`：`GameDialog.Show` 參數同 `MessageBox.Show`；`ShowExportDone` 為匯出完成對話框（含「開啟輸出資料夾」）。`App.xaml.cs` 的全域例外處理刻意保留系統 `MessageBox`（避免資源尚未載入時再出錯）。
 - `MainViewModel.cs`：匯出成功後不再自動呼叫 `OpenConvertedFolder()`，改顯示完成對話框；圖片匯出有失敗頁時只顯示原本的警告。
 - `MainWindow.xaml`：工具盒分組、維護功能收合、匯出按鈕改名與 tooltip、選取卡片樣式、縮圖標籤。
+- 加密鎖住流程：`ConversionTaskItem.NeedsDecrypt`（`MarkFailed(..., needsDecrypt: true)`）→ 側欄卡片只顯示「處理步驟…」；`ShowDecryptGuideAsync` 迴圈顯示 `GameDialog.ShowChoice`，`ContinueAfterDecryptAsync` 用 `CheckPdfHeaderAndSize` 確認已是標準 PDF 後直接載入頁面。假設使用者就地解密（檔名與位置不變）；尚未用真實公司加密環境驗證。
 - 驗證：`qa.ps1` 建置 0 警告 0 錯誤、82 項測試通過（新增對話框快照測試）。未升版、未重建 `dist/`、未推送。
 - 未驗證：真實 PDF 的縮圖、實際匯出後彈出對話框的互動（測試快照以程式建立畫面）。
 

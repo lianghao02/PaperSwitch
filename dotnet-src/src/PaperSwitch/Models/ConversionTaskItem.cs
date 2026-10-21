@@ -49,6 +49,10 @@ namespace PaperSwitch.Models
         [ObservableProperty]
         private bool _hasLoadFailure;
 
+        /// <summary>暫存 PDF 被公司加密程序鎖住，需要使用者解密後再繼續。</summary>
+        [ObservableProperty]
+        private bool _needsDecrypt;
+
         public string StateIcon => State switch
         {
             ConversionTaskState.Waiting => "○",
@@ -70,6 +74,8 @@ namespace PaperSwitch.Models
         };
 
         public bool CanRetry => State == ConversionTaskState.Failed;
+        public bool CanRetryNormally => State == ConversionTaskState.Failed && !NeedsDecrypt;
+        public bool ShowDecryptGuide => State == ConversionTaskState.Failed && NeedsDecrypt;
         public bool CanSkip => State is ConversionTaskState.Waiting or ConversionTaskState.Failed;
         public bool HasTechnicalDetails => !string.IsNullOrWhiteSpace(TechnicalDetails);
         public bool HasActionPath => !string.IsNullOrWhiteSpace(ActionPath);
@@ -79,7 +85,15 @@ namespace PaperSwitch.Models
             OnPropertyChanged(nameof(StateIcon));
             OnPropertyChanged(nameof(StateLabel));
             OnPropertyChanged(nameof(CanRetry));
+            OnPropertyChanged(nameof(CanRetryNormally));
+            OnPropertyChanged(nameof(ShowDecryptGuide));
             OnPropertyChanged(nameof(CanSkip));
+        }
+
+        partial void OnNeedsDecryptChanged(bool value)
+        {
+            OnPropertyChanged(nameof(CanRetryNormally));
+            OnPropertyChanged(nameof(ShowDecryptGuide));
         }
 
         partial void OnTechnicalDetailsChanged(string value) => OnPropertyChanged(nameof(HasTechnicalDetails));
@@ -87,6 +101,7 @@ namespace PaperSwitch.Models
 
         public void MarkWaiting()
         {
+            NeedsDecrypt = false;
             State = ConversionTaskState.Waiting;
             StatusMessage = "等待處理";
             TechnicalDetails = string.Empty;
@@ -98,6 +113,7 @@ namespace PaperSwitch.Models
 
         public void MarkProcessing(string message)
         {
+            NeedsDecrypt = false;
             State = ConversionTaskState.Processing;
             StatusMessage = message;
             TechnicalDetails = string.Empty;
@@ -106,14 +122,16 @@ namespace PaperSwitch.Models
 
         public void MarkCompleted(int pageCount)
         {
+            NeedsDecrypt = false;
             State = ConversionTaskState.Completed;
             CompletedPageCount = pageCount;
             StatusMessage = pageCount > 0 ? $"完成・已載入 {pageCount} 頁" : "完成";
             TechnicalDetails = string.Empty;
         }
 
-        public void MarkFailed(string message, string? technicalDetails = null, string? actionPath = null)
+        public void MarkFailed(string message, string? technicalDetails = null, string? actionPath = null, bool needsDecrypt = false)
         {
+            NeedsDecrypt = needsDecrypt;
             State = ConversionTaskState.Failed;
             StatusMessage = message;
             TechnicalDetails = technicalDetails ?? string.Empty;
@@ -122,6 +140,7 @@ namespace PaperSwitch.Models
 
         public void MarkSkipped(string message = "已跳過，不影響其他檔案")
         {
+            NeedsDecrypt = false;
             State = ConversionTaskState.Skipped;
             StatusMessage = message;
             TechnicalDetails = string.Empty;
