@@ -6,7 +6,7 @@
 - **版本**：v4.6.0
 - **版本提交**：以 Git 標籤 `v4.6.0` 指向的提交為準。
 - **日期**：2026-10-26
-- **交付範圍**：原始碼升版、提交與推送；獨立 EXE 保存於本機，GitHub Release 附件未上傳。
+- **交付範圍**：原始碼升版、提交與推送，GitHub Release 已公開，EXE 與 SHA256 附件已上傳。
 
 ## 更新內容
 
@@ -29,10 +29,10 @@
 - `dist/release_assets/v4.6.0/PaperSwitch-v4.6.0-Standalone.exe`
 - `dist/release_assets/v4.6.0/SHA256SUMS.txt`
 - **SHA256**：`a8a5597498c05c5f68adb6bd73414d0ead4ac5c92f0e0d7f7cb13754ff1eeb86`
-- QA 紀錄：`dist/release_assets/v4.6.0/qa.log`；快照與渲染 PDF：`dist/qa-v4.6.0/`。成品與暫存資料不納入 Git。
+- QA 紀錄：`dist/release_assets/v4.6.0/qa.log`；快照與渲染 PDF：`dist/qa-v4.6.0/`。啟動器使用的 `dist/publish` 已更新為相同 SHA256 的自包含 v4.6.0；舊版交付包、過期試用包、舊 QA／預覽、過期說明及重複建置目錄已清除。新版 22 個驗證／交付檔案清理前後雜湊一致。成品與暫存資料不納入 Git。
 
 ## 限制
 
 - 頁碼於匯出加入，預覽不模擬新增頁碼；PNG 不套用，原稿已有頁尾時可能重疊。
 - 同一台電腦已驗證跨磁碟／中文空白路徑與環境隔離；不同 Windows 使用者、Windows 10 實機、實體高 DPI 及真實公司 Office／加密流程未新增驗收。
-- GitHub Release 尚未建立，本報告不宣稱附件已可從 GitHub 下載。
+- **GitHub Release**：[v4.6.0 下載頁](https://github.com/lianghao02/PaperSwitch/releases/tag/v4.6.0)。遠端 EXE digest 與本機 SHA256 一致，已設為最新正式版本。

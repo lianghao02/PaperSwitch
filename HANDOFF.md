@@ -11,7 +11,7 @@
 ---
 
 ## 目前狀態
-可交付（已升版 v4.6.0、完整 QA 與獨立 EXE 驗證通過；提交推送狀態以 Git／origin 為準）
+可交付（已升版 v4.6.0、完整 QA 與獨立 EXE 驗證通過；提交 67f7efb 與版本標籤已推送，GitHub Release 已公開）
 
 ## 本輪目標
 依使用者授權完成三項功能修訂後，升版 v4.6.0、提交並推送；本機成品與驗證詳見 docs/RELEASE-v4.6.0.md。
@@ -45,7 +45,7 @@
 ## 尚未完成 (Remaining Work)
 - **P1 (阻斷/必須)**：無。
 - **P2 (重要/當次)**：無。
-- **P3 (改善建議/暫緩)**：實體高 DPI／其他電腦與真實辦公文件人工驗收；GitHub Release 附件上傳尚未執行。
+- **P3 (改善建議/暫緩)**：實體高 DPI／其他電腦與真實辦公文件人工驗收；跨專案展示站版本同步暫緩：13_Project-Hub 存在其他工作階段的未提交介面與圖片修改，未改動其檔案。
 
 ## 驗證結果 (Validation)
 ### 已執行測試與結果
@@ -53,9 +53,9 @@
 - 新增 3 組頁碼測試：三種位置、8／12／24 pt、兩種紙張尺寸、四種來源旋轉再加編排旋轉、裁切範圍，以 WinRT 真正渲染並驗證底部位置；拆分前三頁與合併結果逐像素一致，來源檔案位元組不變。
 - 最後修改快照渲染方式後，WpfSmokeTests 3／3 通過；已檢視 1264×860 與 960×720 快照，窄視窗匯出按鈕自動換行，文字完整。
 - Windows 原生介面實測：載入既有 workshop-sample.pdf 六頁，展開頁碼設定、雙擊預覽、滾輪放大、按住左鍵拖曳，垂直捲動位置由 37.05 移至 97.05；Esc 關閉預覽正常。
-- 自包含 win-x64 單檔 publish 成功（約 79.5 MiB），已用獨立 EXE 啟動取得主視窗及新版頁碼控制項；試用視窗保留開啟。
+- 自包含 win-x64 單檔 publish 成功（約 79.5 MiB），已用獨立 EXE 啟動取得主視窗及新版頁碼控制項；前輪已完成啟動實測；舊試用包現已移除。
 - git diff --check 通過；異動檔案常見權杖／私鑰模式掃描無警訊。
-- QA 紀錄、PDF 與快照：dist/qa-20261025/（Git 忽略）。
+- 新版 QA 紀錄：dist/release_assets/v4.6.0/qa.log；PDF 與快照：dist/qa-v4.6.0/（Git 忽略）。舊 qa-20261025 已清除。
 ### 尚未驗證項目
 - 實體 125%／150% DPI、其他電腦與真實公司加密／Office 轉檔；核心流程未更動。
 ### 已知風險 (Known Risks)
@@ -69,7 +69,7 @@
 - Branch：main
 
 ## 下一步建議動作 (Next Recommended Action)
-使用 dist/release_assets/v4.6.0/PaperSwitch-v4.6.0-Standalone.exe；如需 GitHub Release 附件，再依使用者指示上傳。
+使用 dist/release_assets/v4.6.0/PaperSwitch-v4.6.0-Standalone.exe；或由 https://github.com/lianghao02/PaperSwitch/releases/tag/v4.6.0 下載。dist 現在僅保留 publish、qa-v4.6.0、release_assets，publish 已更新至相同 SHA256 的 v4.6.0，啟動器 ValidateOnly 通過。
 
 ## 發布狀態 (Release Status)
-v4.6.0 本機成品、完整測試、版本對齊及跨磁碟環境隔離啟動已通過；不同使用者與實機限制詳見版本驗收報告。GitHub Release 未建立。
+v4.6.0 本機成品、完整測試、版本對齊及跨磁碟環境隔離啟動已通過；不同使用者與實機限制詳見版本驗收報告。GitHub Release 已公開，EXE 與校驗檔上傳完成，遠端 digest 已核對。
