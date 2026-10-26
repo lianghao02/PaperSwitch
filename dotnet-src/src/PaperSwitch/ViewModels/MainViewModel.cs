@@ -1102,7 +1102,7 @@ namespace PaperSwitch.ViewModels
                 {
                     string outputPath = ExportFileNaming.MergedOutputPath(outputDir, Options.CustomFileName, false,
                         Options.IncludeFileNameDescription, ExportFileNaming.FirstSourceName(Pages), DateTime.Now);
-                    bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(Pages, outputPath));
+                    bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(Pages, outputPath, Options));
                     if (ok)
                     {
                         StatusMessage = $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
@@ -1116,7 +1116,7 @@ namespace PaperSwitch.ViewModels
                 else
                 {
                     string safePrefix = Options.CustomFileName;
-                    var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix, Options.IncludeFileNameDescription));
+                    var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix, Options.IncludeFileNameDescription, Options));
                     StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
                     ShowExportDoneAndCleanup($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
                 }
@@ -1172,7 +1172,7 @@ namespace PaperSwitch.ViewModels
                 Directory.CreateDirectory(outputDir);
 
                 string safePrefix = Options.CustomFileName;
-                var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix, Options.IncludeFileNameDescription));
+                var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix, Options.IncludeFileNameDescription, Options));
                 StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
                 ShowExportDoneAndCleanup($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
             }
@@ -1215,7 +1215,7 @@ namespace PaperSwitch.ViewModels
 
                 string outputPath = ExportFileNaming.MergedOutputPath(outputDir, Options.CustomFileName, true,
                     Options.IncludeFileNameDescription, null, DateTime.Now);
-                bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(targetPages, outputPath));
+                bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(targetPages, outputPath, Options));
                 if (ok)
                 {
                     StatusMessage = hasSelection

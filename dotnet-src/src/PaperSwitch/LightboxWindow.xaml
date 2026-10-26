@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewModels="clr-namespace:PaperSwitch.ViewModels"
+        xmlns:art="clr-namespace:PaperSwitch.Controls"
         mc:Ignorable="d"
         Title="大圖預覽 — PaperSwitch 紙張排版工坊"
         Height="780" Width="1040"
@@ -55,6 +56,12 @@
                           VerticalScrollBarVisibility="Auto"
                           CanContentScroll="False"
                           PreviewMouseWheel="PreviewScrollViewer_PreviewMouseWheel"
+                          PreviewMouseLeftButtonDown="PreviewPanStart"
+                          PreviewMouseMove="PreviewPanMove"
+                          PreviewMouseLeftButtonUp="PreviewPanEnd"
+                          LostMouseCapture="PreviewPanCaptureLost"
+                          ScrollChanged="PreviewScrollChanged"
+                          ToolTip="滾輪縮放；放大後按住左鍵拖曳查看"
                           Margin="20">
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Border Background="{StaticResource BrushCardBg}" CornerRadius="8" Effect="{StaticResource CardHoverShadow}" Padding="6">
@@ -87,10 +94,10 @@
         <!-- 底部控制列 -->
         <Border Grid.Row="2" Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0" Padding="20,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                <Button Content="↶ 逆轉 90°" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RotateCounterClockwiseCommand}" Margin="6,0" ToolTip="快捷鍵: Shift+R" />
-                <Button Content="↷ 順轉 90°" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RotateClockwiseCommand}" Margin="6,0" ToolTip="快捷鍵: R" />
+                <Button art:WorkshopArt.Icon="15" Content="逆轉 90°" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RotateCounterClockwiseCommand}" Margin="6,0" ToolTip="快捷鍵: Shift+R" />
+                <Button art:WorkshopArt.Icon="16" Content="順轉 90°" Style="{StaticResource BtnOutlineCraft}" Command="{Binding RotateClockwiseCommand}" Margin="6,0" ToolTip="快捷鍵: R" />
                 <Border Width="1" Height="20" Background="{StaticResource BrushBorder}" Margin="12,0" />
-                <Button Content="🔍 放大" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ZoomInCommand}" Margin="6,0" />
+                <Button Content="放大" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ZoomInCommand}" Margin="6,0" />
                 <Button Content="縮小" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ZoomOutCommand}" Margin="6,0" />
                 <Button Content="適合視窗" Style="{StaticResource BtnOutlineCraft}" Command="{Binding ResetZoomCommand}" Margin="6,0" ToolTip="完整顯示目前頁面" />
             </StackPanel>

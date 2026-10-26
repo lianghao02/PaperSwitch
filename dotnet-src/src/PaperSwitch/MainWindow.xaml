@@ -93,12 +93,12 @@
                                 <TextBlock Text="選取" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
                                 <UniformGrid Columns="2">
                                     <Button art:WorkshopArt.Icon="11" Content="全選" Style="{StaticResource SidebarButton}" Command="{Binding SelectAllCommand}" ToolTip="全選（Ctrl＋A）" />
-                                    <Button art:WorkshopArt.Icon="11" Content="反選" Style="{StaticResource SidebarButton}" Command="{Binding InvertSelectionCommand}" ToolTip="反向選取紙張" />
+                                    <Button art:WorkshopArt.Icon="14" Content="反選" Style="{StaticResource SidebarButton}" Command="{Binding InvertSelectionCommand}" ToolTip="反向選取紙張" />
                                 </UniformGrid>
                                 <TextBlock Text="旋轉與移動" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
                                 <UniformGrid Columns="2">
-                                    <Button art:WorkshopArt.Icon="4" Content="逆轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCCW_Click" ToolTip="逆時針旋轉（Shift＋R）" />
-                                    <Button art:WorkshopArt.Icon="5" Content="順轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCW_Click" ToolTip="順時針旋轉（R）" />
+                                    <Button art:WorkshopArt.Icon="15" Content="逆轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCCW_Click" ToolTip="逆時針旋轉（Shift＋R）" />
+                                    <Button art:WorkshopArt.Icon="16" Content="順轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCW_Click" ToolTip="順時針旋轉（R）" />
                                     <Button art:WorkshopArt.Icon="12" Content="前移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedLeftCommand}" ToolTip="向前移動（Ctrl＋←）" />
                                     <Button art:WorkshopArt.Icon="13" Content="後移" Style="{StaticResource SidebarButton}" Command="{Binding MoveSelectedRightCommand}" ToolTip="向後移動（Ctrl＋→）" />
                                 </UniformGrid>
@@ -516,7 +516,7 @@
                 <!-- 下方：成果匯出列 (靠右讓出位置給左側工具盒) -->
                 <Border Grid.Row="1" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="16,10" Margin="0,10,0,0">
                     <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                             <TextBlock Text="成果匯出" Style="{StaticResource GameHeading}" FontSize="18" Margin="0,0,16,0" VerticalAlignment="Center" />
@@ -526,12 +526,30 @@
                                      ToolTip="留空自動命名；手動輸入名稱優先。按 Enter 全合併匯出。" AutomationProperties.Name="輸出檔名" />
                             <CheckBox Grid.Column="3" Content="加上後綴" Style="{StaticResource CozyCheckBox}" FontWeight="Bold" FontSize="13.5" IsChecked="{Binding Options.IncludeFileNameDescription, Mode=TwoWay}" Margin="14,0,0,0" VerticalAlignment="Center" ToolTip="加入來源頁碼；仍保留同名防覆寫" />
                         </Grid>
-                        <WrapPanel Grid.Row="1" Margin="0,6,0,0" HorizontalAlignment="Right">
+                        <WrapPanel Grid.Row="1" Margin="0,8,0,0" VerticalAlignment="Center">
+                            <CheckBox Content="PDF 加上頁碼" Style="{StaticResource CozyCheckBox}"
+                                      IsChecked="{Binding Options.AddPageNumbers}" VerticalAlignment="Center"
+                                      ToolTip="依本次匯出順序從 1 編號；包含拆分 PDF，不套用至 PNG。" />
+                            <WrapPanel Visibility="{Binding Options.AddPageNumbers, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="位置" Margin="16,0,6,0" VerticalAlignment="Center" />
+                                <ComboBox SelectedIndex="{Binding Options.PageNumberPosition}" MinWidth="100" VerticalContentAlignment="Center"
+                                          AutomationProperties.Name="頁碼位置">
+                                    <ComboBoxItem Content="左下" />
+                                    <ComboBoxItem Content="下方置中" />
+                                    <ComboBoxItem Content="右下" />
+                                </ComboBox>
+                                <TextBlock Text="字體大小" Margin="16,0,6,0" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding Options.PageNumberFontSizes}" SelectedItem="{Binding Options.PageNumberFontSize}"
+                                          MinWidth="62" VerticalContentAlignment="Center" AutomationProperties.Name="頁碼字體大小" />
+                                <TextBlock Text="pt" Margin="6,0,0,0" VerticalAlignment="Center" />
+                            </WrapPanel>
+                        </WrapPanel>
+                        <WrapPanel Grid.Row="2" Margin="0,6,0,0" HorizontalAlignment="Right">
                             <Button art:WorkshopArt.Icon="8" x:Name="OpenOutputButton" Content="開啟輸出資料夾" Style="{StaticResource SidebarToolButton}" Command="{Binding OpenConvertedFolderCommand}" Margin="3,2" />
-                            <Button art:WorkshopArt.Icon="1" x:Name="ExportAllButton" Content="全部合併成 1 份 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="把畫布上的全部頁面合併成一份 PDF（不受選取影響）" />
-                            <Button art:WorkshopArt.Icon="2" x:Name="ExportSplitButton" Content="每頁各存 1 個 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="把每一頁各存成一個 PDF。需先取消選取頁面。" />
-                            <Button art:WorkshopArt.Icon="1" x:Name="ExportSelectedButton" Content="選取頁合併成 1 份 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="只把已選取的頁面合併成一份 PDF。需先選取頁面。" />
-                            <Button art:WorkshopArt.Icon="3" x:Name="ExportImagesButton" Content="轉成 PNG 圖片" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
+                            <Button x:Name="ExportAllButton" Content="全部合併成 1 份 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="把畫布上的全部頁面合併成一份 PDF（不受選取影響）" />
+                            <Button x:Name="ExportSplitButton" Content="每頁各存 1 個 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="把每一頁各存成一個 PDF。需先取消選取頁面。" />
+                            <Button x:Name="ExportSelectedButton" Content="選取頁合併成 1 份 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="只把已選取的頁面合併成一份 PDF。需先選取頁面。" />
+                            <Button x:Name="ExportImagesButton" Content="轉成 PNG 圖片" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
                         </WrapPanel>
                     </Grid>
                 </Border>

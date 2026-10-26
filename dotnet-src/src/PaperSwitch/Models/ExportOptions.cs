@@ -14,6 +14,14 @@ namespace PaperSwitch.Models
         private bool _addPageNumbers = false;
 
         [ObservableProperty]
+        private int _pageNumberPosition = 1;
+
+        [ObservableProperty]
+        private double _pageNumberFontSize = 12;
+
+        public double[] PageNumberFontSizes { get; } = [8, 10, 12, 14, 16, 18, 24];
+
+        [ObservableProperty]
         private string _outputDirectory = string.Empty;
 
         [ObservableProperty]

@@ -68,12 +68,12 @@ namespace PaperSwitch.Tests
             using (var dc = dv.RenderOpen())
             {
                 dc.DrawRectangle(window.Background ?? Brushes.White, null, new Rect(0, 0, width, height));
-                var vb = new VisualBrush(content) { Stretch = Stretch.None };
-                dc.DrawRectangle(vb, null, new Rect(0, 0, width, height));
             }
 
             var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(dv);
+            // 直接渲染配置後的內容，避免 VisualBrush 置中裁切最小尺寸快照。
+            rtb.Render(content);
 
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(rtb));
@@ -167,6 +167,10 @@ namespace PaperSwitch.Tests
                         vm.Pages.Add(item3);
 
                         RenderWindowToPng(window, Path.Combine(outDir, "rendered_populated.png"));
+
+                        vm.Options.AddPageNumbers = true;
+                        RenderWindowToPng(window, Path.Combine(outDir, "rendered_page_numbers.png"), 1264, 860);
+                        RenderWindowToPng(window, Path.Combine(outDir, "rendered_page_numbers_min.png"), 960, 720);
 
                         // 3. 轉檔任務：被公司加密程序鎖住的失敗卡片
                         var locked = new PaperSwitch.Models.ConversionTaskItem(@"C:\測試\551.docx");

@@ -16,6 +16,54 @@ namespace PaperSwitch.Services
     {
         public static PdfService Instance { get; } = new();
 
+        private static void DrawPageNumber(PdfPage page, int number, ExportOptions options)
+        {
+            const double margin = 18;
+            var rotation = ((page.Rotate % 360) + 360) % 360;
+            // 先在未旋轉的頁面座標繪製，補償閱讀方向，最後保留原本 /Rotate。
+            page.Rotate = 0;
+            try
+            {
+                using var graphics = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+                var media = page.MediaBox;
+                var crop = page.CropBox;
+                var left = Math.Max(media.X1, crop.X1);
+                var bottom = Math.Max(media.Y1, crop.Y1);
+                var right = Math.Min(media.X2, crop.X2);
+                var top = Math.Min(media.Y2, crop.Y2);
+                if (right <= left || top <= bottom) { left = media.X1; bottom = media.Y1; right = media.X2; top = media.Y2; }
+                var width = right - left;
+                var height = top - bottom;
+                graphics.TranslateTransform(left - media.X1, media.Y2 - top);
+                var visibleWidth = rotation is 90 or 270 ? height : width;
+                var visibleHeight = rotation is 90 or 270 ? width : height;
+                var matrix = rotation switch
+                {
+                    90 => new XMatrix(0, -1, 1, 0, 0, height),
+                    180 => new XMatrix(-1, 0, 0, -1, width, height),
+                    270 => new XMatrix(0, 1, -1, 0, width, 0),
+                    _ => XMatrix.Identity
+                };
+                graphics.MultiplyTransform(matrix);
+                var size = double.IsFinite(options.PageNumberFontSize)
+                    ? Math.Clamp(options.PageNumberFontSize, 8, 24) : 12;
+                var font = new XFont("Arial", size);
+                var format = new XStringFormat
+                {
+                    Alignment = options.PageNumberPosition switch
+                    {
+                        0 => XStringAlignment.Near,
+                        2 => XStringAlignment.Far,
+                        _ => XStringAlignment.Center
+                    },
+                    LineAlignment = XLineAlignment.Far
+                };
+                graphics.DrawString(number.ToString(System.Globalization.CultureInfo.InvariantCulture), font, XBrushes.Black,
+                    new XRect(margin, margin, Math.Max(1, visibleWidth - margin * 2), Math.Max(size * 1.5, visibleHeight - margin * 2)), format);
+            }
+            finally { page.Rotate = rotation; }
+        }
+
         /// <summary>
         /// 建立一張可由既有無損導出流程處理的標準 A4 空白 PDF。
         /// </summary>
@@ -86,7 +134,7 @@ namespace PaperSwitch.Services
         /// <summary>
         /// 依據使用者在畫布中編排的頁面清單與旋轉角度，進行 100% 向量無損 PDF 合成
         /// </summary>
-        public bool ExportArrangedPdf(IEnumerable<PaperItem> items, string outputPath)
+        public bool ExportArrangedPdf(IEnumerable<PaperItem> items, string outputPath, ExportOptions? options = null)
         {
             var openedDocs = new Dictionary<string, PdfDocument>(StringComparer.OrdinalIgnoreCase);
 
@@ -119,6 +167,8 @@ namespace PaperSwitch.Services
                         // 計算累加旋轉角度
                         int combinedRotate = (srcPage.Rotate + item.Rotation) % 360;
                         newPage.Rotate = combinedRotate;
+                        if (options?.AddPageNumbers == true)
+                            DrawPageNumber(newPage, outputDocument.PageCount, options);
                     }
                 }
 
@@ -144,7 +194,7 @@ namespace PaperSwitch.Services
         /// <summary>
         /// 將多頁項目個別獨立匯出為單一頁面 PDF 檔案
         /// </summary>
-        public List<string> ExportIndividualPdfs(IEnumerable<PaperItem> items, string outputDir, string? fileNamePrefix = null, bool includeDescription = false)
+        public List<string> ExportIndividualPdfs(IEnumerable<PaperItem> items, string outputDir, string? fileNamePrefix = null, bool includeDescription = false, ExportOptions? options = null)
         {
             var results = new List<string>();
             var itemList = items.ToList();
@@ -178,6 +228,8 @@ namespace PaperSwitch.Services
                         using var singleDoc = new PdfDocument();
                         var newPage = singleDoc.AddPage(srcPage);
                         newPage.Rotate = (srcPage.Rotate + item.Rotation) % 360;
+                        if (options?.AddPageNumbers == true)
+                            DrawPageNumber(newPage, index, options);
 
                         string fileName = ExportFileNaming.Page(ExportFileNaming.SourceName(item), item.DisplayPageNumber, index,
                             fileNamePrefix, ".pdf", includeDescription, exportTime);
