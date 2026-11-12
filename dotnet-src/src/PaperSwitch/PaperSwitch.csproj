@@ -10,8 +10,11 @@
     <RootNamespace>PaperSwitch</RootNamespace>
     <AssemblyName>PaperSwitch</AssemblyName>
     <ApplicationTitle>PaperSwitch 紙張排版工坊</ApplicationTitle>
-    <Company>PaperSwitch Team</Company>
+    <Company>PaperSwitch Contributors</Company>
     <Product>PaperSwitch 文件轉 PDF 與紙張視覺化排版工坊</Product>
+    <Description>Offline PDF merging, splitting, image export, and visual page arrangement utility.</Description>
+    <Copyright>Copyright (c) 2026 PaperSwitch Contributors</Copyright>
+    <NeutralLanguage>zh-TW</NeutralLanguage>
     <Version>4.6.0</Version>
     <FileVersion>4.6.0.0</FileVersion>
     <AssemblyVersion>4.6.0.0</AssemblyVersion>

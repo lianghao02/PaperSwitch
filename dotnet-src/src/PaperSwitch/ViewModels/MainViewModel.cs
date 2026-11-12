@@ -1324,22 +1324,12 @@ namespace PaperSwitch.ViewModels
         }
 
         /// <summary>
-        /// 顯示匯出完成對話框，之後清除轉檔暫存資料夾裡不再使用的檔案
-        /// （畫布頁面與待解密的任務所用的 PDF 會保留）。
+        /// 顯示匯出完成對話框。暫存轉檔檔案延後至程式正常關閉（OnExit）或手動點擊「清除暫存」時再清理，
+        /// 避免在寫出 PDF 檔案的同一瞬間同步批次刪除檔案，觸發防毒軟體行為監控誤判。
         /// </summary>
         private void ShowExportDoneAndCleanup(string summary, string folder)
         {
             GameDialog.ShowExportDone(summary, folder);
-            try
-            {
-                var keep = Pages.Select(p => p.SourceFilePath)
-                    .Concat(ConversionTasks.Where(t => t.State == ConversionTaskState.Failed).Select(t => t.ActionPath));
-                StorageMaintenanceService.ClearTemporaryExcept(keep);
-            }
-            catch (Exception)
-            {
-                // 清理失敗不影響匯出結果
-            }
         }
 
         [RelayCommand]

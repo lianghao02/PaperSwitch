@@ -3,6 +3,7 @@
 # ============================================================
 param (
     [switch]$SelfContained = $false,
+    [switch]$SingleFile = $false,
     [string]$Configuration = "Release"
 )
 
@@ -33,6 +34,7 @@ Write-Host "   專案目錄: $SrcDir"
 Write-Host "   發行目錄: $PublishDir"
 Write-Host "   組態:     $Configuration"
 Write-Host "   自包含:   $SelfContained"
+Write-Host "   單檔封裝: $SingleFile"
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # 發布只更新建置成品，不先刪除整個資料夾或其中其他檔案。
@@ -49,17 +51,20 @@ $PublishArgs = @(
 if ($SelfContained) {
     Write-Host "[PaperSwitch] Mode: Self-Contained" -ForegroundColor Yellow
     $PublishArgs += @(
-        "--self-contained", "true",
-        "-p:PublishSingleFile=true",
-        "-p:IncludeNativeLibrariesForSelfExtract=true",
-        "-p:EnableCompressionInSingleFile=true"
+        "--self-contained", "true"
     )
+    if ($SingleFile) {
+        $PublishArgs += @(
+            "-p:PublishSingleFile=true",
+            "-p:IncludeNativeLibrariesForSelfExtract=true",
+            "-p:EnableCompressionInSingleFile=true"
+        )
+    }
 } else {
-    Write-Host "[PaperSwitch] Mode: Framework-Dependent" -ForegroundColor Yellow
+    Write-Host "[PaperSwitch] Mode: Framework-Dependent (Standard AppHost)" -ForegroundColor Yellow
     $PublishArgs += @(
         "--self-contained", "false",
-        "-p:PublishSingleFile=true",
-        "-p:IncludeNativeLibrariesForSelfExtract=true"
+        "-p:PublishSingleFile=false"
     )
 }
 
@@ -70,8 +75,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "[PaperSwitch] Build & Publish Successful!" -ForegroundColor Green
     $ExePath = Join-Path $PublishDir "PaperSwitch.exe"
     if (Test-Path $ExePath) {
-        $Size = [Math]::Round((Get-Item $ExePath).Length / 1MB, 2)
-        Write-Host "   Output: $ExePath ($Size MB)" -ForegroundColor Green
+        $Size = [Math]::Round((Get-Item $ExePath).Length / 1KB, 1)
+        Write-Host "   Output: $ExePath ($Size KB)" -ForegroundColor Green
     }
     Write-Host "============================================================" -ForegroundColor Green
 } else {
