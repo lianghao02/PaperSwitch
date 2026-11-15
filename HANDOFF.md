@@ -3,67 +3,64 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
-- **Commit SHA**：本次提交以 `b47725a` 為基準；實際 SHA 請見 `git log -1`。
+- **Commit SHA**：16e5163a6b428562714ee47168282151c0e25477（本輪修訂未提交）
 - **Skill Version**：v1.0.0
-- **Task Type**：HANDOFF
+- **Task Type**：RELEASE
 - **Local Path Hint**：09_PaperSwitch
 
 ---
 
 ## 目前狀態
-提交前檢查通過；依使用者要求提交並推送既有發布封裝與暫存清理修訂。
+v4.7.0 發布準備完成，99 項測試及單檔隔離啟動通過；使用者已授權提交、推送、發行及清除本機舊成品。人工滑鼠、高 DPI 與 Office 現場取消尚未驗證。
 
 ## 本輪目標
-核對既有 4 個未提交檔案，執行必要 QA，提交並推送至 origin/main。
+依修訂計畫逐步完成必要功能與結構調整，使用 D:/scan 的 PDF 唯讀驗收，自我檢查無重大問題後停止擴大修改。
 
 ## 基準與已確認事實 (Baseline & Confirmed Facts)
-- 程式版本維持 4.6.0；本輪不建立版本標籤或 GitHub Release。
-- origin 為 `https://github.com/lianghao02/PaperSwitch.git`。
-- 2026-11-12 重新 fetch 後，本機基準與 origin/main 一致。
-- 前輪記錄曾遭 Trend Micro `Unauthorized file encryption` 攔截；本輪未重新驗證防毒判定或確認根因。
+- 開始時兩份規劃文件為本對話既有未提交修改，均保留並更新。
+- main / 16e5163 / v4.6.0，本輪沒有升版、提交、推送或 Release。
+- 使用者先前同意桌面鎖定時採程式碼及渲染畫面評估；本輪不宣稱真人輸入或 DPI 通過。
 
 ## 已完成 (Completed)
-- 核對既有修訂：預設使用 Framework-Dependent 多檔 AppHost；自包含單檔封裝須同時指定 `-SelfContained -SingleFile`。
-- 核對既有修訂：匯出完成對話框關閉後不再立即清理暫存；保留程式結束及手動清理流程。
-- 核對既有修訂：補齊應用程式描述、著作權及語言中繼資料。
-- 恢復 build.ps1 的 UTF-8 BOM，維持 Windows PowerShell 5.1 中文相容性。
-- 重新執行完整 QA、差異與敏感資料檢查。
+- 清理與活躍來源保護、程序獨立暫存、原子成品寫入、缺頁輸出拒絕、快照及忙碌互斥。
+- 預覽旋轉共用歷史；輸出範圍與位置顯示、位置偏好、穩定匯出列、失敗入口、頁序範圍及同來源選取。
+- 背景單次 PDF metadata 讀取、分批 UI 更新、安全邊界停止；抽出匯入／輸出／編排歷史服務。
+- 完整 QA 99／99；90 份、798 頁實檔可讀，來源數量與雜湊不變；抽樣全部／選取合併、拆分及 PNG 通過。
+- 更新本機 dist/publish 成品、README、架構、計畫及 docs/REVISION_VALIDATION.md。
 
 ## 異動檔案 (Changed Files)
-- dotnet-src/scripts/build.ps1
-- dotnet-src/src/PaperSwitch/PaperSwitch.csproj
-- dotnet-src/src/PaperSwitch/ViewModels/MainViewModel.cs
-- HANDOFF.md
+- 具體原始碼、測試及文件清單以 git diff、git status 為準；新增五份 Services 檔、RevisionTests.cs 及驗收紀錄。
+- 臨時 revise.cjs、ui-revise.cjs 已移除；dist 證據與真實文件衍生成品不加入版本庫。
 
 ## 刻意未修改 (Do Not Do / Deliberately Omitted)
-- PDF 向量合成、Office COM 轉檔、圖片匯出及 UI 樣式維持既有實作。
-- 不變更防毒設定，不加入掃描例外。
+- 未引入新框架，保留 PdfSharp 向量輸出、WinRT 預覽及 COM 生命週期。
+- 未改防毒／組織文件保護設定。
+- 工作階段保存、選取拆分、虛擬化及額外視圖拆分暫緩；不得為這些選配持續擴大本輪。
 
 ## 尚未完成 (Remaining Work)
-- **P1 (阻斷/必須)**：無已知阻斷項目。
-- **P2 (重要/當次)**：無。
-- **P3 (改善建議/暫緩)**：如仍出現防毒攔截，需依實際事件另行調查；不能以本輪測試推定誤報已排除。
+- **P1 (阻斷/必須)**：無已知本輪阻斷問題。
+- **P2 (重要/當次)**：無已知待修的本輪重要問題。
+- **P3 (改善建議/暫緩)**：人工滑鼠／高 DPI、Office 現場停止及跨電腦驗收仍未執行。舊版跨工作階段遺留暫存不自動清理。
 
 ## 驗證結果 (Validation)
 ### 已執行測試與結果
-- 2026-11-12 `pwsh -NoProfile -File dotnet-src/scripts/qa.ps1`：87／87 通過，建置 0 警告、0 錯誤；含 WPF 載入、快照產生及 PDF 渲染測試。
-- 初次沙箱內 QA 因 Windows SDK 目錄存取限制失敗；獲准在沙箱外重跑後通過。
-- `git diff --check`：通過。
-- 待提交程式差異敏感資料掃描：未發現警訊。
+- 完整 QA：99／99 通過；0 建置錯誤。測試專案有既有 xUnit2013 建議，未為追求零警告修改。
+- 本機成品建置成功，AppHost 168 KB；須攜帶同目錄組件與對應 .NET Desktop Runtime。
+- git diff --check 通過。詳細結果與 metadata 比較見 docs/REVISION_VALIDATION.md。
 ### 尚未驗證項目
-- 本輪未重新發布成品、人工操作視窗或驗證防毒攔截；未進行跨電腦驗收。
+- 真人滑鼠／DPI、Office 正常轉檔與停止時機、跨電腦環境。
 ### 已知風險 (Known Risks)
-- 預設多檔 AppHost 需要對應 .NET Desktop Runtime 與同目錄組件，不能僅攜帶 EXE。
-- Office 正常轉檔仍受本機 Office 與組織文件保護環境限制。
+- Office 取消是完成目前步驟後停止，不是立即中斷卡住的 COM。
+- metadata 的一次量測不能推論完整 UI 或縮圖效能。
 
 ## Git 狀態
-- Commit：本次提交，實際 SHA 請見 `git log -1`。
-- Push：本輪目標為 origin/main；實際結果以遠端與最終回覆為準。
-- Working Tree：本次僅納入上述 4 個檔案，提交後確認。
+- Commit：16e5163，以上修訂未提交。
+- Push：本輪否。
+- Working Tree：Modified。
 - Branch：main。
 
 ## 下一步建議動作 (Next Recommended Action)
-依使用者下一項需求繼續；若要正式發布，另執行發布與環境驗收。
+提交並推送本輪修訂、建立 v4.7.0 發行、核對附件後只清理本機 v4.6.0，最後補記發布結果。
 
 ## 發布狀態 (Release Status)
-本輪僅提交原始碼，不建立正式發行版本。
+本機建置可供驗收；未建立新的正式版本或 Release。

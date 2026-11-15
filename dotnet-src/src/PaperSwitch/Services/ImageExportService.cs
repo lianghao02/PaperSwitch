@@ -147,7 +147,7 @@ namespace PaperSwitch.Services
             int total = pageList.Count;
             for (int i = 0; i < total; i++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                if (cancellationToken.IsCancellationRequested) break;
 
                 var item = pageList[i];
                 int canvasIndex = i + 1;
@@ -165,13 +165,16 @@ namespace PaperSwitch.Services
 
                     string finalPath = GetUniqueFilePath(outputDirectory, desiredName);
 
-                    using (var fileStream = new FileStream(finalPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    AtomicOutput.Write(finalPath, temporaryPath =>
+                    {
+                    using (var fileStream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     {
                         var encoder = new PngBitmapEncoder();
                         encoder.Frames.Add(BitmapFrame.Create(bitmap));
                         encoder.Save(fileStream);
                     }
 
+                    });
                     exportedFiles.Add(finalPath);
                 }
                 catch (Exception ex)

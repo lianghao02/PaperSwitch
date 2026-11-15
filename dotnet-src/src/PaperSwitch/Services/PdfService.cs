@@ -134,7 +134,7 @@ namespace PaperSwitch.Services
         /// <summary>
         /// 依據使用者在畫布中編排的頁面清單與旋轉角度，進行 100% 向量無損 PDF 合成
         /// </summary>
-        public bool ExportArrangedPdf(IEnumerable<PaperItem> items, string outputPath, ExportOptions? options = null)
+        public bool ExportArrangedPdf(IEnumerable<PaperItem> items, string outputPath, ExportOptions? options = null, CancellationToken cancellationToken = default)
         {
             var openedDocs = new Dictionary<string, PdfDocument>(StringComparer.OrdinalIgnoreCase);
 
@@ -152,7 +152,8 @@ namespace PaperSwitch.Services
                 using var outputDocument = new PdfDocument();
                 foreach (var item in itemList)
                 {
-                    if (!File.Exists(item.SourceFilePath)) continue;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!File.Exists(item.SourceFilePath)) throw new FileNotFoundException("來源已遺失，請重新匯入。", item.SourceFilePath);
 
                     if (!openedDocs.TryGetValue(item.SourceFilePath, out var inputDoc))
                     {
@@ -160,7 +161,8 @@ namespace PaperSwitch.Services
                         openedDocs[item.SourceFilePath] = inputDoc;
                     }
 
-                    if (item.SourcePageIndex >= 0 && item.SourcePageIndex < inputDoc.PageCount)
+                    if (item.SourcePageIndex < 0 || item.SourcePageIndex >= inputDoc.PageCount)
+                        throw new InvalidDataException("來源頁碼無效，請重新匯入。");
                     {
                         var srcPage = inputDoc.Pages[item.SourcePageIndex];
                         var newPage = outputDocument.AddPage(srcPage);
@@ -174,7 +176,11 @@ namespace PaperSwitch.Services
 
                 if (outputDocument.PageCount == 0) return false;
 
-                outputDocument.Save(outputPath);
+                AtomicOutput.Write(outputPath, path =>
+                {
+                    outputDocument.Save(path);
+                    cancellationToken.ThrowIfCancellationRequested();
+                });
                 return true;
             }
             catch (Exception ex)
@@ -194,7 +200,7 @@ namespace PaperSwitch.Services
         /// <summary>
         /// 將多頁項目個別獨立匯出為單一頁面 PDF 檔案
         /// </summary>
-        public List<string> ExportIndividualPdfs(IEnumerable<PaperItem> items, string outputDir, string? fileNamePrefix = null, bool includeDescription = false, ExportOptions? options = null)
+        public List<string> ExportIndividualPdfs(IEnumerable<PaperItem> items, string outputDir, string? fileNamePrefix = null, bool includeDescription = false, ExportOptions? options = null, CancellationToken cancellationToken = default, Action<string>? completed = null)
         {
             var results = new List<string>();
             var itemList = items.ToList();
@@ -214,7 +220,8 @@ namespace PaperSwitch.Services
                 int index = 1;
                 foreach (var item in itemList)
                 {
-                    if (!File.Exists(item.SourceFilePath)) continue;
+                    if (cancellationToken.IsCancellationRequested) break;
+                    if (!File.Exists(item.SourceFilePath)) throw new FileNotFoundException("來源已遺失，請重新匯入。", item.SourceFilePath);
 
                     if (!openedDocs.TryGetValue(item.SourceFilePath, out var inputDoc))
                     {
@@ -222,7 +229,8 @@ namespace PaperSwitch.Services
                         openedDocs[item.SourceFilePath] = inputDoc;
                     }
 
-                    if (item.SourcePageIndex >= 0 && item.SourcePageIndex < inputDoc.PageCount)
+                    if (item.SourcePageIndex < 0 || item.SourcePageIndex >= inputDoc.PageCount)
+                        throw new InvalidDataException("來源頁碼無效，請重新匯入。");
                     {
                         var srcPage = inputDoc.Pages[item.SourcePageIndex];
                         using var singleDoc = new PdfDocument();
@@ -234,8 +242,9 @@ namespace PaperSwitch.Services
                         string fileName = ExportFileNaming.Page(ExportFileNaming.SourceName(item), item.DisplayPageNumber, index,
                             fileNamePrefix, ".pdf", includeDescription, exportTime);
                         string targetPath = ImageExportService.GetUniqueFilePath(outputDir, fileName);
-                        singleDoc.Save(targetPath);
+                        AtomicOutput.Write(targetPath, path => singleDoc.Save(path));
                         results.Add(targetPath);
+                        completed?.Invoke(targetPath);
                         index++;
                     }
                 }

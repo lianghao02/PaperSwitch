@@ -17,7 +17,7 @@ namespace PaperSwitch.Services
         public static StorageCleanupResult ClearProcessingDirectories()
         {
             var result = new StorageCleanupResult();
-            ClearDirectoryContents(AppPaths.ConvertedDirectory, result);
+            // 成品不屬於暫存，不由一般清理刪除。
             ClearDirectoryContents(AppPaths.TemporaryConversionDirectory, result);
             return result;
         }

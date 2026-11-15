@@ -65,10 +65,10 @@ namespace PaperSwitch
                 ? Cursors.Hand : Cursors.Arrow;
         }
 
-        public LightboxWindow(PaperItem initialPage, ObservableCollection<PaperItem> allPages)
+        public LightboxWindow(PaperItem initialPage, ObservableCollection<PaperItem> allPages, Action<PaperItem, int>? rotate = null)
         {
             InitializeComponent();
-            ViewModel = new LightboxViewModel(initialPage, allPages);
+            ViewModel = new LightboxViewModel(initialPage, allPages, rotate);
             DataContext = ViewModel;
             Closed += (_, _) => { EndPan(); _grabCursor.Dispose(); };
         }

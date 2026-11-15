@@ -1,4 +1,4 @@
-# 📑 PaperSwitch 紙張排版工坊 v4.6.0
+# 📑 PaperSwitch 紙張排版工坊 v4.7.0
 
 [![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
@@ -9,13 +9,14 @@
 
 ---
 
-## v4.6.0 更新重點
+## v4.7.0 更新重點
 
-- **預覽抓取拖曳**：放大後按住滑鼠左鍵移動畫面，手掌與抓取游標提供操作回饋。
-- **PDF 匯出頁碼**：全部、選取與拆分匯出支援左下、下方置中、右下及 8～24 pt 字級，依本次匯出順序從 1 編號。
-- **清楚的向量圖示**：功能按鈕改為簡潔輪廓搭配文字，保留文具插畫與既有配色；窄視窗的匯出按鈕自動換行。
+- **輸出更可靠**：缺頁時停止合併，先完成暫存輸出才交付成品，不覆寫來源與既有檔案。
+- **暫存清理保護**：保留畫布、復原／重做及任務來源，不再刪除匯出成品；各次執行分開管理暫存。
+- **選頁與輸出設定**：新增畫布頁序範圍、同來源選取、安全停止、輸出位置保存及明確的範圍提示。
+- **預覽與效能**：預覽旋轉納入復原歷史，背景一次讀取 PDF 頁面資料。
 
-完整更新內容見 [CHANGELOG](CHANGELOG.md)，驗證範圍見 [v4.6.0 發布報告](docs/RELEASE-v4.6.0.md)。
+完整更新內容見 [CHANGELOG](CHANGELOG.md)，驗收範圍見 [v4.7.0 發布報告](docs/RELEASE-v4.7.0.md)。
 ## 專案概念與開發原因
 
 PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出的桌面工作流程。開發動機是混合文件通常需要在多種工具間反覆轉換，容易弄錯頁面順序、旋轉方向或選取範圍。
@@ -30,7 +31,7 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 
 | 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
 | :--- | :--- | :--- |
-| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.6.0-Standalone.exe`** | 內嵌完整 .NET 8 執行環境，可直接開啟工坊；Office 文件轉換仍需本機安裝 Microsoft Office。 |
+| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.7.0-Standalone.exe`** | 內嵌完整 .NET 8 執行環境，可直接開啟工坊；Office 文件轉換仍需本機安裝 Microsoft Office。 |
 | 🛡️ **SHA-256 校驗清單** | **`SHA256SUMS.txt`** | 提供發行成品 SHA-256 雜湊值供安全性核對。 |
 
 ### 💡 首次啟動與使用須知
@@ -123,7 +124,7 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 - **確定性資源銷毀與 Null 守衛**：建立 COM 時即時進行安全 Null 檢查，退出時透過 `Marshal.FinalReleaseComObject` 與垃圾回收徹底銷毀，無任何背景殘留進程。
 - **Excel 自動分頁與全空白過濾**：自動識別多工作表並獨立匯出，智慧過濾無資料與無形狀之全空白分頁，並支援頁面寬度自動縮放。
 - **IGEF／非標準 PDF 偵測**：IGEF 不應視為微軟 Office 的一般暫存格式。預設 PDF 就緒等待上限為 90 秒，持續偵測到 IGEF 約 5 秒即拒絕載入；保留暫存輸出，提示使用者依單位規定取得可讀的標準 PDF 後重新匯入。
-- **儲存與暫存健康管理**：產出匯出 PDF 存放於 `%LOCALAPPDATA%\PaperSwitch\converted`，Office 暫存存放於 `%LOCALAPPDATA%\PaperSwitch\temp_converted`。左側排版工具的「清除暫存」按鈕經確認後會清除這兩個資料夾的內容；需要保存的匯出成品請先另行保存。啟動時不會自動清除，原始匯入文件不受此按鈕影響。
+- **儲存與暫存管理**：匯出位置可選擇並記住，預設為 `%LOCALAPPDATA%\PaperSwitch\converted`；轉檔暫存按每次執行分開存放於 `temp_converted` 子目錄。「清除未使用暫存」保留畫布、復原／重做及任務來源，不刪除匯出成品；正常結束時只清理本次執行的暫存。舊版遺留暫存不會跨工作階段自動刪除。
 
 ---
 

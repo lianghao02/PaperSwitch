@@ -60,8 +60,7 @@ namespace PaperSwitch.ViewModels
         private readonly ThumbnailCacheService _thumbnailService = ThumbnailCacheService.Instance;
         private readonly ImageExportService _imageExportService = ImageExportService.Instance;
         private readonly UpdateService _updateService = UpdateService.Instance;
-        private readonly Stack<ArrangementSnapshot> _undoHistory = new();
-        private readonly Stack<ArrangementSnapshot> _redoHistory = new();
+        private readonly ArrangementHistory _history = new();
         private readonly SemaphoreSlim _conversionBatchGate = new(1, 1);
         private const int MaximumConcurrentThumbnailRenders = 4;
 
@@ -70,8 +69,8 @@ namespace PaperSwitch.ViewModels
         public bool HasPages => Pages.Count > 0;
         public bool HasSelectedPages => SelectedPageCount > 0;
         public bool IsDraggingPages => DraggedPageCount > 0;
-        public bool CanUndo => _undoHistory.Count > 0;
-        public bool CanRedo => _redoHistory.Count > 0;
+        public bool CanUndo => !IsBusy && _history.Undo.Count > 0;
+        public bool CanRedo => !IsBusy && _history.Redo.Count > 0;
         public bool HasConversionTasks => ConversionTasks.Count > 0;
         public int FailedConversionTaskCount => ConversionTasks.Count(task => task.State == ConversionTaskState.Failed);
         public int ActiveConversionTaskCount => ConversionTasks.Count(task => task.State is ConversionTaskState.Waiting or ConversionTaskState.Processing);
@@ -84,8 +83,8 @@ namespace PaperSwitch.ViewModels
         [ObservableProperty]
         private bool _isConversionQueueExpanded;
 
-        public bool CanExportSplitPdf => HasPages && !HasSelectedPages;
-        public bool CanExportSelectedPdf => HasSelectedPages;
+        public bool CanExportSplitPdf => CanExport && !HasSelectedPages;
+        public bool CanExportSelectedPdf => CanExport && HasSelectedPages;
         public string ImageExportScopeText => HasSelectedPages
             ? $"將選取的 {SelectedPageCount} 頁轉成 PNG 圖片"
             : $"將畫布全部 {TotalPageCount} 頁轉成 PNG 圖片";
@@ -128,7 +127,7 @@ namespace PaperSwitch.ViewModels
         {
             if (e.PropertyName is nameof(ExportOptions.CustomFileName) or nameof(ExportOptions.IncludeFileNameDescription))
                 OnPropertyChanged(nameof(ExportFileNamePreview));
-            if (e.PropertyName == nameof(ExportOptions.IncludeFileNameDescription) && !_exportPreferences.Save(Options.IncludeFileNameDescription))
+            if (e.PropertyName is nameof(ExportOptions.IncludeFileNameDescription) or nameof(ExportOptions.OutputDirectory) && !_exportPreferences.Save(Options.IncludeFileNameDescription, Options.OutputDirectory))
                 StatusMessage = "命名設定無法儲存，下次啟動將使用原設定；本次匯出仍可使用目前選項。";
         }
 
@@ -148,7 +147,7 @@ namespace PaperSwitch.ViewModels
             Options.PropertyChanged += ExportOptionsChanged;
 
             // 使用者成品與發行檔分離，建置清理 dist 時不會遺失轉檔資料。
-            Options.OutputDirectory = AppPaths.ConvertedDirectory;
+            Options.OutputDirectory = _exportPreferences.LoadOutputDirectory() ?? AppPaths.ConvertedDirectory;
 
             Pages.CollectionChanged += (s, e) =>
             {
@@ -180,6 +179,7 @@ namespace PaperSwitch.ViewModels
 
         private void NotifyDynamicExportButtonTexts()
         {
+            OnPropertyChanged(nameof(ExportScopeSummary));
             OnPropertyChanged(nameof(ExportFileNamePreview));
             OnPropertyChanged(nameof(ImageExportScopeText));
             OnPropertyChanged(nameof(ExportAllPdfButtonText));
@@ -207,6 +207,7 @@ namespace PaperSwitch.ViewModels
 
         private bool ApplyPageEdit(Action editAction)
         {
+            if (IsBusy) return false;
             var before = CaptureArrangementSnapshot();
             editAction();
 
@@ -215,8 +216,8 @@ namespace PaperSwitch.ViewModels
                 return false;
             }
 
-            _undoHistory.Push(before);
-            _redoHistory.Clear();
+            _history.Undo.Push(before);
+            _history.Redo.Clear();
             NotifyHistoryChanged();
             return true;
         }
@@ -251,8 +252,8 @@ namespace PaperSwitch.ViewModels
 
         private void ClearHistory()
         {
-            _undoHistory.Clear();
-            _redoHistory.Clear();
+            _history.Undo.Clear();
+            _history.Redo.Clear();
             NotifyHistoryChanged();
         }
 
@@ -261,8 +262,8 @@ namespace PaperSwitch.ViewModels
         {
             if (!CanUndo) return;
 
-            _redoHistory.Push(CaptureArrangementSnapshot());
-            RestoreArrangementSnapshot(_undoHistory.Pop());
+            _history.Redo.Push(CaptureArrangementSnapshot());
+            RestoreArrangementSnapshot(_history.Undo.Pop());
             NotifyHistoryChanged();
             StatusMessage = "已復原上一個編排動作";
         }
@@ -272,8 +273,8 @@ namespace PaperSwitch.ViewModels
         {
             if (!CanRedo) return;
 
-            _undoHistory.Push(CaptureArrangementSnapshot());
-            RestoreArrangementSnapshot(_redoHistory.Pop());
+            _history.Undo.Push(CaptureArrangementSnapshot());
+            RestoreArrangementSnapshot(_history.Redo.Pop());
             NotifyHistoryChanged();
             StatusMessage = "已重做下一個編排動作";
         }
@@ -634,6 +635,7 @@ namespace PaperSwitch.ViewModels
 
         public async Task AddFilesAsync(string[] filePaths)
         {
+            if (IsBusy) return;
             if (filePaths == null || filePaths.Length == 0) return;
 
             var existingFiles = filePaths.Where(File.Exists).ToArray();
@@ -665,6 +667,7 @@ namespace PaperSwitch.ViewModels
             try
             {
                 IsBusy = true;
+                _operationCancellation = new();
                 IsProgressIndeterminate = false;
                 ProgressValue = 0;
                 StatusMessage = $"準備處理 {tasks.Count} 個檔案...";
@@ -675,6 +678,11 @@ namespace PaperSwitch.ViewModels
                 for (int fileIndex = 0; fileIndex < tasks.Count; fileIndex++)
                 {
                     var task = tasks[fileIndex];
+                    if (_operationCancellation?.IsCancellationRequested == true)
+                    {
+                        task.MarkSkipped("已停止，未開始轉檔。");
+                        continue;
+                    }
                     if (task.State == ConversionTaskState.Skipped)
                     {
                         continue;
@@ -714,7 +722,7 @@ namespace PaperSwitch.ViewModels
 
                 ProgressValue = 100;
                 int failedCount = tasks.Count(task => task.State == ConversionTaskState.Failed);
-                StatusMessage = failedCount == 0
+                StatusMessage = _operationCancellation?.IsCancellationRequested == true ? $"已停止；本輪載入 {newItems.Count} 頁，未開始的任務已跳過。" : failedCount == 0
                     ? $"已順利裝載 {newItems.Count} 頁新紙張至工坊畫布"
                     : $"已裝載 {newItems.Count} 頁紙張；另有 {failedCount} 個檔案需要處理";
             }
@@ -729,6 +737,8 @@ namespace PaperSwitch.ViewModels
             }
             finally
             {
+                _operationCancellation?.Dispose();
+                _operationCancellation = null;
                 IsBusy = false;
                 IsProgressIndeterminate = true;
                 NotifySelectionChanged();
@@ -845,31 +855,19 @@ namespace PaperSwitch.ViewModels
         {
             try
             {
-                int totalPages = _pdfService.GetPageCount(pdfPath);
+                var pageData = await Task.Run(() => PdfImportService.ReadPages(pdfPath, task.FileName));
+                int totalPages = pageData.Count;
                 if (totalPages <= 0)
                 {
                     task.MarkFailed("PDF 無法讀取或內容已損毀。原始檔案沒有被修改，請確認檔案後重新嘗試。", actionPath: pdfPath);
                     return;
                 }
 
-                string fileName = task.FileName;
-                for (int pageIndex = 0; pageIndex < totalPages; pageIndex++)
+                for (int index = 0; index < pageData.Count; index++)
                 {
-                    var (width, height, _) = _pdfService.GetPageDimensions(pdfPath, pageIndex);
-                    var item = new PaperItem
-                    {
-                        SourceFilePath = pdfPath,
-                        SourceFileName = fileName,
-                        SourcePageIndex = pageIndex,
-                        DisplayPageNumber = pageIndex + 1,
-                        TotalPagesInSource = totalPages,
-                        Rotation = 0,
-                        OriginalWidth = width,
-                        OriginalHeight = height,
-                        IsLoadingThumbnail = true
-                    };
-                    newItems.Add(item);
-                    Pages.Add(item);
+                    newItems.Add(pageData[index]);
+                    Pages.Add(pageData[index]);
+                    if (index % 32 == 31) await System.Windows.Threading.Dispatcher.Yield();
                 }
 
                 task.CompletedPageCount += totalPages;
@@ -1077,259 +1075,108 @@ namespace PaperSwitch.ViewModels
 
         #region PDF 導出與裝訂
 
-        [RelayCommand]
-        public async Task ExportPdfAsync()
+        public bool CanInteract => !IsBusy;
+        public string ExportScopeSummary => $"全部 {TotalPageCount} 頁／選取 {SelectedPageCount} 頁；PNG：" + (HasSelectedPages ? "選取頁面" : "全部頁面") + "；檔名留空自動命名";
+
+        public bool TrySelectRange(string text, out string error)
         {
-            if (Pages.Count == 0)
-            {
-                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            IsBusy = true;
-            IsProgressIndeterminate = true;
-            StatusMessage = "正在進行向量無損裝訂合成...";
-
+            error = "";
+            if (IsBusy) { error = "請等待目前工作完成。"; return false; }
             try
             {
-                string outputDir = string.IsNullOrWhiteSpace(Options.OutputDirectory)
-                    ? AppPaths.ConvertedDirectory
-                    : Options.OutputDirectory;
-
-                Directory.CreateDirectory(outputDir);
-
-                if (Options.MergeIntoSinglePdf)
-                {
-                    string outputPath = ExportFileNaming.MergedOutputPath(outputDir, Options.CustomFileName, false,
-                        Options.IncludeFileNameDescription, ExportFileNaming.FirstSourceName(Pages), DateTime.Now);
-                    bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(Pages, outputPath, Options));
-                    if (ok)
-                    {
-                        StatusMessage = $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
-                        ShowExportDoneAndCleanup($"已合併成 1 份 PDF：\n{Path.GetFileName(outputPath)}", outputDir);
-                    }
-                    else
-                    {
-                        GameDialog.Show("導出 PDF 過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
-                else
-                {
-                    string safePrefix = Options.CustomFileName;
-                    var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(Pages, outputDir, safePrefix, Options.IncludeFileNameDescription, Options));
-                    StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
-                    ShowExportDoneAndCleanup($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
-                }
+                var indexes = PageRangeSelection.Parse(text, Pages.Count);
+                for (int i = 0; i < Pages.Count; i++) Pages[i].IsSelected = indexes.Contains(i);
+                SelectedPage = Pages.FirstOrDefault(p => p.IsSelected);
+                NotifySelectionChanged();
+                return true;
             }
-            catch (Exception ex)
-            {
-                StatusMessage = $"導出失敗: {ex.Message}";
-                GameDialog.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsBusy = false;
-            }
+            catch (FormatException ex) { error = ex.Message; return false; }
         }
 
-        /// <summary>
-        /// 取得有效匯出頁面清單：若有勾選/選取頁面則只處理選取頁面；若無選取則處理畫布全部頁面。
-        /// </summary>
+        [RelayCommand]
+        public void SelectSource()
+        {
+            if (IsBusy || SelectedPage == null) return;
+            var source = SelectedPage.SourceFilePath;
+            foreach (var page in Pages) page.IsSelected = string.Equals(page.SourceFilePath, source, StringComparison.OrdinalIgnoreCase);
+            NotifySelectionChanged();
+        }
+        public bool CanExport => HasPages && !IsBusy;
+        private CancellationTokenSource? _operationCancellation;
+        private readonly ExportCoordinator _exportCoordinator = new();
+
+        partial void OnIsBusyChanged(bool value)
+        {
+            OnPropertyChanged(nameof(CanInteract));
+            OnPropertyChanged(nameof(CanExport));
+            NotifyHistoryChanged();
+            ExportAllPdfCommand.NotifyCanExecuteChanged();
+            ExportSelectedPdfCommand.NotifyCanExecuteChanged();
+            ExportSplitPdfCommand.NotifyCanExecuteChanged();
+            ExportImagesCommand.NotifyCanExecuteChanged();
+        }
+
+        [RelayCommand]
+        public void CancelOperation()
+        {
+            _operationCancellation?.Cancel();
+            StatusMessage = "已要求停止；目前步驟完成後停止，不會強制關閉 Office。";
+        }
+
+        public IEnumerable<string> GetActiveSourcePaths() => Pages.Select(p => p.SourceFilePath)
+            .Concat(_history.SourcePaths).Concat(ConversionTasks.Select(t => t.ActionPath ?? t.SourcePath));
+
+        public void RotatePage(PaperItem page, int delta)
+        {
+            if (!Pages.Contains(page)) return;
+            ApplyPageEdit(() => page.Rotation = (page.Rotation + delta + 360) % 360);
+        }
+
         public List<PaperItem> GetEffectiveExportPages()
         {
             var selected = Pages.Where(p => p.IsSelected).ToList();
             return selected.Count > 0 ? selected : Pages.ToList();
         }
 
-        [RelayCommand(CanExecute = nameof(HasPages))]
-        public async Task ExportAllPdfAsync()
-        {
-            Options.MergeIntoSinglePdf = true;
-            await ExportPdfAsync();
-        }
-
+        [RelayCommand(CanExecute = nameof(CanExport))]
+        public Task ExportAllPdfAsync() => RunExportAsync(ExportKind.AllPdf);
         [RelayCommand(CanExecute = nameof(CanExportSplitPdf))]
-        public async Task ExportSplitPdfAsync()
-        {
-            if (!CanExportSplitPdf) return;
-            var targetPages = Pages.ToList();
-            if (targetPages.Count == 0)
-            {
-                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            IsBusy = true;
-            IsProgressIndeterminate = true;
-            StatusMessage = "正在進行單頁獨立切分導出...";
-
-            try
-            {
-                string outputDir = string.IsNullOrWhiteSpace(Options.OutputDirectory)
-                    ? AppPaths.ConvertedDirectory
-                    : Options.OutputDirectory;
-
-                Directory.CreateDirectory(outputDir);
-
-                string safePrefix = Options.CustomFileName;
-                var files = await Task.Run(() => _pdfService.ExportIndividualPdfs(targetPages, outputDir, safePrefix, Options.IncludeFileNameDescription, Options));
-                StatusMessage = $"裝訂完成！共匯出 {files.Count} 個獨立單頁 PDF";
-                ShowExportDoneAndCleanup($"已匯出 {files.Count} 個單頁 PDF（每頁各一個檔案）。", outputDir);
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"導出失敗: {ex.Message}";
-                GameDialog.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsBusy = false;
-            }
-        }
-
+        public Task ExportSplitPdfAsync() => CanExportSplitPdf ? RunExportAsync(ExportKind.SplitPdf) : Task.CompletedTask;
         [RelayCommand(CanExecute = nameof(CanExportSelectedPdf))]
-        public async Task ExportSelectedPdfAsync()
+        public Task ExportSelectedPdfAsync() => CanExportSelectedPdf ? RunExportAsync(ExportKind.SelectedPdf) : Task.CompletedTask;
+        [RelayCommand(CanExecute = nameof(CanExport))]
+        public Task ExportImagesAsync() => RunExportAsync(ExportKind.Images);
+        public Task ExportPdfAsync() => RunExportAsync(Options.MergeIntoSinglePdf ? ExportKind.AllPdf : ExportKind.SplitPdf);
+
+        private async Task RunExportAsync(ExportKind kind)
         {
-            if (!CanExportSelectedPdf) return;
-            var targetPages = GetEffectiveExportPages();
-            if (targetPages.Count == 0)
-            {
-                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            bool hasSelection = HasSelectedPages;
+            if (!CanExport) return;
+            var pages = ExportCoordinator.Snapshot(kind is ExportKind.AllPdf or ExportKind.SplitPdf ? Pages : GetEffectiveExportPages());
+            var options = ExportCoordinator.Snapshot(Options);
             IsBusy = true;
-            IsProgressIndeterminate = true;
-            StatusMessage = hasSelection
-                ? "正在進行選取頁面裝訂合成..."
-                : "正在進行畫布全部頁面裝訂合成...";
-
+            _operationCancellation = new();
+            IsProgressIndeterminate = kind != ExportKind.Images;
+            StatusMessage = $"正在檢查及輸出 {pages.Count} 頁…";
             try
             {
-                string outputDir = string.IsNullOrWhiteSpace(Options.OutputDirectory)
-                    ? AppPaths.ConvertedDirectory
-                    : Options.OutputDirectory;
-
-                Directory.CreateDirectory(outputDir);
-
-                string outputPath = ExportFileNaming.MergedOutputPath(outputDir, Options.CustomFileName, true,
-                    Options.IncludeFileNameDescription, null, DateTime.Now);
-                bool ok = await Task.Run(() => _pdfService.ExportArrangedPdf(targetPages, outputPath, Options));
-                if (ok)
+                var progress = new Progress<(int Current, int Total, string FileName)>(p =>
                 {
-                    StatusMessage = hasSelection
-                        ? $"裝訂完成！已匯出選取頁面至: {Path.GetFileName(outputPath)}"
-                        : $"裝訂完成！已匯出至: {Path.GetFileName(outputPath)}";
-                    ShowExportDoneAndCleanup(
-                        $"已將{(hasSelection ? "選取的 " + targetPages.Count + " 頁" : "全部 " + targetPages.Count + " 頁")}合併成 1 份 PDF：\n{Path.GetFileName(outputPath)}",
-                        outputDir);
-                }
-                else
-                {
-                    GameDialog.Show("導出 PDF 過程發生錯誤，請檢查來源檔案。", "導出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"導出失敗: {ex.Message}";
-                GameDialog.Show($"導出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsBusy = false;
-            }
-        }
-
-        [RelayCommand(CanExecute = nameof(HasPages))]
-        public async Task ExportImagesAsync()
-        {
-            var targetPages = GetEffectiveExportPages();
-            if (targetPages.Count == 0)
-            {
-                GameDialog.Show("目前畫布無任何紙張可供導出！", "提醒", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            bool hasSelection = HasSelectedPages;
-            IsBusy = true;
-            IsProgressIndeterminate = false;
-            ProgressValue = 0;
-            StatusMessage = hasSelection
-                ? $"正在將選取的 {targetPages.Count} 頁轉換為圖片..."
-                : $"正在將畫布全部 {targetPages.Count} 頁轉換為圖片...";
-
-            try
-            {
-                string outputDir = string.IsNullOrWhiteSpace(Options.OutputDirectory)
-                    ? AppPaths.ConvertedDirectory
-                    : Options.OutputDirectory;
-
-                Directory.CreateDirectory(outputDir);
-
-                string? customPrefix = string.IsNullOrWhiteSpace(Options.CustomFileName)
-                    ? null
-                    : Options.CustomFileName.Trim();
-
-                var progressReporter = new Progress<(int Current, int Total, string FileName)>(p =>
-                {
-                    ProgressValue = (double)p.Current / p.Total * 100.0;
-                    StatusMessage = $"正在匯出圖片 ({p.Current} / {p.Total})：\n{p.FileName}";
+                    ProgressValue = p.Current * 100.0 / Math.Max(1, p.Total);
+                    StatusMessage = $"輸出 {p.Current} / {p.Total}：{p.FileName}";
                 });
-
-                var result = await Task.Run(() => _imageExportService.ExportPagesToPngAsync(
-                    targetPages,
-                    outputDir,
-                    customPrefix,
-                    progressReporter, includeDescription: Options.IncludeFileNameDescription));
-
-                ProgressValue = 100;
-
-                if (result.ExportedCount > 0)
-                {
-                    StatusMessage = result.ErrorCount == 0
-                        ? $"圖片匯出完成！共輸出 {result.ExportedCount} 張 PNG"
-                        : $"圖片匯出完成！成功 {result.ExportedCount} 張，另有 {result.ErrorCount} 頁失敗";
-
-                    if (result.ErrorCount > 0)
-                    {
-                        var errorSummary = string.Join("\n", result.Errors.Take(3).Select(e => $"• {e.Page.SourceFileName} P.{e.Page.DisplayPageNumber}: {e.ErrorMessage}"));
-                        GameDialog.Show(
-                            $"已匯出 {result.ExportedCount} 張圖片，但有 {result.ErrorCount} 頁發生錯誤未能匯出：\n\n{errorSummary}\n\n其餘頁面已正常輸出。",
-                            "部分圖片匯出完成",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning);
-                    }
-                    else
-                    {
-                        ShowExportDoneAndCleanup($"已匯出 {result.ExportedCount} 張 PNG 圖片。", outputDir);
-                    }
-                }
-                else
-                {
-                    StatusMessage = "圖片匯出失敗，請確認來源 PDF 檔案可正常讀取。";
-                    GameDialog.Show("圖片匯出失敗，無法將指定頁面轉換為 PNG 圖片。", "匯出失敗", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"圖片匯出失敗: {ex.Message}";
-                GameDialog.Show($"圖片匯出過程發生錯誤: {ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                var result = await _exportCoordinator.ExportAsync(kind, pages, options, _operationCancellation.Token, progress);
+                StatusMessage = result.Summary;
+                if (result.Errors.Count > 0)
+                    GameDialog.Show(result.Summary + "\n\n" + string.Join("\n", result.Errors.Take(8)), "輸出需要處理", MessageBoxButton.OK, MessageBoxImage.Warning);
+                else if (result.Files.Count > 0)
+                    GameDialog.ShowExportDone(result.Summary, options.OutputDirectory);
             }
             finally
             {
+                _operationCancellation.Dispose();
+                _operationCancellation = null;
                 IsBusy = false;
-                IsProgressIndeterminate = true;
             }
-        }
-
-        /// <summary>
-        /// 顯示匯出完成對話框。暫存轉檔檔案延後至程式正常關閉（OnExit）或手動點擊「清除暫存」時再清理，
-        /// 避免在寫出 PDF 檔案的同一瞬間同步批次刪除檔案，觸發防毒軟體行為監控誤判。
-        /// </summary>
-        private void ShowExportDoneAndCleanup(string summary, string folder)
-        {
-            GameDialog.ShowExportDone(summary, folder);
         }
 
         [RelayCommand]
@@ -1439,57 +1286,6 @@ namespace PaperSwitch.ViewModels
         }
 
         #endregion
-
-        private sealed class ArrangementSnapshot
-        {
-            public IReadOnlyList<PageState> PageStates { get; }
-            public PaperItem? SelectedPage { get; }
-
-            public ArrangementSnapshot(IEnumerable<PaperItem> pages, PaperItem? selectedPage)
-            {
-                PageStates = pages.Select(page => new PageState(page)).ToList();
-                SelectedPage = selectedPage;
-            }
-
-            public bool Matches(IEnumerable<PaperItem> pages, PaperItem? selectedPage)
-            {
-                var currentPages = pages.ToList();
-                return SelectedPage == selectedPage
-                    && PageStates.Count == currentPages.Count
-                    && PageStates.Zip(currentPages, (state, page) => state.Matches(page)).All(matches => matches);
-            }
-        }
-
-        private sealed class PageState
-        {
-            public PaperItem Page { get; }
-            private int Rotation { get; }
-            private bool IsSelected { get; }
-            private string SourceFileName { get; }
-
-            public PageState(PaperItem page)
-            {
-                Page = page;
-                Rotation = page.Rotation;
-                IsSelected = page.IsSelected;
-                SourceFileName = page.SourceFileName;
-            }
-
-            public bool Matches(PaperItem page)
-            {
-                return ReferenceEquals(Page, page)
-                    && Rotation == page.Rotation
-                    && IsSelected == page.IsSelected
-                    && SourceFileName == page.SourceFileName;
-            }
-
-            public void Restore()
-            {
-                Page.Rotation = Rotation;
-                Page.IsSelected = IsSelected;
-                Page.SourceFileName = SourceFileName;
-            }
-        }
 
         public static string SanitizeFileName(string? fileName, string defaultName = "PaperSwitch_裝訂成品.pdf")
         {

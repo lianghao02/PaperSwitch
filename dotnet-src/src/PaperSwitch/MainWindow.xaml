@@ -38,7 +38,7 @@
         </Grid.RowDefinitions>
         
         <!-- 頂部工坊招牌與全域快捷按鈕 -->
-        <Grid Margin="4,0,4,12">
+        <Grid Margin="4,0,4,12" IsEnabled="{Binding CanInteract}">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <art:WorkshopSurface Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="0" CornerRadius="12" Padding="9" Margin="0,0,12,0" Material="Honey" EdgeSize="16">
@@ -61,7 +61,7 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             
             <!-- 左欄：工具盒 (高度貫穿到底) -->
-            <Border Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="14,12" Margin="0,0,14,0">
+            <Border IsEnabled="{Binding CanInteract}" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="14,12" Margin="0,0,14,0">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <ToggleButton x:Name="SidebarToggle" Content="☰ 工具盒" Padding="12,8" HorizontalAlignment="Left" FontWeight="Bold" FontFamily="{StaticResource GameFontFamily}" ToolTip="收合或展開操作面板" AutomationProperties.Name="收合或展開操作面板">
@@ -89,12 +89,13 @@
                         </ScrollViewer.Style>
                         <StackPanel Margin="0,0,6,0">
                             <TextBlock Text="排版工具" Style="{StaticResource GameHeading}" FontSize="18" Margin="4,2,0,8" />
-                            <StackPanel x:Name="LayoutTools">
+                            <StackPanel x:Name="LayoutTools" IsEnabled="{Binding HasPages}">
                                 <TextBlock Text="選取" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
                                 <UniformGrid Columns="2">
                                     <Button art:WorkshopArt.Icon="11" Content="全選" Style="{StaticResource SidebarButton}" Command="{Binding SelectAllCommand}" ToolTip="全選（Ctrl＋A）" />
                                     <Button art:WorkshopArt.Icon="14" Content="反選" Style="{StaticResource SidebarButton}" Command="{Binding InvertSelectionCommand}" ToolTip="反向選取紙張" />
                                 </UniformGrid>
+                                <UniformGrid Columns="2"><Button Content="頁序範圍" Style="{StaticResource SidebarButton}" Click="SelectRange_Click" ToolTip="輸入目前畫布位置，例如 1-5,8" /><Button Content="同來源" Style="{StaticResource SidebarButton}" Command="{Binding SelectSourceCommand}" ToolTip="選取目前紙張的同一份來源文件" /></UniformGrid>
                                 <TextBlock Text="旋轉與移動" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}" Margin="6,2,0,3" />
                                 <UniformGrid Columns="2">
                                     <Button art:WorkshopArt.Icon="15" Content="逆轉 90°" Style="{StaticResource SidebarButton}" Click="BatchRotateCCW_Click" ToolTip="逆時針旋轉（Shift＋R）" />
@@ -129,7 +130,7 @@
                                         </StackPanel>
                                     </Expander.Header>
                                     <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                                        <ItemsControl ItemsSource="{Binding ConversionTasks}">
+                                        <ItemsControl x:Name="TaskItemsControl" ItemsSource="{Binding ConversionTasks}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="{x:Type models:ConversionTaskItem}">
                                                     <Border Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1"
@@ -195,7 +196,7 @@
 
                             <Expander Header="更多（維護與更新）" IsExpanded="False" Margin="2,16,2,0" FontWeight="Bold" Foreground="{StaticResource BrushCharcoal}">
                                 <UniformGrid Columns="2" Margin="0,8,0,0">
-                                    <Button art:WorkshopArt.Icon="9" Content="清除暫存" Style="{StaticResource SidebarDangerButton}" Click="ClearProcessingFolders_Click" ToolTip="清除成品與轉檔暫存，執行前顯示確認內容" />
+                                    <Button art:WorkshopArt.Icon="9" Content="清除未使用暫存" Style="{StaticResource SidebarDangerButton}" Click="ClearProcessingFolders_Click" ToolTip="清除成品與轉檔暫存，執行前顯示確認內容" />
                                     <Button art:WorkshopArt.Icon="10" Content="檢查更新" Style="{StaticResource SidebarButton}" Command="{Binding CheckUpdateCommand}" ToolTip="{Binding CheckUpdateButtonText}" />
                                 </UniformGrid>
                             </Expander>
@@ -227,6 +228,7 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="紙張工作桌" Style="{StaticResource BannerHeading}" FontSize="18" />
+                                    <Button ContentStringFormat="查看失敗（{0} 個檔案）" Content="{Binding FailedConversionTaskCount}" Click="ShowFailed_Click" HorizontalAlignment="Left" Margin="0,3,0,0"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource GameButton}"><Style.Triggers><DataTrigger Binding="{Binding FailedConversionTaskCount}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style></Button>
                                     <TextBlock Text="{Binding SummaryText}" Foreground="{StaticResource BrushBannerSubText}" FontSize="12.5" FontWeight="SemiBold" Margin="0,3,0,0" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -503,7 +505,8 @@
                                                        TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,14" />
                                             <ProgressBar IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" Maximum="100"
                                                          Height="8" Background="{StaticResource BrushPaperBg}" Foreground="{StaticResource BrushForestMoss}" />
-                                            <TextBlock Text="請勿關閉工坊；處理完成後會自動更新狀態。" Style="{StaticResource TextMeta}"
+                                            <Button Content="停止後續工作" Command="{Binding CancelOperationCommand}" Style="{StaticResource GameButton}" Margin="0,12,0,0" />
+                                            <TextBlock Text="Office 會完成目前步驟後停止；已完成成品保留。" Style="{StaticResource TextMeta}"
                                                        Foreground="{StaticResource BrushPencilGray}" FontWeight="SemiBold" TextAlignment="Center" Margin="0,12,0,0" />
                                         </StackPanel>
                                     </Border>
@@ -514,19 +517,24 @@
                 </Border>
 
                 <!-- 下方：成果匯出列 (靠右讓出位置給左側工具盒) -->
-                <Border Grid.Row="1" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="16,10" Margin="0,10,0,0">
+                <Border IsEnabled="{Binding CanInteract}" Grid.Row="1" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="16,10" Margin="0,10,0,0">
                     <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                             <TextBlock Text="成果匯出" Style="{StaticResource GameHeading}" FontSize="18" Margin="0,0,16,0" VerticalAlignment="Center" />
                             <Label Grid.Column="1" Content="輸出檔名" Target="{Binding ElementName=ExportFileName}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource BrushCharcoal}" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <TextBox Grid.Column="2" x:Name="ExportFileName" Style="{StaticResource WorkshopTextBox}"
                                      Text="{Binding Options.CustomFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" KeyDown="ExportFileNameTextBox_KeyDown"
-                                     ToolTip="留空自動命名；手動輸入名稱優先。按 Enter 全合併匯出。" AutomationProperties.Name="輸出檔名" />
-                            <CheckBox Grid.Column="3" Content="加上後綴" Style="{StaticResource CozyCheckBox}" FontWeight="Bold" FontSize="13.5" IsChecked="{Binding Options.IncludeFileNameDescription, Mode=TwoWay}" Margin="14,0,0,0" VerticalAlignment="Center" ToolTip="加入來源頁碼；仍保留同名防覆寫" />
+                                     ToolTip="{Binding ExportFileNamePreview}" AutomationProperties.Name="輸出檔名" />
+                            <CheckBox Grid.Column="3" Content="加入頁碼後綴" Style="{StaticResource CozyCheckBox}" FontWeight="Bold" FontSize="13.5" IsChecked="{Binding Options.IncludeFileNameDescription, Mode=TwoWay}" Margin="14,0,0,0" VerticalAlignment="Center" ToolTip="加入來源頁碼；仍保留同名防覆寫" />
                         </Grid>
-                        <WrapPanel Grid.Row="1" Margin="0,8,0,0" VerticalAlignment="Center">
+                        <Grid Grid.Row="1" Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock Text="{Binding ExportScopeSummary}" FontSize="11" Margin="0,0,0,3"/><TextBlock Text="{Binding Options.OutputDirectory, StringFormat=輸出位置：{0}}" ToolTip="{Binding Options.OutputDirectory}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" /></StackPanel>
+                            <Button Grid.Column="1" Content="選擇位置" Click="ChooseOutput_Click" Style="{StaticResource SidebarToolButton}" Padding="8,3" />
+                        </Grid>
+                        <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center">
                             <CheckBox Content="PDF 加上頁碼" Style="{StaticResource CozyCheckBox}"
                                       IsChecked="{Binding Options.AddPageNumbers}" VerticalAlignment="Center"
                                       ToolTip="依本次匯出順序從 1 編號；包含拆分 PDF，不套用至 PNG。" />
@@ -544,13 +552,13 @@
                                 <TextBlock Text="pt" Margin="6,0,0,0" VerticalAlignment="Center" />
                             </WrapPanel>
                         </WrapPanel>
-                        <WrapPanel Grid.Row="2" Margin="0,6,0,0" HorizontalAlignment="Right">
+                        <UniformGrid Columns="3" Grid.Row="3" Margin="0,6,0,0">
                             <Button art:WorkshopArt.Icon="8" x:Name="OpenOutputButton" Content="開啟輸出資料夾" Style="{StaticResource SidebarToolButton}" Command="{Binding OpenConvertedFolderCommand}" Margin="3,2" />
                             <Button x:Name="ExportAllButton" Content="全部合併成 1 份 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="把畫布上的全部頁面合併成一份 PDF（不受選取影響）" />
                             <Button x:Name="ExportSplitButton" Content="每頁各存 1 個 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="把每一頁各存成一個 PDF。需先取消選取頁面。" />
                             <Button x:Name="ExportSelectedButton" Content="選取頁合併成 1 份 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="只把已選取的頁面合併成一份 PDF。需先選取頁面。" />
                             <Button x:Name="ExportImagesButton" Content="轉成 PNG 圖片" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
-                        </WrapPanel>
+                        </UniformGrid>
                     </Grid>
                 </Border>
             </Grid>

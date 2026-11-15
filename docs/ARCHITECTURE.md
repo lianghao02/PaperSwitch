@@ -1,5 +1,15 @@
 # 系統架構與核心演算法 (Architecture)
 
+## 目前修訂（2026-11-15）
+
+- MainViewModel 經 ExportCoordinator 固定本次頁面／設定快照、檢查來源及回報要求／完成／未輸出數量；所有 UI 輸出使用共同忙碌狀態。拆分與 PNG 可在頁面邊界停止。
+- PdfImportService 每份 PDF 在背景開啟一次，取得全部頁面資料，再由 UI 每 32 頁讓出 Dispatcher。
+- ArrangementHistory 保存復原／重做快照及其來源引用；預覽旋轉透過主畫面同一編輯入口記錄。
+- AtomicOutput 先寫入本次專用 .partial，成功後以不覆寫方式改名；失敗清除本次半成品。
+- 暫存按程序及隨機工作階段識別分開管理；清理僅限目前工作階段，保留活躍來源，不刪除匯出成品。舊版遺留資料不自動跨程序清理。
+- PageRangeSelection 解析畫布頁序範圍；輸出位置與命名偏好沿用同一偏好儲存檔。
+- 詳細驗收見 REVISION_VALIDATION.md。以下既有架構段落與本節不一致時，以本節及實際程式為準。
+
 ## 1. 系統整體架構 (C# 12 / .NET 8 / WPF)
 
 本專案採用 Windows 原生 WPF + MVVM 架構，提供向量無損 PDF 裝訂與安全隔離的 Office COM 轉檔服務。

@@ -16,13 +16,19 @@ public sealed class ExportPreferencesStore
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return false; }
     }
 
-    public bool Save(bool includeDescription)
+    public string? LoadOutputDirectory()
+    {
+        try { return JsonSerializer.Deserialize<Preferences>(File.ReadAllText(_path, Encoding.UTF8))?.OutputDirectory; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
+
+    public bool Save(bool includeDescription, string? outputDirectory = null)
     {
         string temporaryPath = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new Preferences { IncludeDescription = includeDescription }), new UTF8Encoding(false));
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new Preferences { IncludeDescription = includeDescription, OutputDirectory = outputDirectory }), new UTF8Encoding(false));
             File.Move(temporaryPath, _path, true);
             return true;
         }
@@ -34,5 +40,5 @@ public sealed class ExportPreferencesStore
         }
     }
 
-    public sealed class Preferences { public bool IncludeDescription { get; set; } }
+    public sealed class Preferences { public bool IncludeDescription { get; set; } public string? OutputDirectory { get; set; } }
 }

@@ -15,9 +15,9 @@
     <Description>Offline PDF merging, splitting, image export, and visual page arrangement utility.</Description>
     <Copyright>Copyright (c) 2026 PaperSwitch Contributors</Copyright>
     <NeutralLanguage>zh-TW</NeutralLanguage>
-    <Version>4.6.0</Version>
-    <FileVersion>4.6.0.0</FileVersion>
-    <AssemblyVersion>4.6.0.0</AssemblyVersion>
+    <Version>4.7.0</Version>
+    <FileVersion>4.7.0.0</FileVersion>
+    <AssemblyVersion>4.7.0.0</AssemblyVersion>
     <ApplicationIcon>app_icon.ico</ApplicationIcon>
   </PropertyGroup>
 

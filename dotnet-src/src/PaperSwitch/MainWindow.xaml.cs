@@ -27,6 +27,7 @@ namespace PaperSwitch
         public MainWindow()
         {
             InitializeComponent();
+            Closing += (_, e) => { if (ViewModel.IsBusy) { e.Cancel = true; ViewModel.CancelOperation(); } };
         }
 
         #region 鍵盤快捷鍵極速導航
@@ -34,6 +35,7 @@ namespace PaperSwitch
         private void Window_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             var source = e.OriginalSource as DependencyObject;
+            if (ViewModel.IsBusy) return;
             bool isPlainLeftClick = (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control;
 
             if (!isPlainLeftClick
@@ -249,6 +251,7 @@ namespace PaperSwitch
 
         private async void Window_Drop(object sender, DragEventArgs e)
         {
+            if (ViewModel.IsBusy) return;
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
@@ -275,7 +278,7 @@ namespace PaperSwitch
                 if (e.ClickCount == 2)
                 {
                     // 雙擊開啟大圖燈箱 (Lightbox)
-                    var lightbox = new LightboxWindow(item, ViewModel.Pages)
+                    var lightbox = new LightboxWindow(item, ViewModel.Pages, ViewModel.RotatePage)
                     {
                         Owner = this
                     };
@@ -635,7 +638,7 @@ namespace PaperSwitch
         {
             if (sender is FrameworkElement { DataContext: PaperItem item })
             {
-                var lightbox = new LightboxWindow(item, ViewModel.Pages)
+                var lightbox = new LightboxWindow(item, ViewModel.Pages, ViewModel.RotatePage)
                 {
                     Owner = this
                 };
@@ -699,42 +702,37 @@ namespace PaperSwitch
 
         private void ClearProcessingFolders_Click(object sender, RoutedEventArgs e)
         {
-            string converted = AppPaths.ConvertedDirectory;
-            string temporary = AppPaths.TemporaryConversionDirectory;
-            var confirmation = GameDialog.Show(
-                "此動作會永久刪除 PaperSwitch 已產生的成品與轉檔暫存檔。\n\n" +
-                $"成品：{converted}\n" +
-                $"暫存：{temporary}\n\n" +
-                "不會刪除原始文件，也不會清空目前畫布。是否繼續？",
-                "清理成品與暫存資料夾",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
+            if (ViewModel.IsBusy) return;
+            var result = StorageMaintenanceService.ClearTemporaryExcept(ViewModel.GetActiveSourcePaths());
+            ViewModel.StatusMessage = $"已清理 {result.DeletedFileCount} 個未使用暫存；保留畫布、復原及任務來源。失敗 {result.FailedPaths.Count} 項。";
+        }
 
-            if (confirmation != MessageBoxResult.Yes)
-            {
-                return;
-            }
+        private void ChooseOutput_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.IsBusy) return;
+            var dialog = new OpenFolderDialog { Title = "選擇成品輸出資料夾" };
+            if (dialog.ShowDialog(this) == true) ViewModel.Options.OutputDirectory = dialog.FolderName;
+        }
 
-            try
+        private void SelectRange_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new RenameDialog("", 1, "依畫布頁序選取", "輸入畫布位置，例如 1-5,8,12-20；不是原始文件頁碼。", "選取頁面") { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            if (!ViewModel.TrySelectRange(dialog.ProposedName, out var error))
+                GameDialog.Show(error, "頁碼範圍", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ShowFailed_Click(object sender, RoutedEventArgs e)
+        {
+            SidebarToggle.IsChecked = false;
+            ViewModel.IsConversionQueueExpanded = true;
+            var task = ViewModel.ConversionTasks.FirstOrDefault(t => t.State == ConversionTaskState.Failed);
+            if (task != null) Dispatcher.BeginInvoke(() =>
             {
-                var result = StorageMaintenanceService.ClearProcessingDirectories();
-                if (result.FailedPaths.Count == 0)
-                {
-                    ViewModel.StatusMessage = $"已清理 {result.DeletedFileCount} 個成品與暫存檔";
-                    GameDialog.Show($"已清理 {result.DeletedFileCount} 個檔案。\n\n畫布中的紙張不會受影響；若其來源是已清理的暫存檔，請重新匯入後再導出。",
-                        "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    ViewModel.StatusMessage = $"已清理 {result.DeletedFileCount} 個檔案，另有 {result.FailedPaths.Count} 個項目未能刪除";
-                    GameDialog.Show($"已清理 {result.DeletedFileCount} 個檔案，但有 {result.FailedPaths.Count} 個項目正在被使用或沒有權限刪除。\n\n請關閉使用中的 PDF 或 Office 後再試一次。",
-                        "部分清理完成", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-            catch (Exception ex)
-            {
-                GameDialog.Show($"清理資料夾時發生錯誤：{ex.Message}", "清理失敗", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                TaskItemsControl.UpdateLayout();
+                if (TaskItemsControl.ItemContainerGenerator.ContainerFromItem(task) is FrameworkElement element)
+                    element.BringIntoView();
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         private void ExportFileNameTextBox_KeyDown(object sender, KeyEventArgs e)

@@ -31,14 +31,16 @@ namespace PaperSwitch.ViewModels
         [ObservableProperty]
         private double _zoomScale = 1.0;
 
+        private readonly Action<PaperItem, int>? _rotate;
         private readonly ThumbnailCacheService _thumbnailService = ThumbnailCacheService.Instance;
 
         public string PageIndicator => $"{CurrentIndex + 1} / {AllPages.Count}";
         public bool HasPrevious => CurrentIndex > 0;
         public bool HasNext => CurrentIndex < AllPages.Count - 1;
 
-        public LightboxViewModel(PaperItem initialPage, ObservableCollection<PaperItem> allPages)
+        public LightboxViewModel(PaperItem initialPage, ObservableCollection<PaperItem> allPages, Action<PaperItem, int>? rotate = null)
         {
+            _rotate = rotate;
             _currentPage = initialPage;
             AllPages = allPages;
             _currentIndex = allPages.IndexOf(initialPage);
@@ -97,13 +99,13 @@ namespace PaperSwitch.ViewModels
         [RelayCommand]
         public void RotateClockwise()
         {
-            CurrentPage?.RotateClockwise();
+            if (_rotate != null) _rotate(CurrentPage, 90); else CurrentPage?.RotateClockwise();
         }
 
         [RelayCommand]
         public void RotateCounterClockwise()
         {
-            CurrentPage?.RotateCounterClockwise();
+            if (_rotate != null) _rotate(CurrentPage, -90); else CurrentPage?.RotateCounterClockwise();
         }
 
         [RelayCommand]
