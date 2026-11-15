@@ -23,3 +23,11 @@
 ## 限制
 - 未新增不同 Windows 使用者、Windows 10 實機、實體高 DPI 及 Office 現場流程驗收。
 - 滑鼠工具實測快速拖曳進出邊緣；停留連續捲動另以 WPF 計時器回呼驗證。
+
+## 發布完成結果
+- 原始碼提交：33c8fb0f7535689648ac3e4b1020d1744c033502；annotated tag v4.7.1 已推送。
+- GitHub Release 已公開並設為最新版，EXE 與 SHA256SUMS.txt 的遠端 digest 均與本機一致。
+- 原始碼 CI 43691783600、43691782876 均成功。
+- 本機 dist/release_assets/v4.7.0 已移除，11 個檔案移除前的大小與雜湊清單留存於新版目錄；新版雜湊不變。
+- 中央 check_release_versions.py 09 --online：OK，0 矛盾、0 提醒。
+- GitHub v4.7.0 及更早歷史發行保留；Project-Hub 展示版本另以該 Repository 提交為準。

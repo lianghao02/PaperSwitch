@@ -3,7 +3,7 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
-- **Commit SHA**：6ac7b6018ea76a26e25c05887c088b2aa5455c00（發布基準；本輪提交以 v4.7.1 標籤為準）
+- **Commit SHA**：33c8fb0f7535689648ac3e4b1020d1744c033502（v4.7.1 原始碼；結果補記另提交）
 - **Skill Version**：v1.0.0
 - **Task Type**：RELEASE
 - **Local Path Hint**：09_PaperSwitch
@@ -11,7 +11,7 @@
 ---
 
 ## 目前狀態
-v4.7.1 發布準備完成；完整 QA 109 項、獨立單檔跨路徑隔離啟動通過，接續提交推送及發布。
+v4.7.1 已公開，原始碼與標籤已推送；109 項 QA、跨路徑隔離啟動、遠端附件雜湊及 CI 通過。本機舊發行目錄已清理。
 
 ## 本輪目標
 依使用者回報：成果匯出五個按鈕改為同一列、拖起放回原位不移到最後、拖曳時支援畫布上下邊緣自動捲動。
@@ -59,13 +59,13 @@ v4.7.1 發布準備完成；完整 QA 109 項、獨立單檔跨路徑隔離啟�
 - 不同 Windows 使用者及實體高 DPI 未新增驗收。
 
 ## Git 狀態
-- Commit：6ac7b60；本輪發布提交以 Git log 及標籤為準。
-- Push：本輪將推送原始碼與標籤。
+- Commit：33c8fb0；本輪發布提交以 Git log 及標籤為準。
+- Push：原始碼與標籤已推送，結果補記另提交推送。
 - Working Tree：Modified，限本輪程式、測試、版本及文件。
 - Branch：main。
 
 ## 下一步建議動作 (Next Recommended Action)
-公開 v4.7.1，核對遠端附件及 CI，清理本機舊發行檔，再同步 Project-Hub 展示版本。
+回報新版下載與清理結果，停止擴大修改；Project-Hub 版本同步以該 Repository 紀錄為準。
 
 ## 發布狀態 (Release Status)
-v4.7.1 已完成本機驗收，發布結果由後續紀錄補記：https://github.com/lianghao02/PaperSwitch/releases/tag/v4.7.1。
+v4.7.1 已公開，附件校驗與 CI 成功：https://github.com/lianghao02/PaperSwitch/releases/tag/v4.7.1。
