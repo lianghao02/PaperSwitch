@@ -277,6 +277,9 @@
                                               VerticalScrollBarVisibility="Auto"
                                               Background="Transparent"
                                               Padding="24"
+                                              PreviewDragOver="MainScrollViewer_PreviewDragOver"
+                                              PreviewDragLeave="MainScrollViewer_PreviewDragLeave"
+                                              PreviewDrop="MainScrollViewer_PreviewDrop"
                                               PreviewMouseWheel="ScrollViewer_PreviewMouseWheel"
                                               PreviewMouseLeftButtonDown="MainScrollViewer_PreviewMouseLeftButtonDown"
                                               PreviewMouseMove="MainScrollViewer_PreviewMouseMove"
@@ -552,12 +555,17 @@
                                 <TextBlock Text="pt" Margin="6,0,0,0" VerticalAlignment="Center" />
                             </WrapPanel>
                         </WrapPanel>
-                        <UniformGrid Columns="3" Grid.Row="3" Margin="0,6,0,0">
-                            <Button art:WorkshopArt.Icon="8" x:Name="OpenOutputButton" Content="開啟輸出資料夾" Style="{StaticResource SidebarToolButton}" Command="{Binding OpenConvertedFolderCommand}" Margin="3,2" />
-                            <Button x:Name="ExportAllButton" Content="全部合併成 1 份 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="把畫布上的全部頁面合併成一份 PDF（不受選取影響）" />
-                            <Button x:Name="ExportSplitButton" Content="每頁各存 1 個 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="把每一頁各存成一個 PDF。需先取消選取頁面。" />
-                            <Button x:Name="ExportSelectedButton" Content="選取頁合併成 1 份 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="只把已選取的頁面合併成一份 PDF。需先選取頁面。" />
-                            <Button x:Name="ExportImagesButton" Content="轉成 PNG 圖片" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
+                        <UniformGrid Columns="5" Rows="1" Grid.Row="3" Margin="0,6,0,0">
+                            <UniformGrid.Resources>
+                                <DataTemplate x:Key="ExportActionLabel">
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" TextAlignment="Center" />
+                                </DataTemplate>
+                            </UniformGrid.Resources>
+                            <Button art:WorkshopArt.Icon="8" x:Name="OpenOutputButton" ContentTemplate="{StaticResource ExportActionLabel}" Padding="6,4" FontSize="13" Content="開啟輸出資料夾" Style="{StaticResource SidebarToolButton}" Command="{Binding OpenConvertedFolderCommand}" Margin="3,2" />
+                            <Button x:Name="ExportAllButton" ContentTemplate="{StaticResource ExportActionLabel}" Padding="6,4" FontSize="13" Content="全部合併成 1 份 PDF" Style="{StaticResource BtnPrimaryCraft}" Command="{Binding ExportAllPdfCommand}" Margin="3,2" ToolTip="把畫布上的全部頁面合併成一份 PDF（不受選取影響）" />
+                            <Button x:Name="ExportSplitButton" ContentTemplate="{StaticResource ExportActionLabel}" Padding="6,4" FontSize="13" Content="每頁各存 1 個 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSplitPdfCommand}" Margin="3,2" ToolTip="把每一頁各存成一個 PDF。需先取消選取頁面。" />
+                            <Button x:Name="ExportSelectedButton" ContentTemplate="{StaticResource ExportActionLabel}" Padding="6,4" FontSize="13" Content="選取頁合併成 1 份 PDF" Style="{StaticResource GameButton}" Command="{Binding ExportSelectedPdfCommand}" Margin="3,2" ToolTip="只把已選取的頁面合併成一份 PDF。需先選取頁面。" />
+                            <Button x:Name="ExportImagesButton" ContentTemplate="{StaticResource ExportActionLabel}" Padding="6,4" FontSize="13" Content="轉成 PNG 圖片" Style="{StaticResource GameButton}" Command="{Binding ExportImagesCommand}" Margin="3,2" ToolTip="{Binding ImageExportScopeText}" />
                         </UniformGrid>
                     </Grid>
                 </Border>

@@ -122,6 +122,63 @@ namespace PaperSwitch.Tests
             Assert.Equal(item2, vm.Pages[4]);
         }
 
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        public void Relocate_BackIntoSelectedChunk_PreservesOrderAndHistory(int insertionIndex)
+        {
+            var vm = new MainViewModel();
+            var items = Enumerable.Range(1, 5).Select(n => new PaperItem
+            {
+                DisplayPageNumber = n, IsSelected = n is 2 or 3
+            }).ToArray();
+            foreach (var item in items) vm.Pages.Add(item);
+
+            vm.RelocateSelectedChunk(insertionIndex);
+
+            Assert.Equal(items, vm.Pages);
+            Assert.False(vm.CanUndo);
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(2)]
+        [InlineData(4)]
+        public void Relocate_SinglePageDroppedOnEitherSideOfItself_DoesNothing(int selectedIndex)
+        {
+            var vm = new MainViewModel();
+            var items = Enumerable.Range(0, 5).Select(n => new PaperItem { IsSelected = n == selectedIndex }).ToArray();
+            foreach (var item in items) vm.Pages.Add(item);
+
+            vm.RelocateSelectedChunk(selectedIndex);
+            Assert.Equal(items, vm.Pages);
+            vm.RelocateSelectedChunk(selectedIndex + 1);
+            Assert.Equal(items, vm.Pages);
+            Assert.False(vm.CanUndo);
+        }
+
+        [Theory]
+        [InlineData(0, new[] { 2, 4, 1, 3, 5 })]
+        [InlineData(3, new[] { 1, 3, 2, 4, 5 })]
+        [InlineData(5, new[] { 1, 3, 5, 2, 4 })]
+        public void Relocate_NoncontiguousSelection_PreservesChunkOrderAndUndo(int insertionIndex, int[] expected)
+        {
+            var vm = new MainViewModel();
+            var items = Enumerable.Range(1, 5).Select(n => new PaperItem
+            {
+                DisplayPageNumber = n, IsSelected = n is 2 or 4
+            }).ToArray();
+            foreach (var item in items) vm.Pages.Add(item);
+
+            vm.RelocateSelectedChunk(insertionIndex);
+            Assert.Equal(expected, vm.Pages.Select(p => p.DisplayPageNumber));
+            vm.Undo();
+            Assert.Equal(items, vm.Pages);
+            vm.Redo();
+            Assert.Equal(expected, vm.Pages.Select(p => p.DisplayPageNumber));
+        }
+
         [Fact]
         public void MainViewModel_SanitizeFileName_ShouldCleanInvalidChars()
         {

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using PaperSwitch.Models;
 using PaperSwitch.Services;
@@ -23,10 +24,16 @@ namespace PaperSwitch
         private readonly HashSet<PaperItem> _initialBoxSelection = new();
         private PaperItem? _dropIndicatorItem;
         private bool _dragOccurred;
+        private const double DragScrollEdge = 56;
+        private const double DragScrollStep = 24;
+        private readonly DispatcherTimer _dragScrollTimer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(40) };
+        private Point _dragScrollPosition;
 
         public MainWindow()
         {
             InitializeComponent();
+            _dragScrollTimer.Tick += DragScrollTimer_Tick;
+            Closed += (_, _) => StopDragAutoScroll();
             Closing += (_, e) => { if (ViewModel.IsBusy) { e.Cancel = true; ViewModel.CancelOperation(); } };
         }
 
@@ -381,6 +388,7 @@ namespace PaperSwitch
                     }
                     finally
                     {
+                        StopDragAutoScroll();
                         foreach (var page in draggedPages)
                         {
                             page.IsBeingDragged = false;
@@ -397,6 +405,13 @@ namespace PaperSwitch
         {
             if (e.Data.GetDataPresent("PaperItemChunk") && sender is Border card)
             {
+                if (ViewModel.IsBusy || card.DataContext is PaperItem { IsSelected: true })
+                {
+                    ClearDropIndicator();
+                    e.Effects = DragDropEffects.None;
+                    e.Handled = true;
+                    return;
+                }
                 bool insertAfter = e.GetPosition(card).X > card.ActualWidth / 2;
                 ShowDropIndicator(card, insertAfter);
                 e.Effects = DragDropEffects.Move;
@@ -416,6 +431,16 @@ namespace PaperSwitch
                 return;
             }
 
+            StopDragAutoScroll();
+            ClearDropIndicator();
+            e.Handled = true;
+            // 放回正在搬移的頁面，代表不更動順序（也涵蓋不連續多選）。
+            if (ViewModel.IsBusy || target.IsSelected)
+            {
+                e.Effects = DragDropEffects.None;
+                return;
+            }
+
             int targetIndex = ViewModel.Pages.IndexOf(target);
             if (targetIndex < 0) return;
 
@@ -429,6 +454,89 @@ namespace PaperSwitch
             ClearDropIndicator();
             e.Handled = true;
         }
+
+        private void MainScrollViewer_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (ViewModel.IsBusy || !e.Data.GetDataPresent("PaperItemChunk"))
+            {
+                StopDragAutoScroll();
+                return;
+            }
+
+            UpdateDragAutoScroll(e.GetPosition(MainScrollViewer));
+            // 不攔截事件，讓下層卡片繼續顯示插入位置及處理放下。
+        }
+
+        private void UpdateDragAutoScroll(Point position)
+        {
+            _dragScrollPosition = position;
+            if (GetDragScrollDelta(position) == 0) StopDragAutoScroll();
+            else if (!_dragScrollTimer.IsEnabled)
+            {
+                _dragScrollTimer.Start();
+                // 一進入邊緣就回應，後續由計時器支援指標停留時持續捲動。
+                DragScrollTimer_Tick(this, EventArgs.Empty);
+            }
+        }
+
+        private double GetDragScrollDelta(Point position)
+        {
+            double height = MainScrollViewer.ActualHeight;
+            double width = MainScrollViewer.ActualWidth;
+            if (position.X < 0 || position.X >= width || position.Y < 0 || position.Y >= height || height <= 0)
+                return 0;
+
+            double edge = Math.Min(DragScrollEdge, height / 3);
+            if (position.Y < edge && MainScrollViewer.VerticalOffset > 0)
+                return -DragScrollStep;
+            if (position.Y > height - edge && MainScrollViewer.VerticalOffset < MainScrollViewer.ScrollableHeight)
+                return DragScrollStep;
+            return 0;
+        }
+
+        private void DragScrollTimer_Tick(object? sender, EventArgs e)
+        {
+            double delta = GetDragScrollDelta(_dragScrollPosition);
+            if (ViewModel.IsBusy || !ViewModel.IsDraggingPages || delta == 0)
+            {
+                StopDragAutoScroll();
+                return;
+            }
+
+            MainScrollViewer.ScrollToVerticalOffset(MainScrollViewer.VerticalOffset + delta);
+            MainScrollViewer.UpdateLayout();
+            // 捲動後重新命中卡片，避免橘色插入提示停在原本的畫面位置。
+            ClearDropIndicator();
+            var hit = MainScrollViewer.InputHitTest(_dragScrollPosition) as DependencyObject;
+            while (hit != null && hit != MainScrollViewer)
+            {
+                if (hit is Border { Name: "CardBorder", DataContext: PaperItem item } card)
+                {
+                    if (!item.IsSelected)
+                    {
+                        Point cardPosition = MainScrollViewer.TranslatePoint(_dragScrollPosition, card);
+                        ShowDropIndicator(card, cardPosition.X > card.ActualWidth / 2);
+                    }
+                    break;
+                }
+                hit = VisualTreeHelper.GetParent(hit);
+            }
+        }
+
+        private void MainScrollViewer_PreviewDragLeave(object sender, DragEventArgs e)
+        {
+            // 子卡片之間移動也會冒出 DragLeave，只在真正離開捲動區時停止。
+            Point position = e.GetPosition(MainScrollViewer);
+            if (!new Rect(MainScrollViewer.RenderSize).Contains(position))
+            {
+                StopDragAutoScroll();
+                ClearDropIndicator();
+            }
+        }
+
+        private void MainScrollViewer_PreviewDrop(object sender, DragEventArgs e) => StopDragAutoScroll();
+
+        private void StopDragAutoScroll() => _dragScrollTimer.Stop();
 
         private void ShowDropIndicator(Border target, bool insertAfter)
         {

@@ -191,5 +191,87 @@ namespace PaperSwitch.Tests
             thread.Start();
             Assert.True(thread.Join(TimeSpan.FromSeconds(15)), "WPF 渲染快照逾時。");
         }
+
+        [Fact]
+        public void Arranger_DragScrollAndSingleRowExport_ShouldWorkAtSmallAndLargeSizes()
+        {
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                MainWindow? window = null;
+                try
+                {
+                    EnsureApplication();
+                    window = new MainWindow();
+                    var vm = (PaperSwitch.ViewModels.MainViewModel)window.DataContext;
+                    for (int n = 1; n <= 154; n++)
+                        vm.Pages.Add(new PaperSwitch.Models.PaperItem
+                        {
+                            SourceFileName = "拖曳驗收.pdf", DisplayPageNumber = n,
+                            TotalPagesInSource = 154, IsLoadingThumbnail = false
+                        });
+
+                    string outDir = Environment.GetEnvironmentVariable("PAPERSWITCH_SNAPSHOT_DIR")
+                        ?? Path.Combine(Path.GetTempPath(), "PaperSwitch-ui-snapshots");
+                    Directory.CreateDirectory(outDir);
+                    foreach (var size in new[] { (960, 720), (1280, 900), (1920, 1080) })
+                    {
+                        RenderWindowToPng(window, Path.Combine(outDir, $"export_single_row_{size.Item1}.png"), size.Item1, size.Item2);
+                        var names = new[] { "OpenOutputButton", "ExportAllButton", "ExportSplitButton", "ExportSelectedButton", "ExportImagesButton" };
+                        var buttons = Array.ConvertAll(names, name => (System.Windows.Controls.Button)window.FindName(name));
+                        var content = (UIElement)window.Content;
+                        double rowTop = buttons[0].TranslatePoint(new Point(), content).Y;
+                        double previousRight = 0;
+                        foreach (var button in buttons)
+                        {
+                            Point origin = button.TranslatePoint(new Point(), content);
+                            Assert.Equal(rowTop, origin.Y, 1);
+                            Assert.True(origin.X >= previousRight);
+                            Assert.True(origin.X + button.ActualWidth <= size.Item1);
+                            Assert.True(button.ActualHeight >= 40);
+                            previousRight = origin.X + button.ActualWidth;
+                        }
+                    }
+
+                    var scroll = (System.Windows.Controls.ScrollViewer)window.FindName("MainScrollViewer");
+                    Assert.True(scroll.ScrollableHeight > scroll.ViewportHeight);
+                    var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                    void Invoke(string name, params object[] args) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, args);
+                    var timer = (System.Windows.Threading.DispatcherTimer)typeof(MainWindow).GetField("_dragScrollTimer", flags)!.GetValue(window)!;
+                    vm.DraggedPageCount = 1;
+                    Invoke("UpdateDragAutoScroll", new Point(scroll.ActualWidth / 2, scroll.ActualHeight - 10));
+                    Assert.True(timer.IsEnabled);
+                    // 指標停在邊緣時仍持續捲動，不依賴新的 MouseMove。
+                    for (int n = 0; n < 4; n++) Invoke("DragScrollTimer_Tick", timer, EventArgs.Empty);
+                    double downOffset = scroll.VerticalOffset;
+                    Assert.True(downOffset > 0);
+                    Invoke("UpdateDragAutoScroll", new Point(scroll.ActualWidth / 2, 10));
+                    Invoke("DragScrollTimer_Tick", timer, EventArgs.Empty);
+                    Assert.True(scroll.VerticalOffset < downOffset);
+
+                    Invoke("UpdateDragAutoScroll", new Point(scroll.ActualWidth / 2, scroll.ActualHeight / 2));
+                    Assert.False(timer.IsEnabled);
+                    Invoke("UpdateDragAutoScroll", new Point(-1, scroll.ActualHeight - 10));
+                    Assert.False(timer.IsEnabled);
+                    Invoke("UpdateDragAutoScroll", new Point(scroll.ActualWidth / 2, scroll.ActualHeight - 10));
+                    vm.DraggedPageCount = 0;
+                    double stoppedOffset = scroll.VerticalOffset;
+                    Invoke("DragScrollTimer_Tick", timer, EventArgs.Empty);
+                    Assert.False(timer.IsEnabled);
+                    Assert.Equal(stoppedOffset, scroll.VerticalOffset);
+                    scroll.ScrollToBottom();
+                    scroll.UpdateLayout();
+                    Invoke("UpdateDragAutoScroll", new Point(scroll.ActualWidth / 2, scroll.ActualHeight - 10));
+                    Assert.False(timer.IsEnabled);
+                }
+                catch (Exception ex) { failure = ex; }
+                finally { window?.Close(); }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "拖曳及單列排版驗證逾時。");
+            if (failure != null) throw failure;
+        }
     }
 }

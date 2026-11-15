@@ -1,4 +1,4 @@
-# 📑 PaperSwitch 紙張排版工坊 v4.7.0
+# 📑 PaperSwitch 紙張排版工坊 v4.7.1
 
 [![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
@@ -9,14 +9,13 @@
 
 ---
 
-## v4.7.0 更新重點
+## v4.7.1 更新重點
 
-- **輸出更可靠**：缺頁時停止合併，先完成暫存輸出才交付成品，不覆寫來源與既有檔案。
-- **暫存清理保護**：保留畫布、復原／重做及任務來源，不再刪除匯出成品；各次執行分開管理暫存。
-- **選頁與輸出設定**：新增畫布頁序範圍、同來源選取、安全停止、輸出位置保存及明確的範圍提示。
-- **預覽與效能**：預覽旋轉納入復原歷史，背景一次讀取 PDF 頁面資料。
+- 成果匯出的五個按鈕改為同一列，保留原文字，讓縮圖畫布有更多空間。
+- 修正頁面拖起放回原位卻被移到最後；無移動時不新增復原紀錄。
+- 拖曳到畫布上下邊緣可自動捲動，放開或離開邊緣即停止。
 
-完整更新內容見 [CHANGELOG](CHANGELOG.md)，驗收範圍見 [v4.7.0 發布報告](docs/RELEASE-v4.7.0.md)。
+完整更新內容見 [CHANGELOG](CHANGELOG.md)，驗收範圍見 [v4.7.1 發布報告](docs/RELEASE-v4.7.1.md)。
 ## 專案概念與開發原因
 
 PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出的桌面工作流程。開發動機是混合文件通常需要在多種工具間反覆轉換，容易弄錯頁面順序、旋轉方向或選取範圍。
@@ -31,7 +30,7 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 
 | 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
 | :--- | :--- | :--- |
-| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.7.0-Standalone.exe`** | 內嵌完整 .NET 8 執行環境，可直接開啟工坊；Office 文件轉換仍需本機安裝 Microsoft Office。 |
+| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.7.1-Standalone.exe`** | 內嵌完整 .NET 8 執行環境，可直接開啟工坊；Office 文件轉換仍需本機安裝 Microsoft Office。 |
 | 🛡️ **SHA-256 校驗清單** | **`SHA256SUMS.txt`** | 提供發行成品 SHA-256 雜湊值供安全性核對。 |
 
 ### 💡 首次啟動與使用須知

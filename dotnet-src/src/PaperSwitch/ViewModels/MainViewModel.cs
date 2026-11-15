@@ -599,26 +599,26 @@ namespace PaperSwitch.ViewModels
         /// </summary>
         public void RelocateSelectedChunk(int targetInsertionIndex)
         {
+            if (IsBusy) return;
             var selectedItems = Pages.Where(p => p.IsSelected).ToList();
             if (selectedItems.Count == 0) return;
 
             if (targetInsertionIndex < 0) targetInsertionIndex = 0;
             if (targetInsertionIndex > Pages.Count) targetInsertionIndex = Pages.Count;
 
+            // 先以未抽出前的位置扣除前方選取頁，避免錨點被移除後誤落到最後。
+            int newInsertPos = Pages.Take(targetInsertionIndex).Count(p => !p.IsSelected);
+            var reordered = Pages.Where(p => !p.IsSelected).ToList();
+            reordered.InsertRange(newInsertPos, selectedItems);
+            if (Pages.SequenceEqual(reordered)) return;
+
             ApplyPageEdit(() =>
             {
-                // 取得目標插入錨點項目
-                PaperItem? anchorItem = targetInsertionIndex < Pages.Count ? Pages[targetInsertionIndex] : null;
-
                 // 移除所有選取項目
                 foreach (var item in selectedItems)
                 {
                     Pages.Remove(item);
                 }
-
-                // 計算新的插入點
-                int newInsertPos = anchorItem != null ? Pages.IndexOf(anchorItem) : Pages.Count;
-                if (newInsertPos < 0) newInsertPos = Pages.Count;
 
                 for (int i = 0; i < selectedItems.Count; i++)
                 {
