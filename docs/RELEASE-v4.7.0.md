@@ -20,7 +20,10 @@
 - 本次已獲使用者明確授權提交、推送、製作發行檔；清理範圍限本機舊發行檔，GitHub 歷史發行保留。
 - GitHub 發布頁：https://github.com/lianghao02/PaperSwitch/releases/tag/v4.7.0。
 - 上傳並核對遠端附件後，才清除本機 dist/release_assets/v4.6.0；新版 QA、雜湊及啟動驗證證據保留。
-- 最終遠端狀態與清理結果由後續交接及終端驗證補記。
+- GitHub v4.7.0 已公開並設為最新版本，標籤對應 7b2aaba5a4cf382d8fa53fb6d8419d91dc3a2141；EXE 及 SHA256 清單均已核對遠端 digest 與本機一致。
+- 原始碼 CI：43662208411、43662209044 均成功。
+- 本機 dist/release_assets/v4.6.0 已移除（舊 EXE、校驗清單、QA 與說明共 4 檔），移除前清單留存在新版交付目錄；新版 EXE 雜湊清理前後一致。GitHub v4.6.0 保留。
+- 中央 check_release_versions.py 09 --online：OK。
 
 ## 限制
 

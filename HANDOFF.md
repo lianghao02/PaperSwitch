@@ -3,7 +3,7 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
-- **Commit SHA**：16e5163a6b428562714ee47168282151c0e25477（本輪修訂未提交）
+- **Commit SHA**：7b2aaba5a4cf382d8fa53fb6d8419d91dc3a2141（v4.7.0 發行原始碼；發布結果由後續 docs 提交補記）
 - **Skill Version**：v1.0.0
 - **Task Type**：RELEASE
 - **Local Path Hint**：09_PaperSwitch
@@ -11,56 +11,59 @@
 ---
 
 ## 目前狀態
-v4.7.0 發布準備完成，99 項測試及單檔隔離啟動通過；使用者已授權提交、推送、發行及清除本機舊成品。人工滑鼠、高 DPI 與 Office 現場取消尚未驗證。
+v4.7.0 已提交推送、GitHub Release 公開；EXE 與校驗清單遠端雜湊一致。使用者指定的本機舊版已移除，GitHub 歷史版本保留。
 
 ## 本輪目標
-依修訂計畫逐步完成必要功能與結構調整，使用 D:/scan 的 PDF 唯讀驗收，自我檢查無重大問題後停止擴大修改。
+提交並推送主要修訂，製作更新發行檔；新版驗證及發布後，只清理本機舊發行檔。
 
 ## 基準與已確認事實 (Baseline & Confirmed Facts)
-- 開始時兩份規劃文件為本對話既有未提交修改，均保留並更新。
-- main / 16e5163 / v4.6.0，本輪沒有升版、提交、推送或 Release。
-- 使用者先前同意桌面鎖定時採程式碼及渲染畫面評估；本輪不宣稱真人輸入或 DPI 通過。
+- 原基準 16e5163 / v4.6.0；本對話主要修訂與兩份規劃文件均為已授權內容。
+- 使用者已明確選擇「只清理本機舊發行檔」，不刪 GitHub 歷史 Release 或標籤。
+- v4.7.0 對應原始碼 7b2aaba；下載附件沿用自包含單檔命名，保留自動更新相容性。
 
 ## 已完成 (Completed)
-- 清理與活躍來源保護、程序獨立暫存、原子成品寫入、缺頁輸出拒絕、快照及忙碌互斥。
-- 預覽旋轉共用歷史；輸出範圍與位置顯示、位置偏好、穩定匯出列、失敗入口、頁序範圍及同來源選取。
-- 背景單次 PDF metadata 讀取、分批 UI 更新、安全邊界停止；抽出匯入／輸出／編排歷史服務。
-- 完整 QA 99／99；90 份、798 頁實檔可讀，來源數量與雜湊不變；抽樣全部／選取合併、拆分及 PNG 通過。
-- 更新本機 dist/publish 成品、README、架構、計畫及 docs/REVISION_VALIDATION.md。
+- 主要功能、結構與介面修訂已提交；細節見 CHANGELOG 與 REVISION_VALIDATION。
+- 版本檔、csproj、README 與 CHANGELOG 對齊 4.7.0；中央離線／線上版本檢查 OK。
+- 升版後完整 QA 99／99；D:/scan 的 90 份、798 頁可讀，來源雜湊維持。
+- 本機 AppHost 及自包含單檔建置；後者跨磁碟中文空白路徑、.NET 環境隔離啟動成功並正常關閉。
+- annotated tag v4.7.0 已推送，Release 設為 latest；兩個附件遠端 digest 均核對一致。
+- 原始碼 CI 43662208411、43662209044 成功。
+- 本機 dist/release_assets/v4.6.0 的 4 個舊交付檔已移除；移除前清單與新版測試證據保留；新版 SHA256 不變。
+- 發布規範所需的 Project-Hub 版本／備援同步另以該 Repository 的提交記錄為準。
 
 ## 異動檔案 (Changed Files)
-- 具體原始碼、測試及文件清單以 git diff、git status 為準；新增五份 Services 檔、RevisionTests.cs 及驗收紀錄。
-- 臨時 revise.cjs、ui-revise.cjs 已移除；dist 證據與真實文件衍生成品不加入版本庫。
+- 原始碼與版本提交共 28 個檔案；清單以 7b2aaba 的 Git diff 為準。
+- 本次結果補記：HANDOFF.md、IMPLEMENTATION_PLAN.md、docs/RELEASE-v4.7.0.md。
+- dist 成品、測試資料及原始 PDF 均不加入 Git。
 
 ## 刻意未修改 (Do Not Do / Deliberately Omitted)
-- 未引入新框架，保留 PdfSharp 向量輸出、WinRT 預覽及 COM 生命週期。
-- 未改防毒／組織文件保護設定。
-- 工作階段保存、選取拆分、虛擬化及額外視圖拆分暫緩；不得為這些選配持續擴大本輪。
+- 不修改防毒／組織文件保護設定，不刪除 GitHub v4.6.0。
+- 選配的工作階段儲存、選取拆分、虛擬化及額外視圖拆分維持暫緩。
+- 不因既有分析器建議繼續擴大修訂。
 
 ## 尚未完成 (Remaining Work)
-- **P1 (阻斷/必須)**：無已知本輪阻斷問題。
-- **P2 (重要/當次)**：無已知待修的本輪重要問題。
-- **P3 (改善建議/暫緩)**：人工滑鼠／高 DPI、Office 現場停止及跨電腦驗收仍未執行。舊版跨工作階段遺留暫存不自動清理。
+- **P1 (阻斷/必須)**：無已知問題。
+- **P2 (重要/當次)**：無已知程式缺陷。
+- **P3 (改善建議/暫緩)**：不同 Windows 使用者、實體高 DPI、Office 現場取消及正常轉檔未新增驗收。
 
 ## 驗證結果 (Validation)
 ### 已執行測試與結果
-- 完整 QA：99／99 通過；0 建置錯誤。測試專案有既有 xUnit2013 建議，未為追求零警告修改。
-- 本機成品建置成功，AppHost 168 KB；須攜帶同目錄組件與對應 .NET Desktop Runtime。
-- git diff --check 通過。詳細結果與 metadata 比較見 docs/REVISION_VALIDATION.md。
+- 99／99 QA、版本對齊、跨路徑隔離啟動、附件 digest、原始碼 CI 成功。
+- 自包含 EXE 83,333,938 bytes，SHA256 87ed53416ae48daabbe95164b021affbbd2213fcb0836fcf5d4f0fd894230b02。
+- git diff --check 與提交範圍敏感模式掃描通過。
 ### 尚未驗證項目
-- 真人滑鼠／DPI、Office 正常轉檔與停止時機、跨電腦環境。
+- 真人滑鼠／DPI、不同 Windows 使用者、Office 現場流程。
 ### 已知風險 (Known Risks)
-- Office 取消是完成目前步驟後停止，不是立即中斷卡住的 COM。
-- metadata 的一次量測不能推論完整 UI 或縮圖效能。
+- Office 取消等待目前步驟；單檔未簽章安全軟體判定依環境而異。
 
 ## Git 狀態
-- Commit：16e5163，以上修訂未提交。
-- Push：本輪否。
-- Working Tree：Modified。
+- Commit：v4.7.0 為 7b2aaba；最新發布紀錄以 git log -1 為準。
+- Push：原始碼與標籤已推送；本檔補記另提交推送。
+- Working Tree：交付前確認乾淨。
 - Branch：main。
 
 ## 下一步建議動作 (Next Recommended Action)
-提交並推送本輪修訂、建立 v4.7.0 發行、核對附件後只清理本機 v4.6.0，最後補記發布結果。
+回報新版下載與清理結果，停止擴大修改。
 
 ## 發布狀態 (Release Status)
-本機建置可供驗收；未建立新的正式版本或 Release。
+已公開：https://github.com/lianghao02/PaperSwitch/releases/tag/v4.7.0。
