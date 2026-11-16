@@ -66,11 +66,21 @@ namespace PaperSwitch
         }
 
         public LightboxWindow(PaperItem initialPage, ObservableCollection<PaperItem> allPages, Action<PaperItem, int>? rotate = null)
+            : this(initialPage, allPages, new LightboxHostCallbacks(RotatePage: rotate))
+        {
+        }
+
+        public LightboxWindow(PaperItem initialPage, ObservableCollection<PaperItem> allPages, LightboxHostCallbacks callbacks)
         {
             InitializeComponent();
-            ViewModel = new LightboxViewModel(initialPage, allPages, rotate);
+            ViewModel = new LightboxViewModel(initialPage, allPages, callbacks);
             DataContext = ViewModel;
-            Closed += (_, _) => { EndPan(); _grabCursor.Dispose(); };
+            PreviewContextMenu.DataContext = ViewModel;
+            Closed += (_, _) =>
+            {
+                EndPan();
+                _grabCursor.Dispose();
+            };
         }
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

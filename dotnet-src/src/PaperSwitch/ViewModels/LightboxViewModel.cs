@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -10,12 +11,19 @@ using PaperSwitch.Services;
 namespace PaperSwitch.ViewModels
 {
     /// <summary>
+    /// 燈箱對宿主視窗的最小回呼合約，避免燈箱 ViewModel 直接依賴 MainViewModel。
+    /// </summary>
+    public sealed record LightboxHostCallbacks(
+        Action<PaperItem, int>? RotatePage = null,
+        Func<ExportKind, IReadOnlyList<PaperItem>, Task>? ExportPagesAsync = null);
+
+    /// <summary>
     /// 燈箱大圖檢視 ViewModel
     /// </summary>
     public partial class LightboxViewModel : ObservableObject
     {
         [ObservableProperty]
-        private PaperItem _currentPage;
+        private PaperItem? _currentPage;
 
         public ObservableCollection<PaperItem> AllPages { get; }
 
@@ -29,24 +37,50 @@ namespace PaperSwitch.ViewModels
         private bool _isLoading;
 
         [ObservableProperty]
+        private bool _isExporting;
+
+        [ObservableProperty]
         private double _zoomScale = 1.0;
 
-        private readonly Action<PaperItem, int>? _rotate;
+        private readonly LightboxHostCallbacks _callbacks;
         private readonly ThumbnailCacheService _thumbnailService = ThumbnailCacheService.Instance;
 
         public string PageIndicator => $"{CurrentIndex + 1} / {AllPages.Count}";
         public bool HasPrevious => CurrentIndex > 0;
         public bool HasNext => CurrentIndex < AllPages.Count - 1;
+        public bool CanExportCurrent => CurrentPage != null && !IsExporting && _callbacks.ExportPagesAsync != null;
 
         public LightboxViewModel(PaperItem initialPage, ObservableCollection<PaperItem> allPages, Action<PaperItem, int>? rotate = null)
+            : this(initialPage, allPages, new LightboxHostCallbacks(RotatePage: rotate))
         {
-            _rotate = rotate;
+        }
+
+        public LightboxViewModel(PaperItem initialPage, ObservableCollection<PaperItem> allPages, LightboxHostCallbacks callbacks)
+        {
+            _callbacks = callbacks ?? new LightboxHostCallbacks();
             _currentPage = initialPage;
             AllPages = allPages;
             _currentIndex = allPages.IndexOf(initialPage);
             if (_currentIndex < 0) _currentIndex = 0;
 
             _ = LoadCurrentHighResAsync();
+        }
+
+        partial void OnCurrentPageChanged(PaperItem? value)
+        {
+            NotifyExportCanExecuteChanged();
+        }
+
+        partial void OnIsExportingChanged(bool value)
+        {
+            NotifyExportCanExecuteChanged();
+        }
+
+        private void NotifyExportCanExecuteChanged()
+        {
+            OnPropertyChanged(nameof(CanExportCurrent));
+            ExportCurrentPdfCommand.NotifyCanExecuteChanged();
+            ExportCurrentPngCommand.NotifyCanExecuteChanged();
         }
 
         private async Task LoadCurrentHighResAsync()
@@ -99,13 +133,39 @@ namespace PaperSwitch.ViewModels
         [RelayCommand]
         public void RotateClockwise()
         {
-            if (_rotate != null) _rotate(CurrentPage, 90); else CurrentPage?.RotateClockwise();
+            if (CurrentPage == null) return;
+            if (_callbacks.RotatePage != null) _callbacks.RotatePage(CurrentPage, 90);
+            else CurrentPage.RotateClockwise();
         }
 
         [RelayCommand]
         public void RotateCounterClockwise()
         {
-            if (_rotate != null) _rotate(CurrentPage, -90); else CurrentPage?.RotateCounterClockwise();
+            if (CurrentPage == null) return;
+            if (_callbacks.RotatePage != null) _callbacks.RotatePage(CurrentPage, -90);
+            else CurrentPage.RotateCounterClockwise();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExportCurrent))]
+        public Task ExportCurrentPdfAsync() =>
+            RunExportAsync(ExportKind.SplitPdf, CurrentPage != null ? new[] { CurrentPage } : Array.Empty<PaperItem>());
+
+        [RelayCommand(CanExecute = nameof(CanExportCurrent))]
+        public Task ExportCurrentPngAsync() =>
+            RunExportAsync(ExportKind.Images, CurrentPage != null ? new[] { CurrentPage } : Array.Empty<PaperItem>());
+
+        private async Task RunExportAsync(ExportKind kind, IReadOnlyList<PaperItem> pages)
+        {
+            if (IsExporting || pages.Count == 0 || _callbacks.ExportPagesAsync == null) return;
+            IsExporting = true;
+            try
+            {
+                await _callbacks.ExportPagesAsync(kind, pages);
+            }
+            finally
+            {
+                IsExporting = false;
+            }
         }
 
         [RelayCommand]

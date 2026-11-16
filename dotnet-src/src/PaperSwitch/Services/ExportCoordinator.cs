@@ -68,8 +68,8 @@ public sealed class ExportCoordinator
                     var path = ExportFileNaming.MergedOutputPath(options.OutputDirectory, options.CustomFileName,
                         kind == ExportKind.SelectedPdf, options.IncludeFileNameDescription,
                         kind == ExportKind.AllPdf ? ExportFileNaming.FirstSourceName(pages) : null, DateTime.Now);
-                    if (PdfService.Instance.ExportArrangedPdf(pages, path, options, token)) files.Add(path);
-                    else if (!token.IsCancellationRequested) errors.Add("PDF 未完成；請檢查來源與輸出資料夾是否可讀寫。");
+                    if (PdfService.Instance.ExportArrangedPdf(pages, path, out var errorMessage, options, token)) files.Add(path);
+                    else if (!token.IsCancellationRequested) errors.Add(errorMessage ?? "PDF 未完成；請檢查來源與輸出資料夾是否可讀寫。");
                 }
             });
         }

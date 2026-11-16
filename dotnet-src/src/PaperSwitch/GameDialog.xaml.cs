@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -28,7 +29,13 @@ namespace PaperSwitch
                 _ => "💬"
             };
             Window? owner = null;
-            try { owner = Application.Current?.MainWindow; }
+            try
+            {
+                var windows = Application.Current?.Windows.OfType<Window>().Where(w => w.IsVisible && !ReferenceEquals(w, this)).ToList();
+                owner = windows?.LastOrDefault(w => w.IsActive)
+                     ?? windows?.LastOrDefault()
+                     ?? Application.Current?.MainWindow;
+            }
             catch (InvalidOperationException) { /* 非 UI 執行緒（例如測試）：改為置中螢幕 */ }
             if (owner != null && owner.IsVisible && !ReferenceEquals(owner, this)) Owner = owner;
             else WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -39,8 +46,7 @@ namespace PaperSwitch
             var button = new Button
             {
                 Content = text,
-                MinWidth = 92,
-                Height = 34,
+                MinWidth = 96,
                 Margin = new Thickness(8, 0, 0, 0),
                 IsDefault = isDefault,
                 IsCancel = isCancel,

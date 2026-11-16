@@ -16,7 +16,25 @@ namespace PaperSwitch.Services
     {
         public static PdfService Instance { get; } = new();
 
-        private static void DrawPageNumber(PdfPage page, int number, ExportOptions options)
+        private static (XFont Font, XStringFormat Format) CreatePageNumberStyle(ExportOptions options)
+        {
+            var size = double.IsFinite(options.PageNumberFontSize)
+                ? Math.Clamp(options.PageNumberFontSize, 8, 24) : 12;
+            var font = new XFont("Arial", size);
+            var format = new XStringFormat
+            {
+                Alignment = options.PageNumberPosition switch
+                {
+                    0 => XStringAlignment.Near,
+                    2 => XStringAlignment.Far,
+                    _ => XStringAlignment.Center
+                },
+                LineAlignment = XLineAlignment.Far
+            };
+            return (font, format);
+        }
+
+        private static void DrawPageNumber(PdfPage page, int number, XFont font, XStringFormat format)
         {
             const double margin = 18;
             var rotation = ((page.Rotate % 360) + 360) % 360;
@@ -45,21 +63,8 @@ namespace PaperSwitch.Services
                     _ => XMatrix.Identity
                 };
                 graphics.MultiplyTransform(matrix);
-                var size = double.IsFinite(options.PageNumberFontSize)
-                    ? Math.Clamp(options.PageNumberFontSize, 8, 24) : 12;
-                var font = new XFont("Arial", size);
-                var format = new XStringFormat
-                {
-                    Alignment = options.PageNumberPosition switch
-                    {
-                        0 => XStringAlignment.Near,
-                        2 => XStringAlignment.Far,
-                        _ => XStringAlignment.Center
-                    },
-                    LineAlignment = XLineAlignment.Far
-                };
                 graphics.DrawString(number.ToString(System.Globalization.CultureInfo.InvariantCulture), font, XBrushes.Black,
-                    new XRect(margin, margin, Math.Max(1, visibleWidth - margin * 2), Math.Max(size * 1.5, visibleHeight - margin * 2)), format);
+                    new XRect(margin, margin, Math.Max(1, visibleWidth - margin * 2), Math.Max(font.Size * 1.5, visibleHeight - margin * 2)), format);
             }
             finally { page.Rotate = rotation; }
         }
@@ -135,13 +140,21 @@ namespace PaperSwitch.Services
         /// 依據使用者在畫布中編排的頁面清單與旋轉角度，進行 100% 向量無損 PDF 合成
         /// </summary>
         public bool ExportArrangedPdf(IEnumerable<PaperItem> items, string outputPath, ExportOptions? options = null, CancellationToken cancellationToken = default)
+            => ExportArrangedPdf(items, outputPath, out _, options, cancellationToken);
+
+        public bool ExportArrangedPdf(IEnumerable<PaperItem> items, string outputPath, out string? errorMessage, ExportOptions? options = null, CancellationToken cancellationToken = default)
         {
+            errorMessage = null;
             var openedDocs = new Dictionary<string, PdfDocument>(StringComparer.OrdinalIgnoreCase);
 
             try
             {
                 var itemList = items.ToList();
-                if (itemList.Count == 0) return false;
+                if (itemList.Count == 0)
+                {
+                    errorMessage = "沒有可輸出的紙張。";
+                    return false;
+                }
 
                 var targetDir = Path.GetDirectoryName(outputPath);
                 if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
@@ -149,11 +162,14 @@ namespace PaperSwitch.Services
                     Directory.CreateDirectory(targetDir);
                 }
 
+                var pageNumberStyle = options?.AddPageNumbers == true ? CreatePageNumberStyle(options) : ((XFont, XStringFormat)?)null;
+
                 using var outputDocument = new PdfDocument();
                 foreach (var item in itemList)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (!File.Exists(item.SourceFilePath)) throw new FileNotFoundException("來源已遺失，請重新匯入。", item.SourceFilePath);
+                    if (!File.Exists(item.SourceFilePath))
+                        throw new FileNotFoundException($"找不到來源檔案（{Path.GetFileName(item.SourceFilePath)}），請重新匯入。", item.SourceFilePath);
 
                     if (!openedDocs.TryGetValue(item.SourceFilePath, out var inputDoc))
                     {
@@ -162,30 +178,41 @@ namespace PaperSwitch.Services
                     }
 
                     if (item.SourcePageIndex < 0 || item.SourcePageIndex >= inputDoc.PageCount)
-                        throw new InvalidDataException("來源頁碼無效，請重新匯入。");
+                        throw new InvalidDataException($"來源頁碼無效（{Path.GetFileName(item.SourceFilePath)} 第 {item.DisplayPageNumber} 頁），請重新匯入。");
                     {
                         var srcPage = inputDoc.Pages[item.SourcePageIndex];
                         var newPage = outputDocument.AddPage(srcPage);
                         // 計算累加旋轉角度
                         int combinedRotate = (srcPage.Rotate + item.Rotation) % 360;
                         newPage.Rotate = combinedRotate;
-                        if (options?.AddPageNumbers == true)
-                            DrawPageNumber(newPage, outputDocument.PageCount, options);
+                        if (pageNumberStyle is var (font, format))
+                            DrawPageNumber(newPage, outputDocument.PageCount, font, format);
                     }
                 }
 
-                if (outputDocument.PageCount == 0) return false;
+                if (outputDocument.PageCount == 0)
+                {
+                    errorMessage = "沒有可寫入的頁面內容。";
+                    return false;
+                }
 
                 AtomicOutput.Write(outputPath, path =>
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     outputDocument.Save(path);
                     cancellationToken.ThrowIfCancellationRequested();
                 });
                 return true;
             }
+            catch (OperationCanceledException)
+            {
+                errorMessage = null;
+                return false;
+            }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[PdfService] 匯出編排 PDF 失敗: {ex.Message}");
+                errorMessage = ex.Message;
                 return false;
             }
             finally
@@ -213,7 +240,7 @@ namespace PaperSwitch.Services
 
             var openedDocs = new Dictionary<string, PdfDocument>(StringComparer.OrdinalIgnoreCase);
             DateTime exportTime = DateTime.Now;
-
+            var pageNumberStyle = options?.AddPageNumbers == true ? CreatePageNumberStyle(options) : ((XFont, XStringFormat)?)null;
 
             try
             {
@@ -221,7 +248,8 @@ namespace PaperSwitch.Services
                 foreach (var item in itemList)
                 {
                     if (cancellationToken.IsCancellationRequested) break;
-                    if (!File.Exists(item.SourceFilePath)) throw new FileNotFoundException("來源已遺失，請重新匯入。", item.SourceFilePath);
+                    if (!File.Exists(item.SourceFilePath))
+                        throw new FileNotFoundException($"找不到來源檔案（{Path.GetFileName(item.SourceFilePath)}），請重新匯入。", item.SourceFilePath);
 
                     if (!openedDocs.TryGetValue(item.SourceFilePath, out var inputDoc))
                     {
@@ -230,14 +258,14 @@ namespace PaperSwitch.Services
                     }
 
                     if (item.SourcePageIndex < 0 || item.SourcePageIndex >= inputDoc.PageCount)
-                        throw new InvalidDataException("來源頁碼無效，請重新匯入。");
+                        throw new InvalidDataException($"來源頁碼無效（{Path.GetFileName(item.SourceFilePath)} 第 {item.DisplayPageNumber} 頁），請重新匯入。");
                     {
                         var srcPage = inputDoc.Pages[item.SourcePageIndex];
                         using var singleDoc = new PdfDocument();
                         var newPage = singleDoc.AddPage(srcPage);
                         newPage.Rotate = (srcPage.Rotate + item.Rotation) % 360;
-                        if (options?.AddPageNumbers == true)
-                            DrawPageNumber(newPage, index, options);
+                        if (pageNumberStyle is var (font, format))
+                            DrawPageNumber(newPage, index, font, format);
 
                         string fileName = ExportFileNaming.Page(ExportFileNaming.SourceName(item), item.DisplayPageNumber, index,
                             fileNamePrefix, ".pdf", includeDescription, exportTime);

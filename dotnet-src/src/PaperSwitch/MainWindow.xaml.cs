@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -23,17 +24,28 @@ namespace PaperSwitch
         private Point _boxSelectionStart;
         private readonly HashSet<PaperItem> _initialBoxSelection = new();
         private PaperItem? _dropIndicatorItem;
+        private bool _dropIndicatorAfter;
         private bool _dragOccurred;
         private const double DragScrollEdge = 56;
         private const double DragScrollStep = 24;
         private readonly DispatcherTimer _dragScrollTimer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(40) };
         private Point _dragScrollPosition;
+        private readonly DispatcherTimer _viewportSyncTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(90) };
+        private CancellationTokenSource? _viewportThumbnailCts;
 
         public MainWindow()
         {
             InitializeComponent();
+            CanvasContextMenu.DataContext = ViewModel;
             _dragScrollTimer.Tick += DragScrollTimer_Tick;
-            Closed += (_, _) => StopDragAutoScroll();
+            _viewportSyncTimer.Tick += ViewportSyncTimer_Tick;
+            Closed += (_, _) =>
+            {
+                StopDragAutoScroll();
+                _viewportSyncTimer.Stop();
+                _viewportThumbnailCts?.Cancel();
+                _viewportThumbnailCts?.Dispose();
+            };
             Closing += (_, e) => { if (ViewModel.IsBusy) { e.Cancel = true; ViewModel.CancelOperation(); } };
         }
 
@@ -285,11 +297,7 @@ namespace PaperSwitch
                 if (e.ClickCount == 2)
                 {
                     // 雙擊開啟大圖燈箱 (Lightbox)
-                    var lightbox = new LightboxWindow(item, ViewModel.Pages, ViewModel.RotatePage)
-                    {
-                        Owner = this
-                    };
-                    lightbox.ShowDialog();
+                    OpenLightboxForPage(item);
                     e.Handled = true;
                     return;
                 }
@@ -355,6 +363,74 @@ namespace PaperSwitch
             _draggedItem = null;
             _dragOccurred = false;
         }
+
+        private void OpenLightboxForPage(PaperItem item)
+        {
+            var callbacks = new LightboxHostCallbacks(
+                ViewModel.RotatePage,
+                ViewModel.ExportCustomPagesAsync);
+            var lightbox = new LightboxWindow(item, ViewModel.Pages, callbacks)
+            {
+                Owner = this
+            };
+            lightbox.ShowDialog();
+        }
+
+        private void Card_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is PaperItem item)
+            {
+                if (Keyboard.FocusedElement is TextBoxBase or PasswordBox)
+                {
+                    Keyboard.ClearFocus();
+                }
+
+                _draggedItem = null;
+                _dragOccurred = false;
+
+                if (!item.IsSelected)
+                {
+                    foreach (var p in ViewModel.Pages)
+                    {
+                        p.IsSelected = (p == item);
+                    }
+                    _lastClickedIndex = ViewModel.Pages.IndexOf(item);
+                    ViewModel.SelectedPage = item;
+                    ViewModel.NotifySelectionChanged();
+                }
+                else
+                {
+                    ViewModel.SelectedPage = item;
+                }
+            }
+        }
+
+        private void Card_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.ContextMenu != null)
+            {
+                element.ContextMenu.DataContext = ViewModel;
+            }
+        }
+
+        private void ContextOpenLightbox_Click(object sender, RoutedEventArgs e)
+        {
+            PaperItem? target = null;
+            if (sender is MenuItem menuItem &&
+                ItemsControl.ItemsControlFromItemContainer(menuItem) is ContextMenu contextMenu &&
+                contextMenu.PlacementTarget is FrameworkElement targetElement &&
+                targetElement.DataContext is PaperItem clickedItem)
+            {
+                target = clickedItem;
+            }
+
+            target ??= ViewModel.SelectedPage ?? ViewModel.Pages.FirstOrDefault(p => p.IsSelected);
+            if (target != null)
+            {
+                OpenLightboxForPage(target);
+            }
+        }
+
         private void Card_MouseMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton == MouseButtonState.Pressed && _draggedItem != null)
@@ -421,7 +497,8 @@ namespace PaperSwitch
 
         private void Card_DragLeave(object sender, DragEventArgs e)
         {
-            ClearDropIndicator();
+            // 不立即清除指示，避免游標跨過兩張卡片之間的縫隙時插入提示線閃爍消失；
+            // 由 MainScrollViewer_PreviewDragOver 與 PreviewDragLeave 統一接手判斷。
         }
 
         private void Card_Drop(object sender, DragEventArgs e)
@@ -441,18 +518,21 @@ namespace PaperSwitch
                 return;
             }
 
+            bool insertAfter = e.GetPosition(element).X > element.ActualWidth / 2;
+            CommitDropAt(target, insertAfter);
+        }
+
+        private void CommitDropAt(PaperItem target, bool insertAfter)
+        {
             int targetIndex = ViewModel.Pages.IndexOf(target);
             if (targetIndex < 0) return;
 
-            bool insertAfter = e.GetPosition(element).X > element.ActualWidth / 2;
             if (insertAfter)
             {
                 targetIndex++;
             }
 
             ViewModel.RelocateSelectedChunk(targetIndex);
-            ClearDropIndicator();
-            e.Handled = true;
         }
 
         private void MainScrollViewer_PreviewDragOver(object sender, DragEventArgs e)
@@ -463,8 +543,24 @@ namespace PaperSwitch
                 return;
             }
 
-            UpdateDragAutoScroll(e.GetPosition(MainScrollViewer));
-            // 不攔截事件，讓下層卡片繼續顯示插入位置及處理放下。
+            Point position = e.GetPosition(MainScrollViewer);
+            UpdateDragAutoScroll(position);
+
+            // 若游標剛好位在兩張卡片中間的縫隙，直接由捲動容器尋找相鄰卡片並維持插入提示，避免閃滅或無法放下。
+            if (!IsInsidePaperCard(e.OriginalSource as DependencyObject))
+            {
+                if (TryResolveNearestGapDropTarget(position, out var targetCard, out bool insertAfter) && targetCard != null)
+                {
+                    ShowDropIndicator(targetCard, insertAfter);
+                    e.Effects = DragDropEffects.Move;
+                }
+                else
+                {
+                    ClearDropIndicator();
+                    e.Effects = DragDropEffects.None;
+                }
+                e.Handled = true;
+            }
         }
 
         private void UpdateDragAutoScroll(Point position)
@@ -505,22 +601,97 @@ namespace PaperSwitch
 
             MainScrollViewer.ScrollToVerticalOffset(MainScrollViewer.VerticalOffset + delta);
             MainScrollViewer.UpdateLayout();
-            // 捲動後重新命中卡片，避免橘色插入提示停在原本的畫面位置。
+            // 捲動後重新命中卡片或縫隙，避免橘綠插入提示停在原本的畫面位置。
             ClearDropIndicator();
-            var hit = MainScrollViewer.InputHitTest(_dragScrollPosition) as DependencyObject;
+            if (TryResolveDropTargetAtScrollPoint(_dragScrollPosition, out var card, out bool insertAfter) && card != null)
+            {
+                ShowDropIndicator(card, insertAfter);
+            }
+        }
+
+        private bool TryResolveDropTargetAtScrollPoint(Point scrollPosition, out Border? targetCard, out bool insertAfter)
+        {
+            targetCard = null;
+            insertAfter = false;
+
+            var hit = MainScrollViewer.InputHitTest(scrollPosition) as DependencyObject;
             while (hit != null && hit != MainScrollViewer)
             {
                 if (hit is Border { Name: "CardBorder", DataContext: PaperItem item } card)
                 {
-                    if (!item.IsSelected)
-                    {
-                        Point cardPosition = MainScrollViewer.TranslatePoint(_dragScrollPosition, card);
-                        ShowDropIndicator(card, cardPosition.X > card.ActualWidth / 2);
-                    }
-                    break;
+                    if (item.IsSelected) return false;
+                    Point cardPosition = MainScrollViewer.TranslatePoint(scrollPosition, card);
+                    targetCard = card;
+                    insertAfter = cardPosition.X > card.ActualWidth / 2;
+                    return true;
                 }
                 hit = VisualTreeHelper.GetParent(hit);
             }
+
+            return TryResolveNearestGapDropTarget(scrollPosition, out targetCard, out insertAfter);
+        }
+
+        private bool TryResolveNearestGapDropTarget(Point scrollPosition, out Border? targetCard, out bool insertAfter)
+        {
+            targetCard = null;
+            insertAfter = false;
+
+            const double gapThresholdX = 28.0;
+            const double verticalTolerance = 10.0;
+            double bestDistance = double.MaxValue;
+
+            for (int index = 0; index < ViewModel.Pages.Count; index++)
+            {
+                var item = ViewModel.Pages[index];
+                if (item.IsSelected) continue;
+
+                if (CardsItemsControl.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement container)
+                {
+                    continue;
+                }
+
+                Border? card = container as Border ?? FindVisualChildBorder(container, "CardBorder");
+                if (card == null || card.ActualWidth <= 0 || card.ActualHeight <= 0) continue;
+
+                Rect bounds = card.TransformToVisual(MainScrollViewer)
+                    .TransformBounds(new Rect(0, 0, card.ActualWidth, card.ActualHeight));
+
+                if (scrollPosition.Y < bounds.Top - verticalTolerance || scrollPosition.Y > bounds.Bottom + verticalTolerance)
+                {
+                    continue;
+                }
+
+                if (scrollPosition.X >= bounds.Left - gapThresholdX && scrollPosition.X <= bounds.Right + gapThresholdX)
+                {
+                    double edgeDistance = scrollPosition.X < bounds.Left
+                        ? bounds.Left - scrollPosition.X
+                        : scrollPosition.X > bounds.Right
+                            ? scrollPosition.X - bounds.Right
+                            : Math.Min(scrollPosition.X - bounds.Left, bounds.Right - scrollPosition.X);
+
+                    if (edgeDistance < bestDistance)
+                    {
+                        bestDistance = edgeDistance;
+                        targetCard = card;
+                        insertAfter = scrollPosition.X > (bounds.Left + bounds.Right) / 2;
+                    }
+                }
+            }
+
+            return targetCard != null;
+        }
+
+        private static Border? FindVisualChildBorder(DependencyObject parent, string name)
+        {
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is Border border && border.Name == name) return border;
+                var nested = FindVisualChildBorder(child, name);
+                if (nested != null) return nested;
+            }
+            return null;
         }
 
         private void MainScrollViewer_PreviewDragLeave(object sender, DragEventArgs e)
@@ -534,7 +705,25 @@ namespace PaperSwitch
             }
         }
 
-        private void MainScrollViewer_PreviewDrop(object sender, DragEventArgs e) => StopDragAutoScroll();
+        private void MainScrollViewer_PreviewDrop(object sender, DragEventArgs e)
+        {
+            StopDragAutoScroll();
+            if (!e.Handled && !ViewModel.IsBusy && e.Data.GetDataPresent("PaperItemChunk"))
+            {
+                if (_dropIndicatorItem is { IsSelected: false } indicatorTarget)
+                {
+                    CommitDropAt(indicatorTarget, _dropIndicatorAfter);
+                    e.Handled = true;
+                }
+                else if (TryResolveDropTargetAtScrollPoint(e.GetPosition(MainScrollViewer), out var card, out bool insertAfter)
+                         && card?.DataContext is PaperItem { IsSelected: false } target)
+                {
+                    CommitDropAt(target, insertAfter);
+                    e.Handled = true;
+                }
+                ClearDropIndicator();
+            }
+        }
 
         private void StopDragAutoScroll() => _dragScrollTimer.Stop();
 
@@ -547,6 +736,7 @@ namespace PaperSwitch
 
             // 插入提示使用畫布覆蓋層，不改動卡片 Margin，避免目標因重排而來回抖動。
             _dropIndicatorItem = item;
+            _dropIndicatorAfter = insertAfter;
             ShowFloatingInsertionSlot(target, insertAfter);
         }
 
@@ -559,6 +749,7 @@ namespace PaperSwitch
             }
 
             _dropIndicatorItem = null;
+            _dropIndicatorAfter = false;
             DropInsertionSlot.Visibility = Visibility.Collapsed;
         }
 
@@ -576,6 +767,61 @@ namespace PaperSwitch
             Canvas.SetTop(DropInsertionSlot, targetBounds.Top);
             DropInsertionSlot.Height = Math.Max(64, targetBounds.Height);
             DropInsertionSlot.Visibility = Visibility.Visible;
+        }
+
+        private void MainScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (ViewModel.Pages.Count <= 120) return;
+            _viewportSyncTimer.Stop();
+            _viewportSyncTimer.Start();
+        }
+
+        private void MainScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (ViewModel.Pages.Count <= 120) return;
+            _viewportSyncTimer.Stop();
+            _viewportSyncTimer.Start();
+        }
+
+        private void ViewportSyncTimer_Tick(object? sender, EventArgs e)
+        {
+            _viewportSyncTimer.Stop();
+            if (ViewModel.Pages.Count <= 120 || MainScrollViewer.ActualHeight <= 0) return;
+
+            double viewportH = MainScrollViewer.ViewportHeight > 0 ? MainScrollViewer.ViewportHeight : MainScrollViewer.ActualHeight;
+            double loadTop = -viewportH * 0.8;
+            double loadBottom = viewportH * 1.8;
+            double retainTop = -viewportH * 2.5;
+            double retainBottom = viewportH * 3.5;
+
+            var visibleAndBuffer = new List<PaperItem>();
+            var retainSet = new HashSet<PaperItem>();
+
+            for (int index = 0; index < ViewModel.Pages.Count; index++)
+            {
+                var item = ViewModel.Pages[index];
+                if (CardsItemsControl.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement container || container.ActualHeight <= 0)
+                {
+                    continue;
+                }
+
+                Rect bounds = container.TransformToVisual(MainScrollViewer)
+                    .TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+
+                if (bounds.Bottom >= retainTop && bounds.Top <= retainBottom)
+                {
+                    retainSet.Add(item);
+                    if (bounds.Bottom >= loadTop && bounds.Top <= loadBottom)
+                    {
+                        visibleAndBuffer.Add(item);
+                    }
+                }
+            }
+
+            _viewportThumbnailCts?.Cancel();
+            _viewportThumbnailCts?.Dispose();
+            _viewportThumbnailCts = new CancellationTokenSource();
+            _ = ViewModel.UpdateVisibleThumbnailWindowAsync(visibleAndBuffer, retainSet, _viewportThumbnailCts.Token);
         }
 
         private void MainScrollViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -622,6 +868,7 @@ namespace PaperSwitch
             SelectionRectangle.Width = selectionBounds.Width;
             SelectionRectangle.Height = selectionBounds.Height;
 
+            bool selectionChanged = false;
             foreach (var page in ViewModel.Pages)
             {
                 var container = CardsItemsControl.ItemContainerGenerator.ContainerFromItem(page) as FrameworkElement;
@@ -629,10 +876,18 @@ namespace PaperSwitch
 
                 Rect itemBounds = container.TransformToVisual(SelectionCanvas)
                     .TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
-                page.IsSelected = _initialBoxSelection.Contains(page) || selectionBounds.IntersectsWith(itemBounds);
+                bool nextSelected = _initialBoxSelection.Contains(page) || selectionBounds.IntersectsWith(itemBounds);
+                if (page.IsSelected != nextSelected)
+                {
+                    page.IsSelected = nextSelected;
+                    selectionChanged = true;
+                }
             }
 
-            ViewModel.NotifySelectionChanged();
+            if (selectionChanged)
+            {
+                ViewModel.NotifySelectionChanged();
+            }
         }
 
         private void MainScrollViewer_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -726,35 +981,6 @@ namespace PaperSwitch
             }
         }
 
-        private void CardRotate_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is FrameworkElement { DataContext: PaperItem item })
-            {
-                if (!item.IsSelected)
-                {
-                    foreach (var p in ViewModel.Pages) p.IsSelected = (p == item);
-                    item.IsSelected = true;
-                    ViewModel.SelectedPage = item;
-                    ViewModel.NotifySelectionChanged();
-                }
-                ViewModel.RotateSelected(90);
-            }
-            e.Handled = true;
-        }
-
-        private void CardLightbox_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is FrameworkElement { DataContext: PaperItem item })
-            {
-                var lightbox = new LightboxWindow(item, ViewModel.Pages, ViewModel.RotatePage)
-                {
-                    Owner = this
-                };
-                lightbox.ShowDialog();
-            }
-            e.Handled = true;
-        }
-
         private void CardDelete_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement { DataContext: PaperItem item })
@@ -779,33 +1005,6 @@ namespace PaperSwitch
         private void BatchRotateCCW_Click(object sender, RoutedEventArgs e)
         {
             ViewModel.RotateSelected(-90);
-        }
-
-        private void RenameSelected_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedPages = ViewModel.Pages.Where(page => page.IsSelected).ToList();
-            if (selectedPages.Count == 0 && ViewModel.SelectedPage != null)
-            {
-                selectedPages.Add(ViewModel.SelectedPage);
-            }
-
-            if (selectedPages.Count == 0)
-            {
-                GameDialog.Show("請先選取要重新命名的紙張。", "重新命名", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            string suggestedName = Path.GetFileNameWithoutExtension(selectedPages[0].SourceFileName);
-            var dialog = new RenameDialog(suggestedName, selectedPages.Count) { Owner = this };
-            if (dialog.ShowDialog() != true)
-            {
-                return;
-            }
-
-            if (!ViewModel.TryRenameSelectedPages(dialog.ProposedName, out string message))
-            {
-                GameDialog.Show(message, "重新命名", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
         }
 
         private void ClearProcessingFolders_Click(object sender, RoutedEventArgs e)

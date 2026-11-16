@@ -116,6 +116,52 @@ namespace PaperSwitch.Tests
         }
 
         [Fact]
+        public void RenameDialog_RenderSnapshot_ShouldNotClipControls()
+        {
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    EnsureApplication();
+                    var dlg = new RenameDialog("1-5,8", 1, "依畫布頁序選取", "輸入畫布位置，例如 1-5,8,12-20；不是原始文件頁碼。", "選取頁面");
+                    var content = (UIElement)dlg.Content;
+                    content.Measure(new Size(440, 480));
+                    int measuredHeight = (int)Math.Ceiling(content.DesiredSize.Height);
+                    content.Arrange(new Rect(0, 0, 440, measuredHeight));
+                    content.UpdateLayout();
+
+                    var nameBox = (FrameworkElement)dlg.FindName("NameTextBox");
+                    var applyButton = (FrameworkElement)dlg.FindName("ApplyButton");
+                    Assert.True(nameBox.ActualHeight >= 36, $"輸入框高度不足 ({nameBox.ActualHeight})");
+                    Assert.True(applyButton.ActualHeight >= 40, $"按鈕高度不足 ({applyButton.ActualHeight})");
+                    double buttonBottom = applyButton.TranslatePoint(new Point(0, applyButton.ActualHeight), content).Y;
+                    Assert.True(buttonBottom <= measuredHeight + 1, $"按鈕超出視窗底部 ({buttonBottom} > {measuredHeight})");
+
+                    string outDir = Environment.GetEnvironmentVariable("PAPERSWITCH_SNAPSHOT_DIR") is { Length: > 0 } customDir
+                        ? customDir
+                        : Path.Combine(Path.GetTempPath(), "PaperSwitch-ui-snapshots");
+                    Directory.CreateDirectory(outDir);
+                    var dv = new DrawingVisual();
+                    using (var dc = dv.RenderOpen())
+                        dc.DrawRectangle(dlg.Background ?? Brushes.White, null, new Rect(0, 0, 440, measuredHeight));
+                    var rtb = new RenderTargetBitmap(440, measuredHeight, 96, 96, PixelFormats.Pbgra32);
+                    rtb.Render(dv);
+                    rtb.Render(content);
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(rtb));
+                    using var fs = File.Create(Path.Combine(outDir, "rendered_range_dialog_fixed.png"));
+                    encoder.Save(fs);
+                }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            if (failure != null) throw failure;
+        }
+
+        [Fact]
         public void MainWindow_RenderSnapshot_ShouldSaveImages()
         {
             var thread = new Thread(() =>
@@ -231,6 +277,11 @@ namespace PaperSwitch.Tests
                             Assert.True(button.ActualHeight >= 40);
                             previousRight = origin.X + button.ActualWidth;
                         }
+
+                        var sidebarScroll = (System.Windows.Controls.ScrollViewer)window.FindName("SidebarScrollViewer");
+                        var hintCard = (FrameworkElement)window.FindName("SidebarHintCard");
+                        double hintBottom = hintCard.TranslatePoint(new Point(0, hintCard.ActualHeight), sidebarScroll).Y;
+                        Assert.True(hintBottom <= sidebarScroll.ActualHeight + 2, $"視窗 {size.Item1}x{size.Item2} 下左側工坊小提示不可被截斷 ({hintBottom} > {sidebarScroll.ActualHeight})");
                     }
 
                     var scroll = (System.Windows.Controls.ScrollViewer)window.FindName("MainScrollViewer");
@@ -271,6 +322,143 @@ namespace PaperSwitch.Tests
             thread.IsBackground = true;
             thread.Start();
             Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "拖曳及單列排版驗證逾時。");
+            if (failure != null) throw failure;
+        }
+
+        [Fact]
+        public void LightboxWindow_ContextMenu_ExportsCurrentPageOnlyOnSta()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            Exception? failure = null;
+            try
+            {
+                var pdf = Path.Combine(dir, "lightbox-test.pdf");
+                Assert.True(PaperSwitch.Services.PdfService.Instance.CreateBlankA4Pdf(pdf));
+
+                var thread = new Thread(() =>
+                {
+                    LightboxWindow? window = null;
+                    try
+                    {
+                        EnsureApplication();
+                        var hostVm = new PaperSwitch.ViewModels.MainViewModel(new PaperSwitch.Services.ExportPreferencesStore(Path.Combine(dir, "prefs.json")));
+                        var page = PaperSwitch.Services.PdfImportService.ReadPages(pdf, "來源")[0];
+                        hostVm.Pages.Add(page);
+
+                        var callbacks = new PaperSwitch.ViewModels.LightboxHostCallbacks(
+                            hostVm.RotatePage,
+                            hostVm.ExportCustomPagesAsync);
+                        window = new LightboxWindow(page, hostVm.Pages, callbacks);
+
+                        string outDir = Environment.GetEnvironmentVariable("PAPERSWITCH_SNAPSHOT_DIR")
+                            ?? Path.Combine(Path.GetTempPath(), "PaperSwitch-ui-snapshots");
+                        Directory.CreateDirectory(outDir);
+                        RenderWindowToPng(window, Path.Combine(outDir, "lightbox_context_menu.png"), 1040, 780);
+
+                        var scroll = (System.Windows.Controls.ScrollViewer)window.FindName("PreviewScrollViewer");
+                        Assert.NotNull(scroll.ContextMenu);
+                        Assert.Equal(2, scroll.ContextMenu.Items.Count);
+
+                        var exportCurrentPdf = (System.Windows.Controls.MenuItem)window.FindName("MenuExportCurrentPdf");
+                        var exportCurrentPng = (System.Windows.Controls.MenuItem)window.FindName("MenuExportCurrentPng");
+                        Assert.True(exportCurrentPdf.IsEnabled);
+                        Assert.True(exportCurrentPng.IsEnabled);
+                    }
+                    catch (Exception ex) { failure = ex; }
+                    finally { window?.Close(); }
+                });
+                thread.SetApartmentState(ApartmentState.STA);
+                thread.IsBackground = true;
+                thread.Start();
+                Assert.True(thread.Join(TimeSpan.FromSeconds(15)), "燈箱右鍵選單驗證逾時。");
+                if (failure != null) throw failure;
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Fact]
+        public void MainWindow_WorkspaceContextMenu_AdaptsToCardAndMultiSelectionOnSta()
+        {
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                MainWindow? window = null;
+                try
+                {
+                    EnsureApplication();
+                    window = new MainWindow();
+                    var vm = (PaperSwitch.ViewModels.MainViewModel)window.DataContext;
+                    var p1 = new PaperSwitch.Models.PaperItem { SourceFileName = "文件A.pdf", DisplayPageNumber = 1, TotalPagesInSource = 2, IsLoadingThumbnail = false };
+                    var p2 = new PaperSwitch.Models.PaperItem { SourceFileName = "文件A.pdf", DisplayPageNumber = 2, TotalPagesInSource = 2, IsLoadingThumbnail = false };
+                    vm.Pages.Add(p1);
+                    vm.Pages.Add(p2);
+
+                    string outDir = Environment.GetEnvironmentVariable("PAPERSWITCH_SNAPSHOT_DIR")
+                        ?? Path.Combine(Path.GetTempPath(), "PaperSwitch-ui-snapshots");
+                    Directory.CreateDirectory(outDir);
+                    RenderWindowToPng(window, Path.Combine(outDir, "workspace_context_menu.png"), 1120, 760);
+                    window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+                    var itemsControl = (System.Windows.Controls.ItemsControl)window.FindName("CardsItemsControl");
+                    var container1 = (FrameworkElement)itemsControl.ItemContainerGenerator.ContainerFromIndex(0);
+                    var container2 = (FrameworkElement)itemsControl.ItemContainerGenerator.ContainerFromIndex(1);
+                    Assert.NotNull(container1);
+                    Assert.NotNull(container2);
+
+                    var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                    static System.Windows.Controls.Border FindCardBorder(DependencyObject root)
+                    {
+                        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+                        {
+                            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+                            if (child is System.Windows.Controls.Border b && b.Name == "CardBorder") return b;
+                            var nested = FindCardBorder(child);
+                            if (nested != null) return nested;
+                        }
+                        return null!;
+                    }
+
+                    var card1 = FindCardBorder(container1);
+                    var card2 = FindCardBorder(container2);
+                    Assert.NotNull(card1.ContextMenu);
+                    Assert.NotNull(card2.ContextMenu);
+
+                    var canvasPdfItem = (System.Windows.Controls.MenuItem)window.FindName("CanvasMenuExportSelectedPdf");
+                    var canvasSplitItem = (System.Windows.Controls.MenuItem)window.FindName("CanvasMenuExportSplitPdf");
+
+                    p1.IsSelected = true;
+                    vm.SelectedPage = p1;
+                    vm.NotifySelectionChanged();
+                    window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                    Assert.Equal("匯出這頁 (PDF)", canvasPdfItem.Header?.ToString());
+                    Assert.Equal(Visibility.Collapsed, canvasSplitItem.Visibility);
+
+                    p2.IsSelected = true;
+                    vm.NotifySelectionChanged();
+                    window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                    Assert.Equal("合併匯出已選 2 頁 (PDF)", canvasPdfItem.Header?.ToString());
+                    Assert.Equal(Visibility.Visible, canvasSplitItem.Visibility);
+
+                    var rightDownMethod = typeof(MainWindow).GetMethod("Card_PreviewMouseRightButtonDown", flags)!;
+                    rightDownMethod.Invoke(window, new object?[] { card1, null });
+                    Assert.True(p1.IsSelected);
+                    Assert.True(p2.IsSelected);
+
+                    p1.IsSelected = false;
+                    p2.IsSelected = true;
+                    vm.NotifySelectionChanged();
+                    rightDownMethod.Invoke(window, new object?[] { card1, null });
+                    Assert.True(p1.IsSelected);
+                    Assert.False(p2.IsSelected);
+                }
+                catch (Exception ex) { failure = ex; }
+                finally { window?.Close(); }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            Assert.True(thread.Join(TimeSpan.FromSeconds(15)), "工作桌右鍵選單驗證逾時。");
             if (failure != null) throw failure;
         }
     }

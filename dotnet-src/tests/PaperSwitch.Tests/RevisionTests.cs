@@ -97,6 +97,8 @@ public sealed class RevisionTests
     [Theory]
     [InlineData("1-3,3,5", true)]
     [InlineData("1–3，5", true)]
+    [InlineData("1－3、5", true)]
+    [InlineData(" 1~3 , 5 ", true)]
     [InlineData("0,1", false)]
     [InlineData("2-8", false)]
     [InlineData("4-2", false)]
@@ -107,6 +109,103 @@ public sealed class RevisionTests
         for (int i = 0; i < 5; i++) vm.Pages.Add(new PaperItem { IsSelected = i == 4 });
         Assert.Equal(valid, vm.TrySelectRange(input, out _));
         Assert.Equal(valid ? 4 : 1, vm.SelectedPageCount);
+    }
+
+    [Fact]
+    public void ExportArrangedPdf_ErrorMessageIsPropagatedInsteadOfSwallowed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var missing = new PaperItem { SourceFilePath = Path.Combine(dir, "missing.pdf") };
+            bool ok = PdfService.Instance.ExportArrangedPdf(new[] { missing }, Path.Combine(dir, "out.pdf"), out var errorMessage);
+            Assert.False(ok);
+            Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+            Assert.Contains("missing.pdf", errorMessage);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public async Task AppendImport_PreservesExistingUndoHistory_AndIsItselfUndoable()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var pdf1 = Path.Combine(dir, "first.pdf");
+            var pdf2 = Path.Combine(dir, "second.pdf");
+            Assert.True(PdfService.Instance.CreateBlankA4Pdf(pdf1));
+            Assert.True(PdfService.Instance.CreateBlankA4Pdf(pdf2));
+
+            var vm = new MainViewModel(new ExportPreferencesStore(Path.Combine(dir, "preferences.json")));
+            await vm.AddFilesAsync(new[] { pdf1 });
+            Assert.Single(vm.Pages);
+
+            vm.RotatePage(vm.Pages[0], 90);
+            Assert.Equal(90, vm.Pages[0].Rotation);
+            Assert.True(vm.CanUndo);
+
+            await vm.AddFilesAsync(new[] { pdf2 });
+            Assert.Equal(2, vm.Pages.Count);
+            Assert.True(vm.CanUndo);
+
+            // 第一次復原應撤銷第二次匯入，回到僅有第一頁且維持 90° 的狀態
+            vm.Undo();
+            Assert.Single(vm.Pages);
+            Assert.Equal(90, vm.Pages[0].Rotation);
+            Assert.True(vm.CanUndo);
+
+            // 第二次復原應回到旋轉前的 0° 狀態
+            vm.Undo();
+            Assert.Single(vm.Pages);
+            Assert.Equal(0, vm.Pages[0].Rotation);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public async Task LargeCanvas_ThumbnailWindow_EvictsOnlyDistantItemsAboveThreshold()
+    {
+        var vm = new MainViewModel();
+        var dummyImage = new System.Windows.Media.Imaging.WriteableBitmap(2, 2, 96, 96, System.Windows.Media.PixelFormats.Pbgra32, null);
+        dummyImage.Freeze();
+
+        // 120 頁以內不該主動清除既有縮圖
+        for (int i = 0; i < 100; i++)
+        {
+            vm.Pages.Add(new PaperItem
+            {
+                SourceFilePath = $"dummy_{i}.pdf",
+                Thumbnail = dummyImage,
+                IsLoadingThumbnail = false
+            });
+        }
+
+        await vm.UpdateVisibleThumbnailWindowAsync(Array.Empty<PaperItem>(), new HashSet<PaperItem>());
+        Assert.All(vm.Pages, p => Assert.NotNull(p.Thumbnail));
+
+        // 超過 120 頁後，應僅保留 retainSet 中的縮圖並釋放遠端縮圖
+        for (int i = 100; i < 130; i++)
+        {
+            vm.Pages.Add(new PaperItem
+            {
+                SourceFilePath = $"dummy_{i}.pdf",
+                Thumbnail = dummyImage,
+                IsLoadingThumbnail = false
+            });
+        }
+
+        var retain = new HashSet<PaperItem>(vm.Pages.Take(20));
+        await vm.UpdateVisibleThumbnailWindowAsync(Array.Empty<PaperItem>(), retain);
+
+        Assert.All(vm.Pages.Take(20), p => Assert.NotNull(p.Thumbnail));
+        Assert.All(vm.Pages.Skip(20), p =>
+        {
+            Assert.Null(p.Thumbnail);
+            Assert.True(p.IsLoadingThumbnail);
+        });
     }
 
     [Fact]
@@ -214,5 +313,127 @@ public sealed class RevisionTests
             SourceHashesUnchanged = true, Output = output, Benchmarks = benchmarks,
             Environment = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
         }, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    [Fact]
+    public async Task LightboxViewModel_CurrentPageContextExport_DispatchesOnlyCurrentPage()
+    {
+        var pages = new System.Collections.ObjectModel.ObservableCollection<PaperItem>
+        {
+            new() { SourceFilePath = "a.pdf", SourcePageIndex = 0, SourceFileName = "a.pdf", DisplayPageNumber = 1 },
+            new() { SourceFilePath = "a.pdf", SourcePageIndex = 1, SourceFileName = "a.pdf", DisplayPageNumber = 2 }
+        };
+
+        var exports = new List<(ExportKind Kind, IReadOnlyList<PaperItem> Targets)>();
+        bool observedExportingDuringCallback = false;
+        LightboxViewModel? vm = null;
+
+        var callbacks = new LightboxHostCallbacks(
+            RotatePage: (p, delta) => p.Rotation = (p.Rotation + delta + 360) % 360,
+            ExportPagesAsync: async (kind, targets) =>
+            {
+                observedExportingDuringCallback = vm?.IsExporting == true && vm.CanExportCurrent == false;
+                exports.Add((kind, targets.ToList()));
+                await Task.Yield();
+            });
+
+        vm = new LightboxViewModel(pages[0], pages, callbacks);
+        Assert.True(vm.CanExportCurrent);
+        Assert.True(vm.ExportCurrentPdfCommand.CanExecute(null));
+        Assert.True(vm.ExportCurrentPngCommand.CanExecute(null));
+
+        await vm.NextPage();
+        Assert.Same(pages[1], vm.CurrentPage);
+
+        await vm.ExportCurrentPdfAsync();
+        Assert.True(observedExportingDuringCallback);
+        Assert.False(vm.IsExporting);
+        await vm.ExportCurrentPngAsync();
+
+        Assert.Equal(2, exports.Count);
+        Assert.Equal(ExportKind.SplitPdf, exports[0].Kind);
+        Assert.Equal(new[] { pages[1] }, exports[0].Targets);
+        Assert.Equal(ExportKind.Images, exports[1].Kind);
+        Assert.Equal(new[] { pages[1] }, exports[1].Targets);
+    }
+
+    [Fact]
+    public void LightboxViewModel_WithoutExportCallback_DisablesExportCommandsSafely()
+    {
+        var page = new PaperItem { SourceFilePath = "a.pdf", SourceFileName = "a.pdf", IsSelected = true };
+        var pages = new System.Collections.ObjectModel.ObservableCollection<PaperItem> { page };
+
+        var vm = new LightboxViewModel(page, pages);
+        Assert.False(vm.CanExportCurrent);
+        Assert.False(vm.ExportCurrentPdfCommand.CanExecute(null));
+        Assert.False(vm.ExportCurrentPngCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void MainViewModel_WorkspaceContextExportState_AdaptsToSingleAndMultiSelection()
+    {
+        var vm = new MainViewModel();
+        var p1 = new PaperItem { SourceFilePath = "a.pdf", SourcePageIndex = 0, DisplayPageNumber = 1 };
+        var p2 = new PaperItem { SourceFilePath = "b.pdf", SourcePageIndex = 0, DisplayPageNumber = 1 };
+        var p3 = new PaperItem { SourceFilePath = "c.pdf", SourcePageIndex = 0, DisplayPageNumber = 1 };
+        vm.Pages.Add(p1);
+        vm.Pages.Add(p2);
+        vm.Pages.Add(p3);
+
+        Assert.False(vm.CanExportContextSelection);
+        Assert.False(vm.HasMultipleSelectedPages);
+
+        p2.IsSelected = true;
+        vm.SelectedPage = p2;
+        vm.NotifySelectionChanged();
+        Assert.True(vm.CanExportContextSelection);
+        Assert.False(vm.HasMultipleSelectedPages);
+        Assert.Equal("匯出這頁 (PDF)", vm.ContextExportSelectedPdfText);
+        Assert.Equal("匯出這頁 (PNG)", vm.ContextExportSelectedPngText);
+        Assert.Equal(new[] { p2 }, vm.GetContextTargetPages());
+
+        p1.IsSelected = true;
+        vm.NotifySelectionChanged();
+        Assert.True(vm.HasMultipleSelectedPages);
+        Assert.Equal("合併匯出已選 2 頁 (PDF)", vm.ContextExportSelectedPdfText);
+        Assert.Equal("拆分成 2 份獨立 PDF", vm.ContextExportSplitSelectedPdfText);
+        Assert.Equal("匯出已選 2 頁 (PNG)", vm.ContextExportSelectedPngText);
+        Assert.Equal(new[] { p1, p2 }, vm.GetContextTargetPages());
+    }
+
+    [Fact]
+    public async Task MainViewModel_ExportCustomPagesAsync_ExportsOnlyRequestedPagesWithoutDialog()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var outDir = Path.Combine(dir, "out");
+        Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(outDir);
+        try
+        {
+            var pdf1 = Path.Combine(dir, "alpha.pdf");
+            var pdf2 = Path.Combine(dir, "beta.pdf");
+            Assert.True(PdfService.Instance.CreateBlankA4Pdf(pdf1));
+            Assert.True(PdfService.Instance.CreateBlankA4Pdf(pdf2));
+
+            var vm = new MainViewModel(new ExportPreferencesStore(Path.Combine(dir, "preferences.json")));
+            vm.Options.OutputDirectory = outDir;
+            await vm.AddFilesAsync(new[] { pdf1, pdf2 });
+            Assert.Equal(2, vm.Pages.Count);
+
+            await vm.ExportCustomPagesAsync(ExportKind.SplitPdf, new[] { vm.Pages[1] }, showCompletionDialog: false);
+            var splitFiles = Directory.GetFiles(outDir, "*.pdf");
+            Assert.Single(splitFiles);
+            Assert.Contains("beta", Path.GetFileNameWithoutExtension(splitFiles[0]), StringComparison.OrdinalIgnoreCase);
+
+            await vm.ExportCustomPagesAsync(ExportKind.SelectedPdf, new[] { vm.Pages[0], vm.Pages[1] }, showCompletionDialog: false);
+            var allPdfFiles = Directory.GetFiles(outDir, "*.pdf");
+            Assert.Equal(2, allPdfFiles.Length);
+            var mergedFile = allPdfFiles.Except(splitFiles).Single();
+            Assert.Equal(2, PdfService.Instance.GetPageCount(mergedFile));
+
+            await vm.ExportCustomPagesAsync(ExportKind.Images, new[] { vm.Pages[0] }, showCompletionDialog: false);
+            Assert.Single(Directory.GetFiles(outDir, "*.png"));
+        }
+        finally { Directory.Delete(dir, true); }
     }
 }

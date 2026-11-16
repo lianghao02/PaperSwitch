@@ -30,12 +30,18 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="{StaticResource BrushTerracottaLight}" CornerRadius="6" Padding="8,4" Margin="0,0,12,0">
+                <Grid Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="{StaticResource BrushTerracottaLight}" CornerRadius="6" Padding="8,4" Margin="0,0,12,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding PageIndicator}" Style="{StaticResource TextMeta}" FontWeight="Bold" Foreground="{StaticResource BrushTerracotta}" />
                     </Border>
-                    <TextBlock Text="{Binding CurrentPage.SourceFileName}" Style="{StaticResource TextH3}" FontWeight="Medium" VerticalAlignment="Center" />
-                </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding CurrentPage.SourceFileName}" Style="{StaticResource TextH3}" FontWeight="Medium"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </Grid>
 
                 <Button Grid.Column="1" Content="✕ 關閉" Style="{StaticResource BtnOutlineCraft}" Click="Close_Click" />
             </Grid>
@@ -52,6 +58,7 @@
 
             <!-- 大圖呈現 -->
             <ScrollViewer x:Name="PreviewScrollViewer"
+                          Background="Transparent"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto"
                           CanContentScroll="False"
@@ -61,8 +68,20 @@
                           PreviewMouseLeftButtonUp="PreviewPanEnd"
                           LostMouseCapture="PreviewPanCaptureLost"
                           ScrollChanged="PreviewScrollChanged"
-                          ToolTip="滾輪縮放；放大後按住左鍵拖曳查看"
+                          ToolTip="滾輪縮放；放大後按住左鍵拖曳查看；右鍵可單獨匯出這一頁"
                           Margin="20">
+                <ScrollViewer.ContextMenu>
+                    <ContextMenu x:Name="PreviewContextMenu" Style="{StaticResource WorkshopContextMenu}">
+                        <MenuItem x:Name="MenuExportCurrentPdf"
+                                  Style="{StaticResource WorkshopMenuItem}"
+                                  Header="匯出目前這頁 (PDF)"
+                                  Command="{Binding ExportCurrentPdfCommand}" />
+                        <MenuItem x:Name="MenuExportCurrentPng"
+                                  Style="{StaticResource WorkshopMenuItem}"
+                                  Header="匯出目前這頁 (PNG)"
+                                  Command="{Binding ExportCurrentPngCommand}" />
+                    </ContextMenu>
+                </ScrollViewer.ContextMenu>
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Border Background="{StaticResource BrushCardBg}" CornerRadius="8" Effect="{StaticResource CardHoverShadow}" Padding="6">
                         <Image Source="{Binding HighResImage}"

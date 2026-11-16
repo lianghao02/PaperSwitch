@@ -63,11 +63,25 @@ namespace PaperSwitch.ViewModels
         private readonly ArrangementHistory _history = new();
         private readonly SemaphoreSlim _conversionBatchGate = new(1, 1);
         private const int MaximumConcurrentThumbnailRenders = 4;
+        private const int LargeCanvasThumbnailWindowThreshold = 120;
+        private readonly SemaphoreSlim _thumbnailRenderGate = new(MaximumConcurrentThumbnailRenders, MaximumConcurrentThumbnailRenders);
+        private bool _suppressPagesCollectionNotifications;
 
         public int TotalPageCount => Pages.Count;
         public int SelectedPageCount => Pages.Count(p => p.IsSelected);
         public bool HasPages => Pages.Count > 0;
         public bool HasSelectedPages => SelectedPageCount > 0;
+        public bool HasMultipleSelectedPages => SelectedPageCount > 1;
+        public bool CanExportContextSelection => !IsBusy && (HasSelectedPages || SelectedPage != null);
+        public string ContextExportSelectedPdfText => SelectedPageCount > 1
+            ? $"合併匯出已選 {SelectedPageCount} 頁 (PDF)"
+            : "匯出這頁 (PDF)";
+        public string ContextExportSplitSelectedPdfText => SelectedPageCount > 1
+            ? $"拆分成 {SelectedPageCount} 份獨立 PDF"
+            : "獨立匯出這頁 (PDF)";
+        public string ContextExportSelectedPngText => SelectedPageCount > 1
+            ? $"匯出已選 {SelectedPageCount} 頁 (PNG)"
+            : "匯出這頁 (PNG)";
         public bool IsDraggingPages => DraggedPageCount > 0;
         public bool CanUndo => !IsBusy && _history.Undo.Count > 0;
         public bool CanRedo => !IsBusy && _history.Redo.Count > 0;
@@ -151,30 +165,60 @@ namespace PaperSwitch.ViewModels
 
             Pages.CollectionChanged += (s, e) =>
             {
-                OnPropertyChanged(nameof(TotalPageCount));
-                OnPropertyChanged(nameof(SelectedPageCount));
-                OnPropertyChanged(nameof(HasPages));
-                OnPropertyChanged(nameof(HasSelectedPages));
-                OnPropertyChanged(nameof(SummaryText));
-                NotifyDynamicExportButtonTexts();
-                ExportAllPdfCommand.NotifyCanExecuteChanged();
-                ExportSelectedPdfCommand.NotifyCanExecuteChanged();
-                ExportSplitPdfCommand.NotifyCanExecuteChanged();
-                ExportImagesCommand.NotifyCanExecuteChanged();
+                if (_suppressPagesCollectionNotifications) return;
+                NotifyPagesStructureChanged();
             };
 
             ConversionTasks.CollectionChanged += (s, e) => NotifyConversionQueueChanged();
+        }
+
+        private void NotifyPagesStructureChanged()
+        {
+            OnPropertyChanged(nameof(TotalPageCount));
+            OnPropertyChanged(nameof(SelectedPageCount));
+            OnPropertyChanged(nameof(HasPages));
+            OnPropertyChanged(nameof(HasSelectedPages));
+            OnPropertyChanged(nameof(HasMultipleSelectedPages));
+            OnPropertyChanged(nameof(SummaryText));
+            NotifyDynamicExportButtonTexts();
+            NotifyContextActionStates();
+            ExportAllPdfCommand.NotifyCanExecuteChanged();
+            ExportSelectedPdfCommand.NotifyCanExecuteChanged();
+            ExportSplitPdfCommand.NotifyCanExecuteChanged();
+            ExportImagesCommand.NotifyCanExecuteChanged();
         }
 
         public void NotifySelectionChanged()
         {
             OnPropertyChanged(nameof(SelectedPageCount));
             OnPropertyChanged(nameof(HasSelectedPages));
+            OnPropertyChanged(nameof(HasMultipleSelectedPages));
             OnPropertyChanged(nameof(SummaryText));
             NotifyDynamicExportButtonTexts();
+            NotifyContextActionStates();
             ExportSelectedPdfCommand.NotifyCanExecuteChanged();
             ExportSplitPdfCommand.NotifyCanExecuteChanged();
             ExportImagesCommand.NotifyCanExecuteChanged();
+        }
+
+        private void NotifyContextActionStates()
+        {
+            OnPropertyChanged(nameof(CanExportContextSelection));
+            OnPropertyChanged(nameof(ContextExportSelectedPdfText));
+            OnPropertyChanged(nameof(ContextExportSplitSelectedPdfText));
+            OnPropertyChanged(nameof(ContextExportSelectedPngText));
+            ExportContextSelectedPdfCommand.NotifyCanExecuteChanged();
+            ExportContextSplitSelectedPdfCommand.NotifyCanExecuteChanged();
+            ExportContextSelectedPngCommand.NotifyCanExecuteChanged();
+            RotateSelectedClockwiseCommand.NotifyCanExecuteChanged();
+            RotateSelectedCounterClockwiseCommand.NotifyCanExecuteChanged();
+            SelectSourceCommand.NotifyCanExecuteChanged();
+            DeleteSelectedCommand.NotifyCanExecuteChanged();
+        }
+
+        partial void OnSelectedPageChanged(PaperItem? value)
+        {
+            NotifyContextActionStates();
         }
 
         private void NotifyDynamicExportButtonTexts()
@@ -229,18 +273,27 @@ namespace PaperSwitch.ViewModels
 
         private void RestoreArrangementSnapshot(ArrangementSnapshot snapshot)
         {
-            Pages.Clear();
-
-            foreach (var state in snapshot.PageStates)
+            _suppressPagesCollectionNotifications = true;
+            try
             {
-                state.Restore();
-                Pages.Add(state.Page);
+                Pages.Clear();
+
+                foreach (var state in snapshot.PageStates)
+                {
+                    state.Restore();
+                    Pages.Add(state.Page);
+                }
+
+                SelectedPage = snapshot.SelectedPage is not null && Pages.Contains(snapshot.SelectedPage)
+                    ? snapshot.SelectedPage
+                    : Pages.FirstOrDefault(page => page.IsSelected);
+            }
+            finally
+            {
+                _suppressPagesCollectionNotifications = false;
             }
 
-            SelectedPage = snapshot.SelectedPage is not null && Pages.Contains(snapshot.SelectedPage)
-                ? snapshot.SelectedPage
-                : Pages.FirstOrDefault(page => page.IsSelected);
-            NotifySelectionChanged();
+            NotifyPagesStructureChanged();
         }
 
         private void NotifyHistoryChanged()
@@ -248,6 +301,14 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(ExportFileNamePreview));
             OnPropertyChanged(nameof(CanUndo));
             OnPropertyChanged(nameof(CanRedo));
+        }
+
+        private void RecordUndoSnapshot(ArrangementSnapshot beforeSnapshot)
+        {
+            if (beforeSnapshot.Matches(Pages, SelectedPage)) return;
+            _history.Undo.Push(beforeSnapshot);
+            _history.Redo.Clear();
+            NotifyHistoryChanged();
         }
 
         private void ClearHistory()
@@ -671,6 +732,7 @@ namespace PaperSwitch.ViewModels
                 IsProgressIndeterminate = false;
                 ProgressValue = 0;
                 StatusMessage = $"準備處理 {tasks.Count} 個檔案...";
+                var beforeImport = CaptureArrangementSnapshot();
 
                 string workTempDir = AppPaths.TemporaryConversionDirectory;
                 var pdfsToLoad = new List<(string PdfPath, ConversionTaskItem Task)>();
@@ -713,11 +775,13 @@ namespace PaperSwitch.ViewModels
                     task.MarkCompleted(task.CompletedPageCount);
                 }
 
-                _ = LoadThumbnailsAsync(newItems);
-
                 if (newItems.Count > 0)
                 {
-                    ClearHistory();
+                    RecordUndoSnapshot(beforeImport);
+                    var initialBatch = Pages.Count > LargeCanvasThumbnailWindowThreshold
+                        ? newItems.Take(60).ToList()
+                        : newItems;
+                    _ = LoadThumbnailsAsync(initialBatch);
                 }
 
                 ProgressValue = 100;
@@ -863,12 +927,21 @@ namespace PaperSwitch.ViewModels
                     return;
                 }
 
-                for (int index = 0; index < pageData.Count; index++)
+                _suppressPagesCollectionNotifications = true;
+                try
                 {
-                    newItems.Add(pageData[index]);
-                    Pages.Add(pageData[index]);
-                    if (index % 32 == 31) await System.Windows.Threading.Dispatcher.Yield();
+                    for (int index = 0; index < pageData.Count; index++)
+                    {
+                        newItems.Add(pageData[index]);
+                        Pages.Add(pageData[index]);
+                        if (index % 64 == 63) await System.Windows.Threading.Dispatcher.Yield();
+                    }
                 }
+                finally
+                {
+                    _suppressPagesCollectionNotifications = false;
+                }
+                NotifyPagesStructureChanged();
 
                 task.CompletedPageCount += totalPages;
             }
@@ -982,6 +1055,7 @@ namespace PaperSwitch.ViewModels
                 IsProgressIndeterminate = true;
                 task.MarkProcessing("讀取已解密的 PDF...");
                 StatusMessage = $"正在讀取已解密的 PDF：\n{task.FileName}";
+                var beforeImport = CaptureArrangementSnapshot();
 
                 var pdfsToLoad = new List<(string PdfPath, ConversionTaskItem Task)>();
                 RegisterPdfForLoading(task, path, pdfsToLoad);
@@ -997,8 +1071,14 @@ namespace PaperSwitch.ViewModels
                     task.MarkCompleted(task.CompletedPageCount);
                 }
 
-                _ = LoadThumbnailsAsync(newItems);
-                if (newItems.Count > 0) ClearHistory();
+                if (newItems.Count > 0)
+                {
+                    RecordUndoSnapshot(beforeImport);
+                    var initialBatch = Pages.Count > LargeCanvasThumbnailWindowThreshold
+                        ? newItems.Take(60).ToList()
+                        : newItems;
+                    _ = LoadThumbnailsAsync(initialBatch);
+                }
                 StatusMessage = $"已載入 {newItems.Count} 頁新紙張";
             }
             catch (Exception ex)
@@ -1038,22 +1118,44 @@ namespace PaperSwitch.ViewModels
             }
         }
 
-        private async Task LoadThumbnailsAsync(List<PaperItem> items)
+        private async Task LoadThumbnailsAsync(IReadOnlyList<PaperItem> items, CancellationToken cancellationToken = default)
         {
-            using var renderSlots = new System.Threading.SemaphoreSlim(MaximumConcurrentThumbnailRenders);
-            var tasks = items.Select(async item =>
+            var pending = items.Where(item => item.Thumbnail == null && !item.HasError).ToList();
+            if (pending.Count == 0) return;
+
+            var tasks = pending.Select(async item =>
             {
-                await renderSlots.WaitAsync();
+                if (cancellationToken.IsCancellationRequested) return;
+                await _thumbnailRenderGate.WaitAsync(cancellationToken);
                 try
                 {
+                    if (cancellationToken.IsCancellationRequested || item.Thumbnail != null) return;
                     await LoadThumbnailAsync(item);
                 }
                 finally
                 {
-                    renderSlots.Release();
+                    _thumbnailRenderGate.Release();
                 }
             });
-            await Task.WhenAll(tasks);
+            try { await Task.WhenAll(tasks); }
+            catch (OperationCanceledException) { }
+        }
+
+        public async Task UpdateVisibleThumbnailWindowAsync(IReadOnlyList<PaperItem> visibleAndBufferPages, IReadOnlySet<PaperItem> retainSet, CancellationToken cancellationToken = default)
+        {
+            if (Pages.Count > LargeCanvasThumbnailWindowThreshold)
+            {
+                foreach (var page in Pages)
+                {
+                    if (page.Thumbnail != null && !retainSet.Contains(page) && !string.IsNullOrEmpty(page.SourceFilePath))
+                    {
+                        page.Thumbnail = null;
+                        page.IsLoadingThumbnail = true;
+                    }
+                }
+            }
+
+            await LoadThumbnailsAsync(visibleAndBufferPages, cancellationToken);
         }
 
         private async Task LoadThumbnailAsync(PaperItem item)
@@ -1110,11 +1212,52 @@ namespace PaperSwitch.ViewModels
             OnPropertyChanged(nameof(CanInteract));
             OnPropertyChanged(nameof(CanExport));
             NotifyHistoryChanged();
+            NotifyContextActionStates();
             ExportAllPdfCommand.NotifyCanExecuteChanged();
             ExportSelectedPdfCommand.NotifyCanExecuteChanged();
             ExportSplitPdfCommand.NotifyCanExecuteChanged();
             ExportImagesCommand.NotifyCanExecuteChanged();
         }
+
+        public List<PaperItem> GetContextTargetPages()
+        {
+            var selected = Pages.Where(p => p.IsSelected).ToList();
+            if (selected.Count > 0) return selected;
+            return SelectedPage != null && Pages.Contains(SelectedPage)
+                ? new List<PaperItem> { SelectedPage }
+                : new List<PaperItem>();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExportContextSelection))]
+        public Task ExportContextSelectedPdfAsync()
+        {
+            var targets = GetContextTargetPages();
+            if (targets.Count == 0) return Task.CompletedTask;
+            var kind = targets.Count > 1 ? ExportKind.SelectedPdf : ExportKind.SplitPdf;
+            return ExportCustomPagesAsync(kind, targets, showCompletionDialog: true);
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExportContextSelection))]
+        public Task ExportContextSplitSelectedPdfAsync()
+        {
+            var targets = GetContextTargetPages();
+            if (targets.Count == 0) return Task.CompletedTask;
+            return ExportCustomPagesAsync(ExportKind.SplitPdf, targets, showCompletionDialog: true);
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExportContextSelection))]
+        public Task ExportContextSelectedPngAsync()
+        {
+            var targets = GetContextTargetPages();
+            if (targets.Count == 0) return Task.CompletedTask;
+            return ExportCustomPagesAsync(ExportKind.Images, targets, showCompletionDialog: true);
+        }
+
+        [RelayCommand(CanExecute = nameof(CanInteract))]
+        public void RotateSelectedClockwise() => RotateSelected(90);
+
+        [RelayCommand(CanExecute = nameof(CanInteract))]
+        public void RotateSelectedCounterClockwise() => RotateSelected(-90);
 
         [RelayCommand]
         public void CancelOperation()
@@ -1148,10 +1291,24 @@ namespace PaperSwitch.ViewModels
         public Task ExportImagesAsync() => RunExportAsync(ExportKind.Images);
         public Task ExportPdfAsync() => RunExportAsync(Options.MergeIntoSinglePdf ? ExportKind.AllPdf : ExportKind.SplitPdf);
 
-        private async Task RunExportAsync(ExportKind kind)
+        private Task RunExportAsync(ExportKind kind)
         {
-            if (!CanExport) return;
-            var pages = ExportCoordinator.Snapshot(kind is ExportKind.AllPdf or ExportKind.SplitPdf ? Pages : GetEffectiveExportPages());
+            if (!CanExport) return Task.CompletedTask;
+            IEnumerable<PaperItem> targetPages = kind is ExportKind.AllPdf or ExportKind.SplitPdf ? Pages : GetEffectiveExportPages();
+            return ExportCustomPagesAsync(kind, targetPages, showCompletionDialog: true);
+        }
+
+        /// <summary>
+        /// 共用匯出管線，供主視窗與燈箱預覽使用，統一套用目前輸出設定、防重複執行與完成提示。
+        /// </summary>
+        public Task ExportCustomPagesAsync(ExportKind kind, IEnumerable<PaperItem> targetPages) =>
+            ExportCustomPagesAsync(kind, targetPages, showCompletionDialog: true);
+
+        public async Task ExportCustomPagesAsync(ExportKind kind, IEnumerable<PaperItem> targetPages, bool showCompletionDialog)
+        {
+            if (IsBusy) return;
+            var pages = ExportCoordinator.Snapshot(targetPages ?? Array.Empty<PaperItem>());
+            if (pages.Count == 0) return;
             var options = ExportCoordinator.Snapshot(Options);
             IsBusy = true;
             _operationCancellation = new();
@@ -1166,10 +1323,13 @@ namespace PaperSwitch.ViewModels
                 });
                 var result = await _exportCoordinator.ExportAsync(kind, pages, options, _operationCancellation.Token, progress);
                 StatusMessage = result.Summary;
-                if (result.Errors.Count > 0)
-                    GameDialog.Show(result.Summary + "\n\n" + string.Join("\n", result.Errors.Take(8)), "輸出需要處理", MessageBoxButton.OK, MessageBoxImage.Warning);
-                else if (result.Files.Count > 0)
-                    GameDialog.ShowExportDone(result.Summary, options.OutputDirectory);
+                if (showCompletionDialog)
+                {
+                    if (result.Errors.Count > 0)
+                        GameDialog.Show(result.Summary + "\n\n" + string.Join("\n", result.Errors.Take(8)), "輸出需要處理", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    else if (result.Files.Count > 0)
+                        GameDialog.ShowExportDone(result.Summary, options.OutputDirectory);
+                }
             }
             finally
             {
