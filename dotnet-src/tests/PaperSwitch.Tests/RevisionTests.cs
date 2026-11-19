@@ -436,4 +436,75 @@ public sealed class RevisionTests
         }
         finally { Directory.Delete(dir, true); }
     }
+
+    [Fact]
+    public void UpdateService_BuildUpdaterScript_UsesExactPidWaitAndCleansBackup()
+    {
+        string script = UpdateService.BuildUpdaterScript(
+            4321,
+            @"C:\Apps\PaperSwitch.exe",
+            @"C:\Temp\PaperSwitch-v4.8.0-Standalone.exe",
+            "4.8.0");
+
+        Assert.Contains("Wait-Process -Id 4321", script);
+        Assert.Contains("tasklist /FI \"PID eq 4321\" /FO LIST | findstr /R /C:\"PID:  *4321$\"", script);
+        Assert.DoesNotContain("| find \"4321\"", script);
+        Assert.Contains("if not exist \"C:\\Apps\\PaperSwitch.exe\"", script);
+        Assert.Contains("del /F /Q \"C:\\Apps\\PaperSwitch.exe.bak\"", script);
+        Assert.Contains("echo v4.8.0", script);
+    }
+
+    [Fact]
+    public async Task UpdateService_IsMultiFileDeployment_BlocksCrossModeOverwrite()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        string multiDir = Path.Combine(dir, "multi");
+        string standaloneDir = Path.Combine(dir, "standalone");
+        Directory.CreateDirectory(multiDir);
+        Directory.CreateDirectory(standaloneDir);
+        try
+        {
+            string multiExe = Path.Combine(multiDir, "PaperSwitch.exe");
+            File.WriteAllText(multiExe, "");
+            File.WriteAllText(Path.Combine(multiDir, "PaperSwitch.dll"), "");
+            File.WriteAllText(Path.Combine(multiDir, "PaperSwitch.deps.json"), "");
+
+            string standaloneExe = Path.Combine(standaloneDir, "PaperSwitch.exe");
+            File.WriteAllText(standaloneExe, "");
+
+            Assert.True(UpdateService.IsMultiFileDeployment(multiExe));
+            Assert.False(UpdateService.IsMultiFileDeployment(standaloneExe));
+            await Task.CompletedTask;
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public async Task ThumbnailCacheService_BatchRender_LoadsMultiplePagesWithoutLockingPdf()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string p1 = Path.Combine(dir, "p1.pdf");
+            string p2 = Path.Combine(dir, "p2.pdf");
+            string p3 = Path.Combine(dir, "p3.pdf");
+            string merged = Path.Combine(dir, "three-pages.pdf");
+            Assert.True(PdfService.Instance.CreateBlankA4Pdf(p1));
+            Assert.True(PdfService.Instance.CreateBlankA4Pdf(p2));
+            Assert.True(PdfService.Instance.CreateBlankA4Pdf(p3));
+            Assert.True(PdfService.Instance.MergePdfs(new[] { p1, p2, p3 }, merged));
+
+            var service = new ThumbnailCacheService();
+            var thumbs = await service.GetThumbnailsForPdfAsync(merged, new[] { 0, 1, 2 }, targetWidth: 240);
+
+            Assert.Equal(3, thumbs.Count);
+            Assert.All(thumbs.Values, img => Assert.NotNull(img));
+
+            // 批次渲染結束後立即刪除來源 PDF 不得發生鎖檔例外
+            File.Delete(merged);
+            Assert.False(File.Exists(merged));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }

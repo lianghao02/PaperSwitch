@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -23,11 +24,67 @@ namespace PaperSwitch.Services
         }
 
         /// <summary>
-        /// 清除轉檔暫存資料夾，但保留仍被畫布或待處理任務使用的檔案。
-        /// 匯出完成後呼叫，避免解密或轉出的暫存 PDF 長期留在電腦上。
+        /// 清除轉檔暫存資料夾，但保留仍被畫布或待處理任務使用的檔案，
+        /// 並一併回收已結束或異常終止之舊工作階段遺留目錄（不影響其他執行中的實例）。
         /// </summary>
         public static StorageCleanupResult ClearTemporaryExcept(IEnumerable<string?> keepPaths)
-            => ClearDirectoryExcept(AppPaths.TemporaryConversionDirectory, keepPaths);
+        {
+            var result = ClearDirectoryExcept(AppPaths.TemporaryConversionDirectory, keepPaths);
+            ClearStaleSessionDirectories(AppPaths.TemporaryRootDirectory, AppPaths.TemporaryConversionDirectory, result);
+            return result;
+        }
+
+        internal static void ClearStaleSessionDirectories(
+            string temporaryRootDirectory,
+            string currentSessionDirectory,
+            StorageCleanupResult result,
+            Func<int, bool>? isPaperSwitchProcessAlive = null)
+        {
+            if (!Directory.Exists(temporaryRootDirectory)) return;
+
+            string currentFullPath = Path.GetFullPath(currentSessionDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var isAliveCheck = isPaperSwitchProcessAlive ?? IsPaperSwitchProcessAlive;
+
+            foreach (var sessionDir in Directory.EnumerateDirectories(temporaryRootDirectory))
+            {
+                string fullPath = Path.GetFullPath(sessionDir)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (string.Equals(fullPath, currentFullPath, StringComparison.OrdinalIgnoreCase)) continue;
+
+                string folderName = Path.GetFileName(fullPath);
+                int dashIndex = folderName.IndexOf('-');
+                if (dashIndex > 0 && int.TryParse(folderName.AsSpan(0, dashIndex), out int pid) && isAliveCheck(pid))
+                {
+                    continue;
+                }
+
+                ClearDirectoryContents(fullPath, result);
+                try
+                {
+                    Directory.Delete(fullPath, false);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    result.FailedPaths.Add(fullPath);
+                }
+            }
+        }
+
+        private static bool IsPaperSwitchProcessAlive(int pid)
+        {
+            if (pid <= 0) return false;
+            try
+            {
+                using var process = Process.GetProcessById(pid);
+                if (process.HasExited) return false;
+                return process.ProcessName.Contains("PaperSwitch", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         internal static StorageCleanupResult ClearDirectoryExcept(string directory, IEnumerable<string?> keepPaths)
         {

@@ -7,6 +7,15 @@ namespace PaperSwitch.Services;
 /// <summary>匯出共用命名規則；手動名稱優先，流水號與用途說明分開處理。</summary>
 public static class ExportFileNaming
 {
+    public static string SanitizeFileName(string? value, string fallback = "PaperSwitch_Page")
+    {
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        string clean = value.Trim();
+        foreach (char invalid in Path.GetInvalidFileNameChars()) clean = clean.Replace(invalid, '_');
+        clean = clean.Trim('.', ' ', '_');
+        return string.IsNullOrWhiteSpace(clean) ? fallback : clean;
+    }
+
     public static string GetStem(string? value, string fallback = "PaperSwitch", bool sourceFile = false)
     {
         string stem = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();

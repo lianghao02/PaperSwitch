@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -19,9 +20,12 @@ namespace PaperSwitch.Services
     {
         public static ThumbnailCacheService Instance { get; } = new();
 
-        private const int MaximumCacheEntries = 180;
-        private readonly object _cacheLock = new();
-        private readonly Dictionary<string, CacheEntry> _cache = new();
+        private const int MaximumThumbnailEntries = 360;
+        private const int MaximumPreviewEntries = 8;
+        private const int PreviewWidthThreshold = 720;
+
+        private readonly CachePool _thumbnailPool = new(MaximumThumbnailEntries);
+        private readonly CachePool _previewPool = new(MaximumPreviewEntries);
         private readonly ConcurrentDictionary<string, Lazy<Task<ImageSource?>>> _inflight = new();
 
         private sealed class CacheEntry(ImageSource image)
@@ -30,15 +34,65 @@ namespace PaperSwitch.Services
             public LinkedListNode<string>? Node { get; set; }
         }
 
-        private readonly LinkedList<string> _leastRecentlyUsed = new();
+        private sealed class CachePool(int capacity)
+        {
+            private readonly object _lock = new();
+            private readonly Dictionary<string, CacheEntry> _map = new();
+            private readonly LinkedList<string> _lru = new();
+
+            public bool TryGet(string key, out ImageSource? image)
+            {
+                lock (_lock)
+                {
+                    if (_map.TryGetValue(key, out var entry))
+                    {
+                        _lru.Remove(entry.Node!);
+                        _lru.AddFirst(entry.Node!);
+                        image = entry.Image;
+                        return true;
+                    }
+                }
+                image = null;
+                return false;
+            }
+
+            public void Put(string key, ImageSource image)
+            {
+                lock (_lock)
+                {
+                    if (_map.TryGetValue(key, out var existing))
+                    {
+                        _lru.Remove(existing.Node!);
+                        _map.Remove(key);
+                    }
+                    var node = _lru.AddFirst(key);
+                    _map[key] = new CacheEntry(image) { Node = node };
+                    while (_map.Count > capacity)
+                    {
+                        var oldest = _lru.Last!;
+                        _map.Remove(oldest.Value);
+                        _lru.RemoveLast();
+                    }
+                }
+            }
+
+            public void Clear()
+            {
+                lock (_lock)
+                {
+                    _map.Clear();
+                    _lru.Clear();
+                }
+            }
+        }
+
+        private CachePool SelectPool(int targetWidth) =>
+            targetWidth > PreviewWidthThreshold ? _previewPool : _thumbnailPool;
 
         public void ClearCache()
         {
-            lock (_cacheLock)
-            {
-                _cache.Clear();
-                _leastRecentlyUsed.Clear();
-            }
+            _thumbnailPool.Clear();
+            _previewPool.Clear();
         }
 
         public async Task<ImageSource?> GetThumbnailAsync(string pdfPath, int pageIndex, int targetWidth = 320)
@@ -46,10 +100,11 @@ namespace PaperSwitch.Services
             if (!File.Exists(pdfPath) || pageIndex < 0) return null;
 
             string key = $"{pdfPath}|{pageIndex}|{targetWidth}";
-            if (TryGetCached(key, out var cached)) return cached;
+            var pool = SelectPool(targetWidth);
+            if (pool.TryGet(key, out var cached)) return cached;
 
             var lazyRender = _inflight.GetOrAdd(key, _ => new Lazy<Task<ImageSource?>>(
-                () => RenderAndCacheAsync(pdfPath, pageIndex, targetWidth, key)));
+                () => RenderAndCacheAsync(pdfPath, pageIndex, targetWidth, key, pool)));
 
             try
             {
@@ -61,23 +116,72 @@ namespace PaperSwitch.Services
             }
         }
 
-        private bool TryGetCached(string key, out ImageSource? image)
+        /// <summary>
+        /// 針對同一份 PDF 開檔一次並渲染多頁縮圖，渲染完隨即釋放文件句柄（不鎖檔）。
+        /// </summary>
+        public async Task<Dictionary<int, ImageSource?>> GetThumbnailsForPdfAsync(
+            string pdfPath,
+            IReadOnlyList<int> pageIndices,
+            int targetWidth = 360,
+            CancellationToken cancellationToken = default)
         {
-            lock (_cacheLock)
+            var results = new Dictionary<int, ImageSource?>(pageIndices.Count);
+            if (!File.Exists(pdfPath) || pageIndices.Count == 0) return results;
+
+            var pool = SelectPool(targetWidth);
+            var missing = new List<int>();
+            foreach (int pageIndex in pageIndices)
             {
-                if (_cache.TryGetValue(key, out var entry))
+                if (pageIndex < 0 || results.ContainsKey(pageIndex)) continue;
+                string key = $"{pdfPath}|{pageIndex}|{targetWidth}";
+                if (pool.TryGet(key, out var cached))
                 {
-                    _leastRecentlyUsed.Remove(entry.Node!);
-                    _leastRecentlyUsed.AddFirst(entry.Node!);
-                    image = entry.Image;
-                    return true;
+                    results[pageIndex] = cached;
+                }
+                else
+                {
+                    missing.Add(pageIndex);
                 }
             }
-            image = null;
-            return false;
+
+            if (missing.Count == 0 || cancellationToken.IsCancellationRequested) return results;
+
+            try
+            {
+                var storageFile = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(pdfPath));
+                var pdfDoc = await PdfDocument.LoadFromFileAsync(storageFile);
+
+                foreach (int pageIndex in missing)
+                {
+                    if (cancellationToken.IsCancellationRequested) break;
+                    if (pageIndex >= (int)pdfDoc.PageCount)
+                    {
+                        results[pageIndex] = null;
+                        continue;
+                    }
+
+                    var image = await RenderPageCoreAsync(pdfDoc, pageIndex, targetWidth);
+                    string key = $"{pdfPath}|{pageIndex}|{targetWidth}";
+                    pool.Put(key, image);
+                    results[pageIndex] = image;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ThumbnailCacheService] 批次縮圖渲染失敗 {pdfPath}: {ex.Message}");
+                foreach (int pageIndex in missing)
+                {
+                    if (results.ContainsKey(pageIndex)) continue;
+                    var fallback = CreateFallbackThumbnail(pageIndex + 1);
+                    pool.Put($"{pdfPath}|{pageIndex}|{targetWidth}", fallback);
+                    results[pageIndex] = fallback;
+                }
+            }
+
+            return results;
         }
 
-        private async Task<ImageSource?> RenderAndCacheAsync(string pdfPath, int pageIndex, int targetWidth, string key)
+        private async Task<ImageSource?> RenderAndCacheAsync(string pdfPath, int pageIndex, int targetWidth, string key, CachePool pool)
         {
             ImageSource image;
             try
@@ -85,16 +189,7 @@ namespace PaperSwitch.Services
                 var storageFile = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(pdfPath));
                 var pdfDoc = await PdfDocument.LoadFromFileAsync(storageFile);
                 if (pageIndex >= (int)pdfDoc.PageCount) return null;
-
-                using var page = pdfDoc.GetPage((uint)pageIndex);
-                using var memStream = new InMemoryRandomAccessStream();
-                var options = new PdfPageRenderOptions { DestinationWidth = (uint)Math.Max(1, targetWidth) };
-                await page.RenderToStreamAsync(memStream, options);
-                memStream.Seek(0);
-                using var netStream = memStream.AsStreamForRead();
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = netStream; bitmap.EndInit(); bitmap.Freeze();
-                image = bitmap;
+                image = await RenderPageCoreAsync(pdfDoc, pageIndex, targetWidth);
             }
             catch (Exception ex)
             {
@@ -102,18 +197,25 @@ namespace PaperSwitch.Services
                 image = CreateFallbackThumbnail(pageIndex + 1);
             }
 
-            lock (_cacheLock)
-            {
-                var node = _leastRecentlyUsed.AddFirst(key);
-                _cache[key] = new CacheEntry(image) { Node = node };
-                while (_cache.Count > MaximumCacheEntries)
-                {
-                    var oldest = _leastRecentlyUsed.Last!;
-                    _cache.Remove(oldest.Value);
-                    _leastRecentlyUsed.RemoveLast();
-                }
-            }
+            pool.Put(key, image);
             return image;
+        }
+
+        private static async Task<ImageSource> RenderPageCoreAsync(PdfDocument pdfDoc, int pageIndex, int targetWidth)
+        {
+            using var page = pdfDoc.GetPage((uint)pageIndex);
+            using var memStream = new InMemoryRandomAccessStream();
+            var options = new PdfPageRenderOptions { DestinationWidth = (uint)Math.Max(1, targetWidth) };
+            await page.RenderToStreamAsync(memStream, options);
+            memStream.Seek(0);
+            using var netStream = memStream.AsStreamForRead();
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = netStream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
         }
 
         /// <summary>

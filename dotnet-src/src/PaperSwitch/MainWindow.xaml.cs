@@ -37,6 +37,13 @@ namespace PaperSwitch
         {
             InitializeComponent();
             CanvasContextMenu.DataContext = ViewModel;
+            ViewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(MainViewModel.ZoomLevel) or nameof(MainViewModel.TotalPageCount))
+                {
+                    ScheduleViewportThumbnailSync();
+                }
+            };
             _dragScrollTimer.Tick += DragScrollTimer_Tick;
             _viewportSyncTimer.Tick += ViewportSyncTimer_Tick;
             Closed += (_, _) =>
@@ -769,18 +776,21 @@ namespace PaperSwitch
             DropInsertionSlot.Visibility = Visibility.Visible;
         }
 
-        private void MainScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        private void ScheduleViewportThumbnailSync()
         {
             if (ViewModel.Pages.Count <= 120) return;
             _viewportSyncTimer.Stop();
             _viewportSyncTimer.Start();
         }
 
+        private void MainScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            ScheduleViewportThumbnailSync();
+        }
+
         private void MainScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (ViewModel.Pages.Count <= 120) return;
-            _viewportSyncTimer.Stop();
-            _viewportSyncTimer.Start();
+            ScheduleViewportThumbnailSync();
         }
 
         private void ViewportSyncTimer_Tick(object? sender, EventArgs e)

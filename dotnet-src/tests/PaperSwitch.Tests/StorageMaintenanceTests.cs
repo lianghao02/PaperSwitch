@@ -24,11 +24,46 @@ namespace PaperSwitch.Tests
                 Assert.False(File.Exists(unused));
                 Assert.Equal(1, result.DeletedFileCount);
                 Assert.Empty(result.FailedPaths);
-                Assert.Equal(1, Directory.GetFiles(dir).Length);
+                Assert.Single(Directory.GetFiles(dir));
             }
             finally
             {
                 Directory.Delete(dir, true);
+            }
+        }
+
+        [Fact]
+        public void ClearStaleSessionDirectories_DeletesDeadSessionsAndPreservesLiveInstance()
+        {
+            string root = Path.Combine(Path.GetTempPath(), $"paperswitch-sessions-{Guid.NewGuid():N}");
+            string currentSession = Path.Combine(root, "100-current");
+            string livePeerSession = Path.Combine(root, "200-livepeer");
+            string crashedSession = Path.Combine(root, "300-crashed");
+            Directory.CreateDirectory(currentSession);
+            Directory.CreateDirectory(livePeerSession);
+            Directory.CreateDirectory(crashedSession);
+            File.WriteAllText(Path.Combine(currentSession, "cur.pdf"), "cur");
+            File.WriteAllText(Path.Combine(livePeerSession, "peer.pdf"), "peer");
+            File.WriteAllText(Path.Combine(crashedSession, "stale.pdf"), "stale");
+
+            try
+            {
+                var result = new StorageCleanupResult();
+                StorageMaintenanceService.ClearStaleSessionDirectories(
+                    root,
+                    currentSession,
+                    result,
+                    pid => pid == 200);
+
+                Assert.True(Directory.Exists(currentSession));
+                Assert.True(Directory.Exists(livePeerSession));
+                Assert.True(File.Exists(Path.Combine(livePeerSession, "peer.pdf")));
+                Assert.False(Directory.Exists(crashedSession));
+                Assert.Equal(1, result.DeletedFileCount);
+            }
+            finally
+            {
+                Directory.Delete(root, true);
             }
         }
     }

@@ -61,19 +61,10 @@ namespace PaperSwitch.Services
         }
 
         /// <summary>
-        /// 清理檔名中的非法字元
+        /// 清理檔名中的非法字元（委派至共用命名規範）
         /// </summary>
-        public static string SanitizeFileName(string fileName, string fallback = "PaperSwitch_Page")
-        {
-            if (string.IsNullOrWhiteSpace(fileName)) return fallback;
-            string clean = fileName.Trim();
-            foreach (char invalid in Path.GetInvalidFileNameChars())
-            {
-                clean = clean.Replace(invalid, '_');
-            }
-            clean = clean.Trim('.', ' ', '_');
-            return string.IsNullOrWhiteSpace(clean) ? fallback : clean;
-        }
+        public static string SanitizeFileName(string fileName, string fallback = "PaperSwitch_Page") =>
+            ExportFileNaming.SanitizeFileName(fileName, fallback);
 
         /// <summary>
         /// 渲染單一 PDF 頁面為 BitmapSource，若有旋轉角度則套用旋轉

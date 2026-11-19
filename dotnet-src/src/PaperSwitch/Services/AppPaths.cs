@@ -17,7 +17,9 @@ namespace PaperSwitch.Services
 
         private static readonly string SessionId = $"{Environment.ProcessId}-{Guid.NewGuid():N}";
 
-        public static string TemporaryConversionDirectory => EnsureDirectory(Path.Combine(DataDirectory, "temp_converted", SessionId));
+        public static string TemporaryRootDirectory => EnsureDirectory(Path.Combine(DataDirectory, "temp_converted"));
+
+        public static string TemporaryConversionDirectory => EnsureDirectory(Path.Combine(TemporaryRootDirectory, SessionId));
 
         public static string CrashLogPath => Path.Combine(DataDirectory, "crash.log");
 

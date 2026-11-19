@@ -36,18 +36,15 @@ namespace PaperSwitch.Services
 
         private const string DefaultRepoOwner = "lianghao02";
         private const string DefaultRepoName = "PaperSwitch";
-        private static readonly HttpClient _httpClient = new()
-        {
-            Timeout = TimeSpan.FromSeconds(8)
-        };
+        private static readonly HttpClient _apiHttpClient = CreateHttpClient(TimeSpan.FromSeconds(8));
+        private static readonly HttpClient _downloadHttpClient = CreateHttpClient(TimeSpan.FromMinutes(10));
 
-        static UpdateService()
+        private static HttpClient CreateHttpClient(TimeSpan timeout)
         {
+            var client = new HttpClient { Timeout = timeout };
             // GitHub API 強制要求合法的 User-Agent header
-            if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
-            {
-                _httpClient.DefaultRequestHeaders.Add("User-Agent", "PaperSwitch-WPF-Client");
-            }
+            client.DefaultRequestHeaders.Add("User-Agent", "PaperSwitch-WPF-Client");
+            return client;
         }
 
         /// <summary>
@@ -112,7 +109,7 @@ namespace PaperSwitch.Services
 
             try
             {
-                using var response = await _httpClient.GetAsync(apiUrl);
+                using var response = await _apiHttpClient.GetAsync(apiUrl);
                 if (!response.IsSuccessStatusCode)
                 {
                     var statusCode = (int)response.StatusCode;
@@ -209,6 +206,11 @@ namespace PaperSwitch.Services
                 return UpdateApplyResult.Failed("無法確認目前執行檔位置，無法安全自動更新。");
             }
 
+            if (IsMultiFileDeployment(currentExe))
+            {
+                return UpdateApplyResult.Failed("目前執行的是多檔部署版本，為避免舊版相依元件殘留，不支援直接覆寫為獨立單檔版；請改用 Release 頁面手動下載新版。");
+            }
+
             string? currentDirectory = Path.GetDirectoryName(currentExe);
             if (string.IsNullOrWhiteSpace(currentDirectory) || !CanWriteToDirectory(currentDirectory))
             {
@@ -221,9 +223,10 @@ namespace PaperSwitch.Services
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "PaperSwitch", "updates");
                 Directory.CreateDirectory(updateDirectory);
+                CleanupOldUpdateArtifacts(updateDirectory);
 
                 string downloadedExe = Path.Combine(updateDirectory, $"{Path.GetFileNameWithoutExtension(update.AssetName)}_{Guid.NewGuid():N}.exe");
-                await using (var source = await _httpClient.GetStreamAsync(update.AssetDownloadUrl))
+                await using (var source = await _downloadHttpClient.GetStreamAsync(update.AssetDownloadUrl))
                 await using (var destination = new FileStream(downloadedExe, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 128, useAsync: true))
                 {
                     await source.CopyToAsync(destination);
@@ -253,6 +256,10 @@ namespace PaperSwitch.Services
                 });
 
                 return UpdateApplyResult.Started("新版已下載並完成 SHA-256 驗證，程式關閉後會自動替換並重新啟動。");
+            }
+            catch (TaskCanceledException)
+            {
+                return UpdateApplyResult.Failed("下載更新檔逾時，請確認網路連線速度穩定後再試，或改用手動下載。");
             }
             catch (HttpRequestException ex)
             {
@@ -322,7 +329,37 @@ namespace PaperSwitch.Services
             }
         }
 
-        private static string BuildUpdaterScript(int processId, string currentExe, string downloadedExe, string latestVersion)
+        internal static bool IsMultiFileDeployment(string exePath)
+        {
+            string? dir = Path.GetDirectoryName(exePath);
+            if (string.IsNullOrWhiteSpace(dir)) return false;
+            return File.Exists(Path.Combine(dir, "PaperSwitch.dll"))
+                && File.Exists(Path.Combine(dir, "PaperSwitch.deps.json"));
+        }
+
+        private static void CleanupOldUpdateArtifacts(string updateDirectory)
+        {
+            try
+            {
+                DateTime cutoff = DateTime.UtcNow.AddHours(-1);
+                foreach (var file in Directory.EnumerateFiles(updateDirectory))
+                {
+                    string ext = Path.GetExtension(file);
+                    if (!ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) &&
+                        !ext.Equals(".exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    if (File.GetLastWriteTimeUtc(file) < cutoff)
+                    {
+                        try { File.Delete(file); } catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        internal static string BuildUpdaterScript(int processId, string currentExe, string downloadedExe, string latestVersion)
         {
             string escapedCurrentExe = currentExe.Replace("\"", "\"\"");
             string escapedDownloadedExe = downloadedExe.Replace("\"", "\"\"");
@@ -331,11 +368,17 @@ namespace PaperSwitch.Services
 
             return $"@echo off\r\n" +
                    "setlocal\r\n" +
-                   $":wait\r\ntasklist /FI \"PID eq {processId}\" /NH | find \"{processId}\" >nul\r\n" +
+                   $"powershell.exe -NoProfile -Command \"Wait-Process -Id {processId} -ErrorAction SilentlyContinue\" >nul 2>nul\r\n" +
+                   ":wait\r\n" +
+                   $"tasklist /FI \"PID eq {processId}\" /FO LIST | findstr /R /C:\"PID:  *{processId}$\" >nul\r\n" +
                    "if not errorlevel 1 (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
                    $"move /Y \"{escapedCurrentExe}\" \"{escapedCurrentExe}.bak\" >nul\r\n" +
                    $"move /Y \"{escapedDownloadedExe}\" \"{escapedCurrentExe}\" >nul\r\n" +
-                   $"if not exist \"{escapedCurrentExe}\" goto cleanup\r\n" +
+                   $"if not exist \"{escapedCurrentExe}\" (\r\n" +
+                   $"    if exist \"{escapedCurrentExe}.bak\" move /Y \"{escapedCurrentExe}.bak\" \"{escapedCurrentExe}\" >nul\r\n" +
+                   "    goto cleanup\r\n" +
+                   ")\r\n" +
+                   $"if exist \"{escapedCurrentExe}.bak\" del /F /Q \"{escapedCurrentExe}.bak\" >nul 2>nul\r\n" +
                    $"> \"{versionFile}\" echo {version}\r\n" +
                    $"start \"\" \"{escapedCurrentExe}\"\r\n" +
                    $":cleanup\r\ndel \"%~f0\"\r\n";

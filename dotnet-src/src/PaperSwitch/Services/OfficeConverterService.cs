@@ -315,8 +315,7 @@ namespace PaperSwitch.Services
                             foreach (dynamic ws in validSheets)
                             {
                                 string sheetName = ws.Name;
-                                string safeSheetName = string.Join("_", sheetName.Split(Path.GetInvalidFileNameChars())).Trim();
-                                if (string.IsNullOrEmpty(safeSheetName)) safeSheetName = "工作表";
+                                string safeSheetName = ExportFileNaming.SanitizeFileName(sheetName, "工作表");
 
                                 var sheetPdfPath = Path.Combine(outputDir, $"{stem}_{safeSheetName}.pdf");
                                 int counter = 1;

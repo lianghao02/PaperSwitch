@@ -1,5 +1,13 @@
 # 📝 變更歷史 (CHANGELOG)
 
+## 🏆 v4.8.0 (2026-11-19) - 工作桌與燈箱右鍵匯出、大頁數縮圖與更新器強化
+
+### 新增與改善
+- **工作桌與燈箱右鍵匯出**：工作桌卡片與空白畫布加入 2D 工坊風格右鍵選單（單頁匯出、多頁合併 PDF／拆分獨立 PDF／PNG、大圖預覽、旋轉、同來源選取、刪除）；燈箱預覽區右鍵簡化為僅匯出目前這頁，透過 `LightboxHostCallbacks` 與 `MainViewModel.ExportCustomPagesAsync` 解耦共用管線。
+- **自動更新器強化**：將 GitHub API 與大檔下載的 `HttpClient` 逾時分離（8 秒 vs 10 分鐘）、改以精確 `Wait-Process`＋CSV/LIST PID 錨定並清理 `.bak` 備份，並阻擋多檔 AppHost 部署原地覆寫為單檔版。
+- **大頁數與暫存回收強化**：同份 PDF 改以批次開啟一次渲染縮圖並分離縮圖／高解析預覽快取池；縮放滑桿（`ZoomLevel`）與總頁數變動補上可視區縮圖同步；「清除暫存」一併回收已結束／異常終止之舊工作階段暫存目錄（保留其他執行中實例）。
+- **介面與結構調整**：對話框依附目前頂層可見視窗；`RenameDialog` 改為自適應高度；移除 `F2` 重新命名入口；集中 `ExportFileNaming.SanitizeFileName` 並以局部類別拆分 `MainViewModel` 職責；同步 `README.md` 與清除 `xUnit2013` 測試警告。
+
 ## 🏆 v4.7.1 (2026-11-15) - 單列匯出與拖曳修正
 
 ### 改善與修正
