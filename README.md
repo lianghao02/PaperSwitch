@@ -85,6 +85,26 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
    - **PDF 頁碼**：勾選「PDF 加上頁碼」後，可選左下、下方置中、右下，以及 8、10、12、14、16、18、24 pt。預設關閉；開啟時預設下方置中、12 pt，依本次匯出順序從 1 編號，拆分 PDF 也連續編號。PNG 不套用此設定。頁碼疊在頁面底部，若原稿已有頁尾，請留意可能重疊。
    - 畫布沒有頁面時，四個匯出按鈕皆停用，仍可開啟輸出資料夾。停用按鈕保留可閱讀文字及原因提示。
 
+```mermaid
+flowchart TD
+    A["拖入 PDF / Office / 圖片"] --> B{"檔案類型"}
+    B -->|"Word / Excel / PPT"| C["OfficeConverterService\n獨立 STA 執行緒＋佇列轉為暫存 PDF"]
+    C --> D{"偵測到 IGEF 加密格式?\n(約 5 秒攔截，PDF 等待上限 90 秒)"}
+    D -->|"是"| E["拒絕載入並保留暫存\n提示取得標準可讀 PDF"]
+    D -->|"否"| F["PdfImportService\n開檔一次讀取頁數與尺寸"]
+    B -->|"PDF / 圖片"| F
+
+    F --> G["ThumbnailCacheService 雙 LRU 快取池\n縮圖池上限 360 張 / 燈箱大圖池上限 8 張 (分界 720px)"]
+    G --> H["工作桌排版與燈箱檢視\n(拖曳、旋轉、空白頁、Ctrl+Z/Y 歷史記錄)"]
+
+    H --> I["ExportCoordinator.Snapshot\n鎖定當下頁面與匯出設定快照"]
+    I --> J{"檢查來源頁數完整性\n(拒絕靜默漏頁)"}
+    J -->|"缺頁錯誤"| K["中止並提示重新匯入"]
+    J -->|"通過"| L{"匯出類型"}
+    L -->|"全合併 / 選取合併 / 全拆分"| M["PdfService (PdfSharp 向量合併與頁碼)\n產出 PDF"]
+    L -->|"轉成圖片"| N["ImageExportService\n輸出 PNG"]
+```
+
 ---
 
 ## 🌟 核心特色與技術亮點
@@ -139,15 +159,19 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 │   │       ├── App.xaml / App.xaml.cs
 │   │       ├── MainWindow.xaml / MainWindow.xaml.cs
 │   │       ├── LightboxWindow.xaml / LightboxWindow.xaml.cs
+│   │       ├── GameDialog.xaml.cs
 │   │       ├── RenameDialog.xaml / RenameDialog.xaml.cs
-│   │       ├── Models/ (PaperItem.cs, ExportOptions.cs, ConversionResult.cs)
-│   │       ├── ViewModels/ (MainViewModel.cs, LightboxViewModel.cs)
+│   │       ├── Controls/ (ActionIcon.cs, PreviewCursors.cs, WorkshopArt.cs)
+│   │       ├── Models/ (PaperItem.cs, ConversionTaskItem.cs, ExportOptions.cs, ConversionResult.cs)
+│   │       ├── ViewModels/ (MainViewModel.cs, MainViewModel.Arrangement.cs, MainViewModel.Conversion.cs, LightboxViewModel.cs)
 │   │       ├── Services/
-│   │       │   ├── PdfService.cs
-│   │       │   ├── OfficeConverterService.cs
+│   │       │   ├── PdfService.cs / PdfImportService.cs
+│   │       │   ├── OfficeConverterService.cs / ImageConverterService.cs
 │   │       │   ├── ThumbnailCacheService.cs
-│   │       │   ├── ImageConverterService.cs
-│   │       │   ├── StorageMaintenanceService.cs
+│   │       │   ├── ExportCoordinator.cs / ImageExportService.cs
+│   │       │   ├── ExportFileNaming.cs / ExportPreferencesStore.cs
+│   │       │   ├── ArrangementHistory.cs / AtomicOutput.cs / PageRangeSelection.cs
+│   │       │   ├── StorageMaintenanceService.cs / UpdateService.cs
 │   │       │   └── AppPaths.cs
 │   │       ├── Styles/ (GameWorkshop.xaml, WarmCozyTheme.xaml, Colors.xaml)
 │   │       └── PaperSwitch.csproj
