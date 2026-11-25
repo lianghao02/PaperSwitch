@@ -1,4 +1,4 @@
-# 📑 PaperSwitch 紙張排版工坊 v4.8.0
+# 📑 PaperSwitch 紙張排版工坊 v4.8.1
 
 [![Release](https://img.shields.io/github/v/release/lianghao02/PaperSwitch?color=orange&label=Release)](https://github.com/lianghao02/PaperSwitch/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%20.NET%208%20LTS-blue.svg)](https://dotnet.microsoft.com/)
@@ -9,12 +9,11 @@
 
 ---
 
-## v4.8.0 更新重點
+## v4.8.1 更新重點
 
-- 工作桌卡片／空白畫布與大圖燈箱加入右鍵快速匯出（合併 PDF、拆分獨立 PDF、PNG）及頁面操作。
-- 自動更新器分離 API 與下載逾時、精確 PID 錨定、清理 `.bak` 備份並阻擋多檔 AppHost 原地覆寫為單檔版。
-- 大頁數 PDF 改為批次渲染縮圖並分離縮圖／高解析快取池，縮放與頁數變動即時補圖，清除暫存同步回收孤兒工作階段目錄。
-- 對話框自適應高度並對齊頂層可見視窗，移除過時 `F2` 重新命名入口與清理舊建置警告。
+- 補齊「＋ 加入檔案」篩選清單（納入 `.xlsm`、`.xlsb`、`.csv`、`.rtf`、`.ppsx`、`.pps`、`.tif`、`.tiff`、`.ico`），並支援多頁 TIFF 逐頁展開為 PDF。
+- `GetVisualColumnCount()` 改為實測工作桌第一排卡片數＋精準 padding 備援，修正寬螢幕鍵盤 `↑`/`↓` 導航偏移。
+- 收合左側 `☰ 工具盒` 時完整隱藏側欄（釋放約 100px 寬度）並在綠標題帶顯示展開鈕，轉檔任務清單補上右側捲軸留白並校正 `README.md` 快捷鍵說明。
 
 完整更新內容見 [CHANGELOG](CHANGELOG.md)。
 ## 專案概念與開發原因
@@ -31,7 +30,7 @@ PaperSwitch 將 PDF、Office 文件與圖片集中為可預覽、排序及匯出
 
 | 下載檔案類型 | 檔案名稱 | 適用對象與說明 |
 | :--- | :--- | :--- |
-| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.8.0-Standalone.exe`** | 內嵌完整 .NET 8 執行環境，可直接開啟工坊；Office 文件轉換仍需本機安裝 Microsoft Office。 |
+| 🌟 **免安裝獨立單檔版<br>（官方推薦）** | **`PaperSwitch-v4.8.1-Standalone.exe`** | 內嵌完整 .NET 8 執行環境，可直接開啟工坊；Office 文件轉換仍需本機安裝 Microsoft Office。 |
 | 🛡️ **SHA-256 校驗清單** | **`SHA256SUMS.txt`** | 提供發行成品 SHA-256 雜湊值供安全性核對。 |
 
 ### 💡 首次啟動與使用須知

@@ -1,5 +1,12 @@
 # 📝 變更歷史 (CHANGELOG)
 
+## 🏆 v4.8.1 (2026-11-25) - 多頁 TIFF 展開、選檔補齊與收合工具盒釋放工作桌
+
+### 改善與修正
+- **選檔清單與多頁 TIFF 展開**：補齊「＋ 加入檔案」`OpenFileDialog` 篩選清單（`.xlsm`、`.xlsb`、`.csv`、`.rtf`、`.ppsx`、`.pps`、`.tif`、`.tiff`、`.ico`），並讓 `ImageConverterService` 將多頁 TIFF 逐幀展開為多頁 PDF（其餘圖片維持單幀）。
+- **鍵盤導航與工作桌版面釋放**：`MainWindow.GetVisualColumnCount()` 改為實測第一排卡片個數＋精準備援計算；收合左側 `☰ 工具盒` 時隐藏整個 `SidebarPanel` 並在綠標題列顯示展開鈕，釋放左側空白寬度；任務列表補上右側 `4px` 留白並校正 `README.md` 快捷鍵說明。
+- **驗證**：全方案 127/127 測試通過（0 警告、0 錯誤），完成 `PaperSwitch-v4.8.1-Standalone.exe` 單檔建置。
+
 ## 🏆 v4.8.0 (2026-11-19) - 工作桌與燈箱右鍵匯出、大頁數縮圖與更新器強化
 
 ### 新增與改善

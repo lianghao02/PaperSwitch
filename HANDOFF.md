@@ -5,7 +5,7 @@
 - **Branch**：main
 - **Commit SHA**：dc2d1e70c34920244b2c9d0398d4b67db23b1593（基準標籤 v4.8.0；本輪細節修訂尚未提交）
 - **Skill Version**：v1.0.0
-- **Task Type**：FIX
+- **Task Type**：RELEASE
 - **Local Path Hint**：09_PaperSwitch
 
 ---
@@ -41,7 +41,7 @@
 
 ## 刻意未修改 (Do Not Do / Deliberately Omitted)
 - 維持既有 2D Q 版文具工坊配置與極簡工作流程，不額外堆疊複雜功能或改寫虛擬化面板。
-- 未升版（仍維持 v4.8.0，僅提交修訂至 `main`）。
+- 已升版至 `v4.8.1`（完成 `PaperSwitch-v4.8.1-Standalone.exe` 單檔封裝與 GitHub Release 發布）。
 
 ## 尚未完成 (Remaining Work)
 - **P1 (阻斷/必須)**：無。
@@ -62,4 +62,4 @@
 - Branch：main。
 
 ## 下一步建議動作 (Next Recommended Action)
-目前版本已穩定可日常使用；若後續需要對外釋出新執行檔，再依 Release 流程升版打包即可。
+目前版本 `v4.8.1` 已穩定交付並完成發布；後續僅於實際 Bug 或需求時重開維護。
