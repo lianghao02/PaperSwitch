@@ -57,41 +57,50 @@ namespace PaperSwitch.Services
                             byte[] bytes = File.ReadAllBytes(imgPath);
                             using var ms = new MemoryStream(bytes);
                             
-                            // 透過 WPF Decoder 取得正確的寬高與方向
+                            // 透過 WPF Decoder 取得正確的寬高與方向；多頁 TIFF 逐頁展開，其餘格式取首幀
                             var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-                            var frame = decoder.Frames[0];
+                            string ext = Path.GetExtension(imgPath);
+                            bool isMultiPageTiff = ext.Equals(".tif", StringComparison.OrdinalIgnoreCase)
+                                                || ext.Equals(".tiff", StringComparison.OrdinalIgnoreCase)
+                                                || decoder is TiffBitmapDecoder;
+                            IEnumerable<BitmapFrame> framesToConvert = isMultiPageTiff
+                                ? decoder.Frames
+                                : new[] { decoder.Frames[0] };
 
-                        double pixelWidth = frame.PixelWidth;
-                        double pixelHeight = frame.PixelHeight;
+                            foreach (var frame in framesToConvert)
+                            {
+                                double pixelWidth = frame.PixelWidth;
+                                double pixelHeight = frame.PixelHeight;
 
-                        // 依據 96 DPI 換算為 PDF 點數 (Point: 72 points per inch)
-                        double dpiX = frame.DpiX > 0 ? frame.DpiX : 96.0;
-                        double dpiY = frame.DpiY > 0 ? frame.DpiY : 96.0;
+                                // 依據 96 DPI 換算為 PDF 點數 (Point: 72 points per inch)
+                                double dpiX = frame.DpiX > 0 ? frame.DpiX : 96.0;
+                                double dpiY = frame.DpiY > 0 ? frame.DpiY : 96.0;
 
-                        double ptWidth = (pixelWidth / dpiX) * 72.0;
-                        double ptHeight = (pixelHeight / dpiY) * 72.0;
+                                double ptWidth = (pixelWidth / dpiX) * 72.0;
+                                double ptHeight = (pixelHeight / dpiY) * 72.0;
 
-                        var page = document.AddPage();
-                        page.Width = XUnit.FromPoint(ptWidth);
-                        page.Height = XUnit.FromPoint(ptHeight);
+                                var page = document.AddPage();
+                                page.Width = XUnit.FromPoint(ptWidth);
+                                page.Height = XUnit.FromPoint(ptHeight);
 
-                        using var gfx = XGraphics.FromPdfPage(page);
-                        
-                        // 將所有 WPF 可解碼格式先正規化為 PNG，避免 PdfSharp 直接讀取來源格式
-                        // （尤其 WebP、GIF、部分螢幕擷圖）時產生空白 PDF 頁面。
-                        var pngEncoder = new PngBitmapEncoder();
-                        pngEncoder.Frames.Add(frame);
-                        using var normalizedPng = new MemoryStream();
-                        pngEncoder.Save(normalizedPng);
-                        byte[] pngBytes = normalizedPng.ToArray();
+                                using var gfx = XGraphics.FromPdfPage(page);
 
-                            // PdfSharp 會在 document.Save 時才讀取影像資料，必須保留來源串流與 XImage 至存檔完成。
-                            var normalizedPngRead = new MemoryStream(pngBytes.Length);
-                            normalizedPngRead.Write(pngBytes, 0, pngBytes.Length);
-                            normalizedPngRead.Position = 0;
-                            var xImage = XImage.FromStream(normalizedPngRead);
-                            imageResources.Add((normalizedPngRead, xImage));
-                            gfx.DrawImage(xImage, 0, 0, ptWidth, ptHeight);
+                                // 將所有 WPF 可解碼格式先正規化為 PNG，避免 PdfSharp 直接讀取來源格式
+                                // （尤其 WebP、GIF、TIFF、部分螢幕擷圖）時產生空白 PDF 頁面。
+                                var pngEncoder = new PngBitmapEncoder();
+                                pngEncoder.Frames.Add(frame);
+                                using var normalizedPng = new MemoryStream();
+                                pngEncoder.Save(normalizedPng);
+                                byte[] pngBytes = normalizedPng.ToArray();
+
+                                // PdfSharp 會在 document.Save 時才讀取影像資料，必須保留來源串流與 XImage 至存檔完成。
+                                var normalizedPngRead = new MemoryStream(pngBytes.Length);
+                                normalizedPngRead.Write(pngBytes, 0, pngBytes.Length);
+                                normalizedPngRead.Position = 0;
+                                var xImage = XImage.FromStream(normalizedPngRead);
+                                imageResources.Add((normalizedPngRead, xImage));
+                                gfx.DrawImage(xImage, 0, 0, ptWidth, ptHeight);
+                            }
                         }
                         catch (Exception ex)
                         {

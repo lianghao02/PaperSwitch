@@ -42,5 +42,28 @@ namespace PaperSwitch.Tests
             var bitmapSource = Assert.IsAssignableFrom<BitmapSource>(thumbnail);
             Assert.True(bitmapSource.PixelWidth >= 120);
         }
+
+        [Fact]
+        public void ConvertImagesToPdf_MultiPageTiff_CreatesAllPages()
+        {
+            string tiffPath = Path.Combine(_testDirectory, "scan_multi.tiff");
+            string pdfPath = Path.Combine(_testDirectory, "scan_multi.pdf");
+
+            var encoder = new TiffBitmapEncoder();
+            for (int i = 0; i < 3; i++)
+            {
+                var wb = new WriteableBitmap(64, 96, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
+                encoder.Frames.Add(BitmapFrame.Create(wb));
+            }
+            using (var fs = new FileStream(tiffPath, FileMode.Create, FileAccess.Write))
+            {
+                encoder.Save(fs);
+            }
+
+            bool converted = ImageConverterService.Instance.ConvertImagesToPdf(new[] { tiffPath }, pdfPath);
+
+            Assert.True(converted);
+            Assert.Equal(3, PdfService.Instance.GetPageCount(pdfPath));
+        }
     }
 }

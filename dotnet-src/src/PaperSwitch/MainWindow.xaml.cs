@@ -198,13 +198,32 @@ namespace PaperSwitch
             }
         }
 
-        private int GetVisualColumnCount()
+        internal int GetVisualColumnCount()
         {
-            const double cardHorizontalMargin = 20.0;
+            if (ViewModel.Pages.Count > 1 &&
+                CardsItemsControl.ItemContainerGenerator.ContainerFromIndex(0) is FrameworkElement first &&
+                first.ActualHeight > 0)
+            {
+                double firstTop = first.TranslatePoint(new Point(0, 0), CardsItemsControl).Y;
+                int rowCount = 1;
+                for (int i = 1; i < ViewModel.Pages.Count; i++)
+                {
+                    if (CardsItemsControl.ItemContainerGenerator.ContainerFromIndex(i) is not FrameworkElement item || item.ActualHeight <= 0)
+                        break;
+                    double itemTop = item.TranslatePoint(new Point(0, 0), CardsItemsControl).Y;
+                    if (Math.Abs(itemTop - firstTop) > first.ActualHeight * 0.5)
+                        break;
+                    rowCount++;
+                }
+                if (rowCount >= 1) return rowCount;
+            }
+
+            const double cardHorizontalMargin = 10.0;
             double availableWidth = MainScrollViewer.ViewportWidth;
             if (availableWidth <= 0) availableWidth = MainScrollViewer.ActualWidth;
+            double usableWidth = Math.Max(1.0, availableWidth - MainScrollViewer.Padding.Left - MainScrollViewer.Padding.Right);
 
-            return Math.Max(1, (int)(availableWidth / (ViewModel.ZoomLevel + cardHorizontalMargin)));
+            return Math.Max(1, (int)(usableWidth / (ViewModel.ZoomLevel + cardHorizontalMargin)));
         }
 
         private void NavigateSelection(int delta, bool extendSelection)
@@ -982,7 +1001,7 @@ namespace PaperSwitch
             {
                 Multiselect = true,
                 Title = "選取要加入排版工坊的文件或圖片",
-                Filter = "所有支援格式 (*.pdf;*.docx;*.doc;*.xlsx;*.xls;*.pptx;*.ppt;*.png;*.jpg;*.webp)|*.pdf;*.docx;*.doc;*.xlsx;*.xls;*.pptx;*.ppt;*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif|PDF 文件 (*.pdf)|*.pdf|Word 文件 (*.docx;*.doc)|*.docx;*.doc|Excel 試算表 (*.xlsx;*.xls)|*.xlsx;*.xls|PowerPoint 簡報 (*.pptx;*.ppt)|*.pptx;*.ppt|圖片檔案 (*.png;*.jpg;*.webp;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif|所有檔案 (*.*)|*.*"
+                Filter = "所有支援格式 (*.pdf;*.docx;*.doc;*.rtf;*.xlsx;*.xls;*.xlsm;*.xlsb;*.csv;*.pptx;*.ppt;*.ppsx;*.pps;*.png;*.jpg;*.webp;*.tif;*.tiff)|*.pdf;*.docx;*.doc;*.dotx;*.dot;*.rtf;*.xlsx;*.xls;*.xlsm;*.xlsb;*.csv;*.pptx;*.ppt;*.ppsx;*.pps;*.potx;*.pot;*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif;*.tif;*.tiff;*.ico|PDF 文件 (*.pdf)|*.pdf|Word 文件 (*.docx;*.doc;*.rtf)|*.docx;*.doc;*.dotx;*.dot;*.rtf|Excel 試算表 (*.xlsx;*.xls;*.xlsm;*.xlsb;*.csv)|*.xlsx;*.xls;*.xlsm;*.xlsb;*.csv|PowerPoint 簡報 (*.pptx;*.ppt;*.ppsx;*.pps)|*.pptx;*.ppt;*.ppsx;*.pps;*.potx;*.pot|圖片檔案 (*.png;*.jpg;*.webp;*.tif;*.tiff;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif;*.tif;*.tiff;*.ico|所有檔案 (*.*)|*.*"
             };
 
             if (dialog.ShowDialog() == true && dialog.FileNames.Length > 0)

@@ -461,5 +461,77 @@ namespace PaperSwitch.Tests
             Assert.True(thread.Join(TimeSpan.FromSeconds(15)), "工作桌右鍵選單驗證逾時。");
             if (failure != null) throw failure;
         }
+
+        [Fact]
+        public void MainWindow_CollapsedSidebar_FreesFullWidthAndMatchesVisualColumnsOnSta()
+        {
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                MainWindow? window = null;
+                try
+                {
+                    EnsureApplication();
+                    window = new MainWindow();
+                    var vm = (PaperSwitch.ViewModels.MainViewModel)window.DataContext;
+                    vm.ZoomLevel = 90;
+                    for (int i = 1; i <= 30; i++)
+                    {
+                        vm.Pages.Add(new PaperSwitch.Models.PaperItem
+                        {
+                            SourceFileName = "掃描多頁.pdf",
+                            DisplayPageNumber = i,
+                            TotalPagesInSource = 30,
+                            IsLoadingThumbnail = false
+                        });
+                    }
+
+                    string outDir = Environment.GetEnvironmentVariable("PAPERSWITCH_SNAPSHOT_DIR")
+                        ?? Path.Combine(Path.GetTempPath(), "PaperSwitch-ui-snapshots");
+                    Directory.CreateDirectory(outDir);
+                    RenderWindowToPng(window, Path.Combine(outDir, "sidebar_expanded.png"), 1280, 800);
+
+                    var scroll = (System.Windows.Controls.ScrollViewer)window.FindName("MainScrollViewer");
+                    var sidebarPanel = (FrameworkElement)window.FindName("SidebarPanel");
+                    var sidebarToggle = (System.Windows.Controls.Primitives.ToggleButton)window.FindName("SidebarToggle");
+                    var restoreToggle = (System.Windows.Controls.Primitives.ToggleButton)window.FindName("SidebarRestoreToggle");
+                    double expandedScrollWidth = scroll.ActualWidth;
+
+                    Assert.Equal(Visibility.Visible, sidebarPanel.Visibility);
+                    Assert.Equal(Visibility.Collapsed, restoreToggle.Visibility);
+
+                    sidebarToggle.IsChecked = true;
+                    window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                    RenderWindowToPng(window, Path.Combine(outDir, "sidebar_collapsed.png"), 1280, 800);
+
+                    Assert.Equal(Visibility.Collapsed, sidebarPanel.Visibility);
+                    Assert.Equal(Visibility.Visible, restoreToggle.Visibility);
+                    Assert.True(scroll.ActualWidth - expandedScrollWidth >= 200,
+                        $"收合工具盒後工作桌寬度應完整釋放（展開={expandedScrollWidth}，收合={scroll.ActualWidth}）");
+
+                    var itemsControl = (System.Windows.Controls.ItemsControl)window.FindName("CardsItemsControl");
+                    var first = (FrameworkElement)itemsControl.ItemContainerGenerator.ContainerFromIndex(0);
+                    double firstTop = first.TranslatePoint(new Point(0, 0), itemsControl).Y;
+                    int actualRowCount = 0;
+                    for (int i = 0; i < vm.Pages.Count; i++)
+                    {
+                        var container = (FrameworkElement)itemsControl.ItemContainerGenerator.ContainerFromIndex(i);
+                        if (Math.Abs(container.TranslatePoint(new Point(0, 0), itemsControl).Y - firstTop) <= first.ActualHeight * 0.5)
+                            actualRowCount++;
+                        else
+                            break;
+                    }
+
+                    Assert.Equal(actualRowCount, window.GetVisualColumnCount());
+                }
+                catch (Exception ex) { failure = ex; }
+                finally { window?.Close(); }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            Assert.True(thread.Join(TimeSpan.FromSeconds(15)), "收合工具盒與列數計算驗證逾時。");
+            if (failure != null) throw failure;
+        }
     }
 }

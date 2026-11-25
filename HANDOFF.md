@@ -3,76 +3,63 @@
 ## 核心元資料 (Metadata)
 - **Repository**：lianghao02/PaperSwitch
 - **Branch**：main
-- **Commit SHA**：v4.8.0 發布提交（以 `git rev-parse HEAD` 與 annotated tag `v4.8.0` 為準）
+- **Commit SHA**：dc2d1e70c34920244b2c9d0398d4b67db23b1593（基準標籤 v4.8.0；本輪細節修訂尚未提交）
 - **Skill Version**：v1.0.0
-- **Task Type**：RELEASE
+- **Task Type**：FIX
 - **Local Path Hint**：09_PaperSwitch
 
 ---
 
 ## 目前狀態
-已正式發布 **v4.8.0**（125/125 測試全數通過、全方案 0 警告 0 錯誤、標準 AppHost 版與免安裝獨立單檔版 `PaperSwitch-v4.8.0-Standalone.exe` 皆已建置並於中文含空白路徑啟動驗證通過，已推送 `main`、Tag `v4.8.0` 與 GitHub Release，並已清理舊版 Release／本機 `dist/release_assets/v4.7.1`）。
+已提交並推送至 `main`（於 v4.8.0 基準上完成選檔清單補齊、多頁 TIFF 展開、實測列數鍵盤導航修正、收合工具盒完全釋放工作桌寬度、轉檔任務捲軸留白與 README 快捷鍵勘誤；127/127 測試全數通過、全方案 0 警告 0 錯誤）
 
 ## 本輪目標
-依唯讀健檢結果一併修訂所有 P1／P2／P3 問題：
-1. **P1 自動更新器強化 (`UpdateService.cs`)**：將 API 檢查（8 秒）與大型更新檔下載（10 分鐘）`HttpClient` 分離、補齊下載逾時錯誤捕捉、阻擋多檔 AppHost 部署原地覆寫為單檔版、清理舊更新殘留檔，並改用 `Wait-Process` + `tasklist /FO LIST | findstr` 精確 PID 錨定、失敗還原 `.bak` 與成功後自動清除 `.bak`。
-2. **P2 舊工作階段孤兒暫存回收 (`AppPaths.cs` / `StorageMaintenanceService.cs`)**：抽出 `TemporaryRootDirectory`，按「清除暫存」時連同清理已結束或異常終止之舊 `SessionId` 暫存目錄，並透過程序名稱驗證保護仍在執行中的其他 PaperSwitch 實例。
-3. **P2 大頁數縮圖補圖與批次開檔 (`ThumbnailCacheService.cs` / `MainWindow.xaml.cs` / `MainViewModel.Conversion.cs`)**：分離縮圖（360 張）與高畫質預覽（8 張）快取池避免大圖擠出縮圖；同一份 PDF 以 `GetThumbnailsForPdfAsync` 開檔一次批次渲染後立即釋放句柄不鎖檔；`ZoomLevel` 與 `TotalPageCount` 變更一併觸發 `ScheduleViewportThumbnailSync()` 補載入。
-4. **P2 程式碼去重與職責瘦身 (`ExportFileNaming.cs` / `MainViewModel.*.cs`)**：集中 `ExportFileNaming.SanitizeFileName` 供匯出與 Excel 工作表名稱共用；移除 `MainViewModel` 未使用的 `_imageExportService`；透過 `partial class MainViewModel` 拆分出 `MainViewModel.Arrangement.cs` 與 `MainViewModel.Conversion.cs`。
-5. **P2/P3 文件與靜態檢查清理**：修正 `StorageMaintenanceTests.cs:27` `xUnit2013` 警告（全方案 0 警告）、清理 `dist/` 歷史驗收目錄（保留 `publish` 與 `release_assets`），並同步更新 `README.md` 與 `CHANGELOG.md`。
+修訂 v4.8.0 唯讀健檢確認的最後 3 項細節小問題：
+1. 補齊「＋ 加入檔案」`OpenFileDialog` 篩選清單（納入 `.xlsm`、`.xlsb`、`.csv`、`.rtf`、`.ppsx`、`.pps`、`.tif`、`.tiff`、`.ico` 等後端實際支援格式），並讓 `ImageConverterService` 支援多頁 TIFF 逐頁展開為 PDF 頁面。
+2. 修正 `MainWindow.GetVisualColumnCount()`：改為實測工作桌第一排容器個數（含精準 padding／卡片邊距備援），解決寬螢幕小縮圖下 `↑`／`↓` 偏移問題。
+3. 收合左側 `☰ 工具盒` 時將整個左側面板 `SidebarPanel` 隱藏（消除約 100px 空白直柱），並在工作桌綠標題帶左側顯示 `☰ 工具盒` 展開按鈕；同步替轉檔任務列表加上右側捲軸留白，並修正 `README.md` 快捷鍵表（移除未綁定的 `Backspace`）。
 
 ## 基準與已確認事實 (Baseline & Confirmed Facts)
-- 接手基準：Commit `42cba0d`（`main...origin/main` 同步），前期測試為 121/121 通過（含 1 筆 `xUnit2013` 警告）。
-- 本輪新增 4 項單元測試後，全方案 **125/125 通過、0 警告、0 錯誤**。
+- 接手基準：Commit `dc2d1e7`（`v4.8.0`），前期測試 125/125 通過、0 警告。
+- 本輪新增 2 項驗證測試後，全方案 **127/127 通過、0 警告、0 錯誤**。
 
 ## 已完成 (Completed)
-- `dotnet-src/src/PaperSwitch/Services/UpdateService.cs`：獨立 API／下載 `HttpClient`、`IsMultiFileDeployment`、精確 PID 等待、失敗還原及 `.bak` 清理。
-- `dotnet-src/src/PaperSwitch/Services/AppPaths.cs` & `StorageMaintenanceService.cs`：`TemporaryRootDirectory` 與 `ClearStaleSessionDirectories` 回收孤兒工作階段暫存。
-- `dotnet-src/src/PaperSwitch/Services/ThumbnailCacheService.cs` & `MainWindow.xaml.cs`：分離縮圖／預覽快取池、同 PDF 批次渲染與 `ScheduleViewportThumbnailSync` 支援縮放補圖。
-- `dotnet-src/src/PaperSwitch/Services/ExportFileNaming.cs`、`ImageExportService.cs`、`OfficeConverterService.cs`：集中 `SanitizeFileName`。
-- `dotnet-src/src/PaperSwitch/ViewModels/MainViewModel.cs`、`MainViewModel.Arrangement.cs`、`MainViewModel.Conversion.cs`：依職責拆分為局部類別並移除未使用欄位。
-- `dotnet-src/tests/PaperSwitch.Tests/StorageMaintenanceTests.cs` & `RevisionTests.cs`：消除 `xUnit2013` 警告，新增孤兒工作階段清理、更新腳本 PID／備份驗證、多檔防呆與批次縮圖無鎖檔測試。
-- `README.md`、`CHANGELOG.md`：移除過時 `F2`／預覽說明，補充工作桌與燈箱右鍵及最新修訂項目。
+- `dotnet-src/src/PaperSwitch/Services/ImageConverterService.cs`：多頁 TIFF（`.tif`/`.tiff`）逐幀轉成多頁 PDF，其餘圖片維持單幀處理避免動圖爆頁。
+- `dotnet-src/src/PaperSwitch/MainWindow.xaml`：收合工具盒時隱藏整個 `SidebarPanel` 並在綠標題列顯示 `SidebarRestoreToggle`；`TaskItemsControl` 加入右側 `4px` 留白避免貼近捲軸。
+- `dotnet-src/src/PaperSwitch/MainWindow.xaml.cs`：`GetVisualColumnCount()` 改為實測第一列卡片數＋精準備援計算；補齊 `OpenFileDialog.Filter` 支援格式清單。
+- `dotnet-src/tests/PaperSwitch.Tests/ImageConverterServiceTests.cs` & `WpfSmokeTests.cs`：新增多頁 TIFF 3 頁轉換測試，以及收合工具盒釋放寬度＋視覺列數實測對齊快照測試。
+- `README.md`：修正刪除快捷鍵說明為 `Delete`。
 
 ## 異動檔案 (Changed Files)
+- dotnet-src/src/PaperSwitch/MainWindow.xaml
 - dotnet-src/src/PaperSwitch/MainWindow.xaml.cs
-- dotnet-src/src/PaperSwitch/Services/AppPaths.cs
-- dotnet-src/src/PaperSwitch/Services/ExportFileNaming.cs
-- dotnet-src/src/PaperSwitch/Services/ImageExportService.cs
-- dotnet-src/src/PaperSwitch/Services/OfficeConverterService.cs
-- dotnet-src/src/PaperSwitch/Services/StorageMaintenanceService.cs
-- dotnet-src/src/PaperSwitch/Services/ThumbnailCacheService.cs
-- dotnet-src/src/PaperSwitch/Services/UpdateService.cs
-- dotnet-src/src/PaperSwitch/ViewModels/MainViewModel.cs
-- dotnet-src/src/PaperSwitch/ViewModels/MainViewModel.Arrangement.cs
-- dotnet-src/src/PaperSwitch/ViewModels/MainViewModel.Conversion.cs
-- dotnet-src/tests/PaperSwitch.Tests/RevisionTests.cs
-- dotnet-src/tests/PaperSwitch.Tests/StorageMaintenanceTests.cs
-- CHANGELOG.md
+- dotnet-src/src/PaperSwitch/Services/ImageConverterService.cs
+- dotnet-src/tests/PaperSwitch.Tests/ImageConverterServiceTests.cs
+- dotnet-src/tests/PaperSwitch.Tests/WpfSmokeTests.cs
 - README.md
 - HANDOFF.md
 
 ## 刻意未修改 (Do Not Do / Deliberately Omitted)
-- 保留 `WarmCozyTheme.xaml`（仍實際承擔基礎字型與按鈕／核取方塊樣式）及 `TryRenameSelectedPages` 後端測試涵蓋，未破壞既有公開契約。
-- 保留原生 `WrapPanel`（已補強同 PDF 批次開檔與縮放補圖；大型清單虛擬化面板屬架構重大改版，暫不引入第三方套件）。
-- 未升版、未 Commit、未 Push。
+- 維持既有 2D Q 版文具工坊配置與極簡工作流程，不額外堆疊複雜功能或改寫虛擬化面板。
+- 未升版（仍維持 v4.8.0，僅提交修訂至 `main`）。
 
 ## 尚未完成 (Remaining Work)
 - **P1 (阻斷/必須)**：無。
-- **P2 (重要/當次)**：無阻斷開發項目；確認結果後可決定是否提升版號與 Git 提交／推送。
-- **P3 (改善建議/暫緩)**：跨電腦、實體高 DPI 實機與完整 Office COM 轉檔人工驗收（CI runner 不含 Microsoft Office）。
+- **P2 (重要/當次)**：無；本專案功能與介面均已收斂至穩定交付水準。
+- **P3 (改善建議/暫緩)**：跨電腦與實體 Office COM 環境人工驗收。
 
 ## 驗證結果 (Validation)
 ### 已執行測試與結果
-- `pwsh -NoProfile -File dotnet-src/scripts/qa.ps1`：125／125 通過（0 警告、0 錯誤）。
+- `pwsh -NoProfile -File dotnet-src/scripts/qa.ps1`：127／127 通過（0 警告、0 錯誤）。
 - `pwsh -NoProfile -File dotnet-src/scripts/build.ps1`：成功建置標準 AppHost 版 `dist\publish\PaperSwitch.exe`（168 KB）。
 - `pwsh -NoProfile -File dotnet-src/scripts/run.ps1 -ValidateOnly`：正確指向 `D:\Development\GitHub\09_PaperSwitch\dist\publish\PaperSwitch.exe`。
+- 視覺快照覆核（`sidebar_expanded_v1.png`、`sidebar_collapsed_v1.png`）：確認 1280×800 收合後左側空白直柱完全消失，單列卡片由 9 張增為 11 張，綠標題帶左側 `☰ 工具盒` 清楚對齊。
 - `git diff --check`：通過（0 錯誤）。
 
 ## Git 狀態
-- 基準 Commit：`42cba0d`；本輪修訂檔案尚未提交。
-- Push：否。
+- 基準 Commit：`dc2d1e7`；本輪 7 個修改檔案已提交並推送至 `origin/main`（最新 Commit 以 `git rev-parse HEAD` 為準）。
+- Push：是。
 - Branch：main。
 
 ## 下一步建議動作 (Next Recommended Action)
-確認修訂結果後，如須收尾發布或推送遠端，請指示目標版本號與是否執行 `git commit` / `git push`。
+目前版本已穩定可日常使用；若後續需要對外釋出新執行檔，再依 Release 流程升版打包即可。

@@ -60,8 +60,18 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             
-            <!-- 左欄：工具盒 (高度貫穿到底) -->
-            <Border IsEnabled="{Binding CanInteract}" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="12,10" Margin="0,0,14,0">
+            <!-- 左欄：工具盒 (高度貫穿到底；收合時整欄釋放給工作桌) -->
+            <Border x:Name="SidebarPanel" IsEnabled="{Binding CanInteract}" Background="{StaticResource BrushTagBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="14" Padding="12,10" Margin="0,0,14,0">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsChecked, ElementName=SidebarToggle}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <ToggleButton x:Name="SidebarToggle" Content="☰ 工具盒" Padding="11,6" HorizontalAlignment="Left" FontWeight="Bold" FontFamily="{StaticResource GameFontFamily}" ToolTip="收合或展開操作面板" AutomationProperties.Name="收合或展開操作面板">
@@ -129,7 +139,7 @@
                                         </StackPanel>
                                     </Expander.Header>
                                     <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                                        <ItemsControl x:Name="TaskItemsControl" ItemsSource="{Binding ConversionTasks}">
+                                        <ItemsControl x:Name="TaskItemsControl" ItemsSource="{Binding ConversionTasks}" Margin="0,0,4,0">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="{x:Type models:ConversionTaskItem}">
                                                     <Border Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="1"
@@ -224,12 +234,45 @@
                         <!-- 墨綠色標題帶 (完美貼合外框圓角，告別直角溢出) -->
                         <Border BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="0,0,0,2" Background="{StaticResource BrushBannerBg}" CornerRadius="12,12,0,0" Padding="16,10">
                             <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <ToggleButton Grid.Column="0" x:Name="SidebarRestoreToggle"
+                                              IsChecked="{Binding IsChecked, ElementName=SidebarToggle, Mode=TwoWay}"
+                                              IsEnabled="{Binding CanInteract}"
+                                              Content="☰ 工具盒" Padding="10,5" Margin="0,0,12,0"
+                                              VerticalAlignment="Center" FontWeight="Bold" FontSize="12.5"
+                                              FontFamily="{StaticResource GameFontFamily}"
+                                              Foreground="{StaticResource BrushCharcoal}"
+                                              ToolTip="展開左側工具盒" AutomationProperties.Name="展開左側工具盒">
+                                    <ToggleButton.Style>
+                                        <Style TargetType="ToggleButton">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Setter Property="Cursor" Value="Hand" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <Border x:Name="RestoreSurface" Background="{StaticResource BrushCardBg}" BorderBrush="{StaticResource BrushBorderDark}" BorderThickness="2" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="RestoreSurface" Property="Background" Value="{StaticResource BrushTerracottaLight}" /></Trigger>
+                                                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="RestoreSurface" Property="BorderBrush" Value="{StaticResource BrushTerracotta}" /></Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsChecked, ElementName=SidebarToggle}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ToggleButton.Style>
+                                </ToggleButton>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="紙張工作桌" Style="{StaticResource BannerHeading}" FontSize="18" />
                                     <TextBlock Text="{Binding SummaryText}" Foreground="{StaticResource BrushBannerSubText}" FontSize="12.5" FontWeight="SemiBold" Margin="0,3,0,0" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Button ContentStringFormat="⚠ 查看失敗（{0}）" Content="{Binding FailedConversionTaskCount}" Click="ShowFailed_Click" VerticalAlignment="Center" Margin="0,0,14,0" Cursor="Hand" ToolTip="展開並定位失敗的轉檔任務">
                                         <Button.Style>
                                             <Style TargetType="Button">
